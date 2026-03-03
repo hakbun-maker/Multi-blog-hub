@@ -1,0 +1,100 @@
+version: "2.0"
+
+screen:
+  name: 스케줄러/자동화
+  route: /scheduler
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: scheduler_jobs
+    needs: [id, name, blog_id, keyword_pool, schedule_config, posts_per_run, images_per_post, status, next_run_at]
+  - resource: scheduler_logs
+    needs: [id, job_id, status, message, result, executed_at]
+  - resource: blogs
+    needs: [id, name, color]
+  - resource: posts
+    needs: [id, title, published_at, blog_id]
+
+components:
+  - id: scheduler_tab_nav
+    type: tabs
+    position: main
+    function: 자동화 규칙 / 키워드 풀 / 타임라인 / 실행 로그 탭 전환
+
+  - id: job_list
+    type: list
+    position: main
+    function: 자동화 규칙 목록 (이름, 대상 블로그, 다음 실행, 상태)
+    data_source:
+      resource: scheduler_jobs
+    events:
+      - on: click:add-job
+        do: 규칙 생성 모달 표시
+      - on: toggle:status
+        do: 규칙 활성/일시정지 토글
+      - on: click:delete
+        do: 규칙 삭제 확인 후 삭제
+
+  - id: job_create_modal
+    type: modal
+    position: overlay
+    function: 자동화 규칙 생성 (대상 블로그, 시간, 반복, 발행 수, 이미지 수)
+    events:
+      - on: submit
+        do: 스케줄 규칙 저장
+
+  - id: keyword_pool_table
+    type: table
+    position: main
+    function: 키워드 풀 목록 + 추가/삭제
+    data_source:
+      resource: scheduler_jobs
+      fields: [keyword_pool]
+    events:
+      - on: click:add
+        do: 키워드 입력 후 추가
+      - on: click:bulk-import
+        do: CSV 업로드 모달 표시
+
+  - id: schedule_calendar
+    type: calendar
+    position: main
+    function: 예약 발행 타임라인 (월/주 뷰, 블로그 고유 색상)
+    data_source:
+      resource: posts
+      filters: { status: scheduled }
+
+  - id: log_table
+    type: table
+    position: main
+    function: 실행 로그 (시각, 작업명, 상태, 발행된 글 링크)
+    data_source:
+      resource: scheduler_logs
+
+connections:
+  navigations:
+    - from: log_table
+      to: /editor/:postId
+
+tests:
+  - name: 자동화 규칙 생성
+    when: 규칙 생성 모달에서 블로그/시간/반복 설정 후 저장
+    then:
+      - 규칙 목록에 추가됨
+      - next_run_at 계산 표시
+
+  - name: 규칙 일시정지
+    when: 규칙 토글 클릭
+    then:
+      - 상태 paused로 변경
+
+  - name: 키워드 CSV 업로드
+    when: CSV 파일 업로드
+    then:
+      - 키워드 파싱 후 풀에 추가
+
+  - name: 실행 로그 확인
+    when: 실행 로그 탭 접속
+    then:
+      - 최근 실행 기록 표시 (성공/실패 상태)

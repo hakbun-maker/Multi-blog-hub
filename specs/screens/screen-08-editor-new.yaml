@@ -1,0 +1,142 @@
+version: "2.0"
+
+screen:
+  name: 글 작성 (에디터)
+  route: /editor/new
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: blogs
+    needs: [id, name, color, ai_character_config, ai_provider]
+  - resource: posts
+    needs: [id, title, content, html_content, status, keywords, tags, seo_meta, blog_id]
+  - resource: snippets
+    needs: [id, name, content, type, blog_id]
+  - resource: ai_api_keys
+    needs: [provider, is_active]
+
+components:
+  - id: editor_mode_tab
+    type: tabs
+    position: main
+    function: AI 생성 모드 / 직접 작성 모드 전환
+
+  # AI 생성 모드 컴포넌트
+  - id: keyword_input
+    type: input
+    position: main
+    function: 메인 키워드 입력
+    events:
+      - on: enter
+        do: 연관 키워드 자동 탐색
+
+  - id: related_keyword_panel
+    type: list
+    position: main
+    function: 연관 키워드 + 형태소 제안 목록
+    events:
+      - on: click:keyword-chip
+        do: 선택 키워드 토글
+
+  - id: blog_multi_select
+    type: checkbox_group
+    position: main
+    function: 발행할 블로그 체크박스 멀티 선택
+    data_source:
+      resource: blogs
+
+  - id: image_count_select
+    type: slider
+    position: main
+    function: 삽입 이미지 수 선택 (0-10)
+
+  - id: ai_generate_button
+    type: button
+    position: main
+    function: AI 글 생성 시작 + 로딩 상태 표시
+    events:
+      - on: click
+        do: AI API 호출하여 선택 블로그별 글 생성
+
+  - id: generated_post_tabs
+    type: tabs
+    position: main
+    function: 블로그별 생성된 글 탭 (블로그A | 블로그B | ...)
+
+  # 직접 작성 모드 컴포넌트
+  - id: post_editor
+    type: rich_text_editor
+    position: main
+    function: TipTap 기반 리치텍스트 에디터 (HTML 모드 전환 포함)
+    events:
+      - on: change
+        do: 자동 저장 (draft)
+
+  - id: image_uploader
+    type: uploader
+    position: main
+    function: 이미지 업로드 및 본문 삽입
+
+  # 공통 컴포넌트
+  - id: snippet_drawer
+    type: drawer
+    position: right
+    function: 스니펫 패널 (검색 + 카테고리 필터 + 원클릭 삽입)
+    data_source:
+      resource: snippets
+
+  - id: seo_meta_form
+    type: form
+    position: main
+    function: SEO 메타 정보 (메타 제목, 설명, OG 이미지)
+
+  - id: publish_button
+    type: button
+    position: main
+    function: 즉시 발행
+    events:
+      - on: click
+        do: 선택 블로그에 글 발행 후 /dashboard로 이동
+
+  - id: schedule_button
+    type: button
+    position: main
+    function: 예약 발행 설정
+    events:
+      - on: click
+        do: 예약 발행 날짜/시간 선택 모달 표시
+
+connections:
+  navigations:
+    - from: publish_button
+      to: /dashboard
+    - from: publish_button
+      to: /blogs/:id
+
+  external:
+    - ai_api (claude | openai | gemini)
+    - supabase_storage (이미지 업로드)
+
+tests:
+  - name: AI 글 생성
+    when: 키워드 입력 + 블로그 2개 선택 + AI 생성 클릭
+    then:
+      - 로딩 상태 표시
+      - 블로그별 탭에 생성된 글 표시
+
+  - name: 스니펫 삽입
+    when: 스니펫 패널에서 항목 클릭
+    then:
+      - 에디터 커서 위치에 스니펫 내용 삽입
+
+  - name: 즉시 발행
+    when: 발행 버튼 클릭
+    then:
+      - 선택 블로그에 글 발행
+      - 성공 후 대시보드로 이동
+
+  - name: 자동 저장
+    when: 에디터 내용 변경
+    then:
+      - 3초 후 draft 자동 저장

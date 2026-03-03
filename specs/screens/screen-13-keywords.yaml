@@ -1,0 +1,89 @@
+version: "2.0"
+
+screen:
+  name: SEO 키워드 탐색기
+  route: /keywords
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: keyword_searches
+    needs: [id, keyword, search_result, created_at]
+  - resource: blogs
+    needs: [id, name]
+  - resource: scheduler_jobs
+    needs: [id, name, keyword_pool]
+
+components:
+  - id: keyword_search_input
+    type: input
+    position: main
+    function: 키워드 검색 입력
+    events:
+      - on: submit
+        do: 외부 SEO API 호출하여 키워드 데이터 조회 + keyword_searches에 저장
+
+  - id: trending_keyword_list
+    type: list
+    position: main
+    function: 실시간 트렌딩 키워드 목록 (검색량, 경쟁도 표시)
+    events:
+      - on: click:keyword
+        do: 해당 키워드 상세 조회
+
+  - id: seasonal_keyword_calendar
+    type: calendar
+    position: main
+    function: 시즌성 키워드 캘린더 (월별 주요 키워드)
+
+  - id: keyword_detail_card
+    type: card
+    position: main
+    function: 키워드 상세 (검색량, 경쟁도, 관련 키워드 목록)
+    data_source:
+      resource: keyword_searches
+
+  - id: add_to_scheduler_button
+    type: button
+    position: main
+    function: 선택 키워드를 스케줄러 키워드 풀에 추가
+    events:
+      - on: click
+        do: 스케줄러 작업 선택 후 키워드 풀에 추가
+
+  - id: add_to_editor_button
+    type: button
+    position: main
+    function: 선택 키워드로 에디터 바로 열기
+    events:
+      - on: click
+        do: /editor/new?keyword=:keyword로 이동
+
+connections:
+  navigations:
+    - from: add_to_editor_button
+      to: /editor/new
+    - from: add_to_scheduler_button
+      to: /scheduler
+
+  external:
+    - seo_keyword_api (Google Trends / DataForSEO)
+
+tests:
+  - name: 키워드 검색
+    when: 키워드 입력 후 검색
+    then:
+      - 검색량, 경쟁도, 관련 키워드 표시
+      - keyword_searches에 기록 저장
+
+  - name: 에디터로 바로 이동
+    when: 키워드 선택 후 에디터로 버튼 클릭
+    then:
+      - /editor/new?keyword=:keyword로 이동
+      - 에디터에 키워드 자동 입력
+
+  - name: 스케줄러에 추가
+    when: 키워드 선택 후 스케줄러 추가 클릭
+    then:
+      - 대상 스케줄러 작업 선택 모달 표시
+      - 선택 작업의 keyword_pool에 추가됨

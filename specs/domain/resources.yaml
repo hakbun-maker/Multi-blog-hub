@@ -1,0 +1,125 @@
+version: "2.0"
+# Multi Blog Hub 도메인 리소스 정의
+
+resources:
+
+  users:
+    description: 사용자 계정
+    fields:
+      id: { type: uuid, pk: true }
+      email: { type: string }
+      name: { type: string }
+      created_at: { type: timestamp }
+
+  blogs:
+    description: 사용자가 운영하는 개별 블로그
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      name: { type: string }
+      slug: { type: string }
+      custom_domain: { type: string, nullable: true }
+      subdomain: { type: string, nullable: true }
+      description: { type: string, nullable: true }
+      ai_character_config: { type: jsonb }  # { tone, style, persona, language }
+      ai_provider: { type: string }          # claude | openai | gemini
+      is_active: { type: boolean }
+      color: { type: string }                # 블로그 구분 색상
+      created_at: { type: timestamp }
+
+  posts:
+    description: 각 블로그에 발행된 글
+    fields:
+      id: { type: uuid, pk: true }
+      blog_id: { type: uuid, fk: blogs }
+      user_id: { type: uuid, fk: users }
+      title: { type: string }
+      content: { type: text }
+      html_content: { type: text }
+      status: { type: string }               # draft | published | scheduled
+      keywords: { type: array<string> }
+      tags: { type: array<string> }
+      seo_meta: { type: jsonb }              # { meta_title, meta_desc, og_image }
+      view_count: { type: integer }
+      published_at: { type: timestamp, nullable: true }
+      created_at: { type: timestamp }
+      updated_at: { type: timestamp }
+
+  snippets:
+    description: 에디터에서 원클릭 삽입용 저장된 코드/링크
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      blog_id: { type: uuid, fk: blogs, nullable: true }  # null = 전역
+      name: { type: string }
+      content: { type: text }
+      type: { type: string }                 # html | ad_code | link | custom
+      created_at: { type: timestamp }
+
+  ai_api_keys:
+    description: 사용자 AI API 키 (암호화 저장)
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      provider: { type: string }             # claude | openai | gemini
+      encrypted_key: { type: string }
+      is_active: { type: boolean }
+      created_at: { type: timestamp }
+
+  scheduler_jobs:
+    description: 자동 발행 스케줄 규칙
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      blog_id: { type: uuid, fk: blogs }
+      name: { type: string }
+      keyword_pool: { type: jsonb }          # 키워드 배열
+      schedule_config: { type: jsonb }       # { cron, timezone, repeat_type }
+      posts_per_run: { type: integer }
+      images_per_post: { type: integer }
+      status: { type: string }               # active | paused | completed
+      next_run_at: { type: timestamp }
+      created_at: { type: timestamp }
+
+  scheduler_logs:
+    description: 스케줄러 실행 기록
+    fields:
+      id: { type: uuid, pk: true }
+      job_id: { type: uuid, fk: scheduler_jobs }
+      status: { type: string }               # success | failed | running
+      message: { type: text }
+      result: { type: jsonb }                # 발행된 post_ids 등
+      executed_at: { type: timestamp }
+
+  ad_units:
+    description: 블로그별 광고 단위 설정
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      blog_id: { type: uuid, fk: blogs }
+      name: { type: string }
+      ad_client: { type: string }            # AdSense client-ca-pub-xxx
+      ad_slot: { type: string }              # AdSense slot ID
+      position: { type: string }             # top | bottom | sidebar | in-content
+      size: { type: string }                 # responsive | 728x90 | 300x250
+      is_active: { type: boolean }
+      created_at: { type: timestamp }
+
+  keyword_searches:
+    description: SEO 키워드 탐색 이력
+    fields:
+      id: { type: uuid, pk: true }
+      user_id: { type: uuid, fk: users }
+      keyword: { type: string }
+      search_result: { type: jsonb }         # { volume, competition, related[] }
+      created_at: { type: timestamp }
+
+  stats_summary:
+    description: 통계 집계 (뷰 또는 집계 테이블)
+    fields:
+      blog_id: { type: uuid, fk: blogs }
+      date: { type: date }
+      page_views: { type: integer }
+      unique_visitors: { type: integer }
+      post_count: { type: integer }
+      estimated_revenue: { type: decimal }

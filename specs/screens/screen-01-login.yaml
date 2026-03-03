@@ -1,0 +1,60 @@
+version: "2.0"
+
+screen:
+  name: 로그인
+  route: /login
+  layout: full-width
+  auth: false
+
+data_requirements:
+  - resource: users
+    needs: [id, email]
+
+components:
+  - id: login_form
+    type: form
+    position: main
+    function: 이메일/비밀번호 로그인
+    events:
+      - on: submit
+        do: 인증 처리 후 /dashboard로 이동
+      - on: click:forgot-password
+        do: 비밀번호 재설정 이메일 발송 모달 표시
+
+  - id: social_login_buttons
+    type: list
+    position: main
+    function: Google/GitHub 소셜 로그인
+    events:
+      - on: click:google
+        do: Google OAuth 인증 시작
+      - on: click:github
+        do: GitHub OAuth 인증 시작
+
+connections:
+  navigations:
+    - from: login_form
+      to: /dashboard
+    - from: login_form
+      to: /signup
+
+  external:
+    - supabase_auth
+
+tests:
+  - name: 이메일 로그인 성공
+    when: 유효한 이메일/비밀번호 입력 후 제출
+    then:
+      - /dashboard로 이동
+      - 세션 쿠키 설정
+
+  - name: 로그인 실패
+    when: 잘못된 비밀번호 입력
+    then:
+      - 에러 메시지 표시
+      - 폼 초기화 안 됨
+
+  - name: 소셜 로그인
+    when: Google 버튼 클릭
+    then:
+      - Google OAuth 팝업 열림

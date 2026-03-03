@@ -1,0 +1,80 @@
+version: "2.0"
+
+screen:
+  name: 광고/AdSense 관리
+  route: /ads
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: ad_units
+    needs: [id, blog_id, name, ad_client, ad_slot, position, size, is_active]
+  - resource: blogs
+    needs: [id, name, color]
+  - resource: stats_summary
+    needs: [blog_id, date, estimated_revenue]
+
+components:
+  - id: ad_unit_list
+    type: list
+    position: main
+    function: 광고 단위 목록 (이름, 블로그, 위치, 크기, 활성 상태)
+    data_source:
+      resource: ad_units
+    events:
+      - on: click:add
+        do: 광고 단위 생성 모달 표시
+      - on: toggle:is_active
+        do: 광고 단위 활성/비활성 토글
+      - on: click:delete
+        do: 광고 단위 삭제
+
+  - id: ad_unit_create_modal
+    type: modal
+    position: overlay
+    function: 광고 단위 추가 (ad_client, ad_slot, 위치, 크기)
+    events:
+      - on: submit
+        do: 광고 단위 저장
+
+  - id: revenue_chart
+    type: chart
+    position: main
+    function: 예상 수익 추이 차트 (일별)
+    data_source:
+      resource: stats_summary
+
+  - id: ad_performance_table
+    type: table
+    position: main
+    function: 광고별 수익 기여 현황 (블로그명, 광고명, 추정 수익)
+    data_source:
+      resource: ad_units
+
+  - id: adsense_connect_button
+    type: button
+    position: main
+    function: AdSense 계정 연결 (OAuth)
+    events:
+      - on: click
+        do: Google AdSense OAuth 인증 시작
+
+connections:
+  external:
+    - google_adsense_api (선택적)
+
+tests:
+  - name: 광고 단위 추가
+    when: 광고 단위 생성 모달에서 코드/위치 입력 후 저장
+    then:
+      - 광고 단위 목록에 추가됨
+
+  - name: 광고 비활성화
+    when: 광고 단위 토글 클릭
+    then:
+      - is_active false로 변경
+
+  - name: 수익 차트 표시
+    when: /ads 접속
+    then:
+      - 최근 30일 수익 추이 표시

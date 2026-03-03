@@ -1,0 +1,93 @@
+version: "2.0"
+
+screen:
+  name: 블로그 상세
+  route: /blogs/:id
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: blogs
+    needs: [id, name, slug, custom_domain, subdomain, color, description]
+  - resource: posts
+    needs: [id, title, status, published_at, view_count, blog_id]
+  - resource: stats_summary
+    needs: [blog_id, date, page_views, unique_visitors]
+  - resource: snippets
+    needs: [id, name, content, type, blog_id]
+
+components:
+  - id: blog_header
+    type: header
+    position: main
+    function: 블로그 이름, 도메인, 설정 버튼 표시
+    events:
+      - on: click:settings
+        do: /blogs/:id/settings로 이동
+
+  - id: tab_nav
+    type: tabs
+    position: main
+    function: 발행글 / 통계 / 메모 탭 전환
+    events:
+      - on: change:tab
+        do: 해당 탭 콘텐츠 표시
+
+  - id: posts_tab
+    type: table
+    position: main
+    function: 글 목록 (제목, 상태, 발행일, 조회수, 편집/삭제)
+    data_source:
+      resource: posts
+      filters: { blog_id: ":id" }
+    events:
+      - on: click:edit
+        do: /editor/:postId로 이동
+      - on: click:delete
+        do: 삭제 확인 모달 표시 후 글 삭제
+
+  - id: stats_tab
+    type: chart
+    position: main
+    function: 방문자/조회수 추이 차트
+    data_source:
+      resource: stats_summary
+      filters: { blog_id: ":id" }
+
+  - id: memo_tab
+    type: list
+    position: main
+    function: 스니펫 목록 (이름, 타입, 내용 미리보기) + 추가/편집
+    data_source:
+      resource: snippets
+      filters: { blog_id: ":id" }
+    events:
+      - on: click:add-snippet
+        do: 스니펫 생성 모달 표시
+      - on: click:edit-snippet
+        do: 스니펫 편집 모달 표시
+
+connections:
+  navigations:
+    - from: blog_header
+      to: /blogs/:id/settings
+    - from: posts_tab
+      to: /editor/:id
+
+tests:
+  - name: 블로그 상세 로드
+    when: /blogs/:id 접속
+    then:
+      - 블로그 정보 헤더 표시
+      - 발행글 탭 기본 활성
+
+  - name: 글 편집 이동
+    when: 글 목록에서 편집 클릭
+    then:
+      - /editor/:postId로 이동
+
+  - name: 스니펫 추가
+    when: 메모 탭에서 스니펫 추가 클릭
+    then:
+      - 스니펫 생성 모달 표시
+      - 저장 후 목록 갱신

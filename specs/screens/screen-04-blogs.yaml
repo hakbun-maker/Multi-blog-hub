@@ -1,0 +1,64 @@
+version: "2.0"
+
+screen:
+  name: 블로그 목록
+  route: /blogs
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: blogs
+    needs: [id, name, slug, custom_domain, subdomain, color, is_active, created_at]
+  - resource: posts
+    needs: [blog_id, status]
+  - resource: stats_summary
+    needs: [blog_id, unique_visitors, post_count]
+
+components:
+  - id: blog_list_header
+    type: header
+    position: main
+    function: 총 블로그 수 표시 + 신규 블로그 생성 버튼
+    events:
+      - on: click:new-blog
+        do: /blogs/new로 이동
+
+  - id: blog_card_grid
+    type: grid
+    position: main
+    function: 블로그 카드 목록 (이름, 도메인, 최근 글 수, 방문자 수, 빠른 작성)
+    data_source:
+      resource: blogs
+    events:
+      - on: click:blog-card
+        do: /blogs/:id로 이동
+      - on: click:quick-write
+        do: /editor/new?blogId=:id로 이동
+      - on: click:settings
+        do: /blogs/:id/settings로 이동
+
+connections:
+  navigations:
+    - from: blog_list_header
+      to: /blogs/new
+    - from: blog_card_grid
+      to: /blogs/:id
+    - from: blog_card_grid
+      to: /editor/new
+
+tests:
+  - name: 블로그 목록 표시
+    when: 인증된 사용자가 /blogs 접속
+    then:
+      - 사용자 소유 블로그 카드 표시
+      - 각 카드에 도메인/방문자/글 수 표시
+
+  - name: 신규 블로그 생성
+    when: 신규 생성 버튼 클릭
+    then:
+      - /blogs/new로 이동
+
+  - name: 블로그 상세 이동
+    when: 블로그 카드 클릭
+    then:
+      - /blogs/:id로 이동

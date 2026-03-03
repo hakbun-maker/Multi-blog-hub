@@ -1,0 +1,92 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./session-memory-loader.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" session-memory-loader.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./skill-router.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" skill-router.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./context-guide-loader.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" context-guide-loader.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./agent-context-injector.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" agent-context-injector.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./git-commit-checker.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" git-commit-checker.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./post-edit-analyzer.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" post-edit-analyzer.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./error-recovery-advisor.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" error-recovery-advisor.js' || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{var h=require('path').join(require('os').homedir(),'.claude','hooks');process.chdir(h);require('./session-summary-saver.js')}catch(e){process.exit(0)}\" || bash -c '\"$HOME/.claude/hooks/hook-runner.sh\" session-summary-saver.js' || exit 0",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

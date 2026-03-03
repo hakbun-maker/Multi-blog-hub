@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\PC_1M\\\\blog_hub_project\")",
+      "Bash(node:*)"
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+version: "2.0"
+
+screen:
+  name: 통계
+  route: /stats
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: stats_summary
+    needs: [blog_id, date, page_views, unique_visitors, post_count, estimated_revenue]
+  - resource: blogs
+    needs: [id, name, color]
+  - resource: posts
+    needs: [id, title, view_count, blog_id, published_at]
+
+components:
+  - id: date_range_picker
+    type: date_picker
+    position: main
+    function: 조회 기간 선택 (기본: 최근 30일)
+    events:
+      - on: change
+        do: 선택 기간으로 통계 데이터 재조회
+
+  - id: overall_stat_cards
+    type: stat_cards
+    position: main
+    function: 전체 통계 카드 (총 방문자, 총 조회수, 총 글 수)
+    data_source:
+      resource: stats_summary
+
+  - id: blog_compare_chart
+    type: chart
+    position: main
+    function: 블로그별 방문자 비교 바 차트
+    data_source:
+      resource: stats_summary
+
+  - id: post_performance_table
+    type: table
+    position: main
+    function: 글별 성과 테이블 (조회수, 발행일, 블로그)
+    data_source:
+      resource: posts
+    events:
+      - on: click:post-row
+        do: /editor/:id로 이동
+
+  - id: trend_chart
+    type: chart
+    position: main
+    function: 일별/주별 방문자 추이 라인 차트
+    data_source:
+      resource: stats_summary
+
+connections:
+  navigations:
+    - from: post_performance_table
+      to: /editor/:id
+
+tests:
+  - name: 기간별 통계 조회
+    when: 날짜 범위 변경
+    then:
+      - 해당 기간 통계로 차트/카드 업데이트
+
+  - name: 블로그 비교 차트 표시
+    when: /stats 접속
+    then:
+      - 블로그별 방문자 바 차트 표시 (블로그 고유 색상)
+
+  - name: 글 성과 테이블 클릭
+    when: 글 행 클릭
+    then:
+      - /editor/:id로 이동
