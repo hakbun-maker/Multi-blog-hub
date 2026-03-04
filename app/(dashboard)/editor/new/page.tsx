@@ -1,0 +1,250 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Sparkles, PenLine, BookOpen, Send, Calendar, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { AIGeneratePanel } from '@/components/editor/AIGeneratePanel'
+import { PostEditor } from '@/components/editor/PostEditor'
+import { SEOMetaForm } from '@/components/editor/SEOMetaForm'
+import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
+import { useEditorStore, type GeneratedPostResult } from '@/store/editorStore'
+
+type EditorMode = 'ai' | 'manual'
+
+const BLOG_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#84cc16','#f97316']
+
+export default function EditorNewPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const initBlogId = searchParams.get('blogId')
+  const initKeyword = searchParams.get('keyword') ?? ''
+
+  const [mode, setMode] = useState<EditorMode>(initKeyword ? 'ai' : 'manual')
+  const [blogs, setBlogs] = useState<any[]>([])
+  const [generatedPosts, setGeneratedPosts] = useState<GeneratedPostResult[]>([])
+  const [activeGenTab, setActiveGenTab] = useState(0)
+  const [snippetOpen, setSnippetOpen] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const {
+    title, setTitle,
+    htmlContent, setHtmlContent,
+    selectedBlogId, setSelectedBlogId,
+    tags, setTags,
+    seoMeta, setSeoMeta,
+    currentPostId, setCurrentPostId,
+    setKeyword,
+    resetEditor,
+  } = useEditorStore()
+
+  useEffect(() => {
+    fetch('/api/blogs').then(r => r.json()).then(d => {
+      setBlogs(d.data ?? [])
+      if (initBlogId) setSelectedBlogId(initBlogId)
+    })
+    if (initKeyword) setKeyword(initKeyword)
+    return () => resetEditor()
+  }, [])
+
+  // 자동 저장 (3초 디바운스)
+  const triggerAutoSave = (html: string) => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => saveDraft(html), 3000)
+  }
+
+  const saveDraft = async (html?: string) => {
+    if (!title.trim() && !(html ?? htmlContent).trim()) return
+    setSaveStatus('saving')
+    const body = {
+      title, htmlContent: html ?? htmlContent, content: html ?? htmlContent,
+      status: 'draft', tags,
+      seoMeta: { title: seoMeta.title, description: seoMeta.description },
+      blogId: selectedBlogId,
+    }
+    const res = currentPostId
+      ? await fetch(`/api/posts/${currentPostId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      : await fetch('/api/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+    const data = await res.json()
+    if (res.ok && !currentPostId) setCurrentPostId(data.data.id)
+    setSaveStatus('saved')
+    setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  const handlePublish = async () => {
+    if (!title.trim()) { alert('제목을 입력하세요.'); return }
+    if (!selectedBlogId) { alert('발행할 블로그를 선택하세요.'); return }
+    setPublishing(true)
+    const body = {
+      title, htmlContent, content: htmlContent, status: 'published',
+      tags, seoMeta, blogId: selectedBlogId, publishedAt: new Date().toISOString(),
+    }
+    const res = currentPostId
+      ? await fetch(`/api/posts/${currentPostId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      : await fetch('/api/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+    setPublishing(false)
+    if (res.ok) router.push('/dashboard')
+  }
+
+  // AI 생성 결과를 에디터에 로드
+  const loadGeneratedPost = (post: GeneratedPostResult) => {
+    if (!post.success) return
+    setTitle(post.title ?? '')
+    setHtmlContent(post.htmlContent ?? '')
+    setSelectedBlogId(post.blogId)
+    setTags(post.tags ?? [])
+    setSeoMeta(post.seoMeta ?? { title: '', description: '' })
+    setMode('manual')
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">글 작성</h1>
+        <div className="flex items-center gap-2">
+          {saveStatus === 'saving' && <span className="text-xs text-gray-400">저장 중...</span>}
+          {saveStatus === 'saved' && <span className="text-xs text-green-500">✓ 저장됨</span>}
+          <Button size="sm" variant="outline" onClick={() => setSnippetOpen(true)}>
+            <BookOpen className="w-4 h-4 mr-1.5" />스니펫
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => saveDraft()}>임시저장</Button>
+          <Button size="sm" onClick={handlePublish} disabled={publishing}>
+            <Send className="w-4 h-4 mr-1.5" />{publishing ? '발행 중...' : '발행'}
+          </Button>
+        </div>
+      </div>
+
+      {/* 모드 탭 */}
+      <div className="flex border-b border-gray-200">
+        {([
+          { id: 'ai', label: 'AI 글 생성', icon: Sparkles },
+          { id: 'manual', label: '직접 작성', icon: PenLine },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => setMode(id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              mode === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            <Icon className="w-4 h-4" />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* AI 생성 모드 */}
+      {mode === 'ai' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <AIGeneratePanel blogs={blogs} onGenerated={posts => { setGeneratedPosts(posts); setActiveGenTab(0) }} />
+          </div>
+
+          {generatedPosts.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-gray-700">생성된 글</h2>
+              {/* 블로그별 탭 */}
+              <div className="flex gap-1 flex-wrap">
+                {generatedPosts.map((p, i) => (
+                  <button key={p.blogId} onClick={() => setActiveGenTab(i)}
+                    className={`px-3 py-1.5 text-xs rounded-full border transition-all ${
+                      activeGenTab === i ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                    }`}>
+                    {p.blogName}
+                  </button>
+                ))}
+              </div>
+
+              {generatedPosts[activeGenTab] && (() => {
+                const post = generatedPosts[activeGenTab]
+                return (
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                    {post.success ? (
+                      <>
+                        <h3 className="font-semibold text-gray-900">{post.title}</h3>
+                        <div className="text-sm text-gray-600 max-h-48 overflow-y-auto prose prose-sm"
+                          dangerouslySetInnerHTML={{ __html: post.htmlContent ?? '' }} />
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {post.tags.map(t => (
+                              <span key={t} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                        <Button size="sm" className="w-full" onClick={() => loadGeneratedPost(post)}>
+                          이 글을 에디터에서 편집하기
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-red-500">생성 실패: {post.error}</p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 직접 작성 모드 */}
+      {mode === 'manual' && (
+        <div className="space-y-4">
+          {/* 제목 */}
+          <Input value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="글 제목을 입력하세요"
+            className="text-xl font-bold border-0 border-b border-gray-200 rounded-none px-0 focus-visible:ring-0 h-auto py-2" />
+
+          {/* 블로그 선택 */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-gray-500 whitespace-nowrap">발행 블로그:</Label>
+            <select value={selectedBlogId ?? ''}
+              onChange={e => setSelectedBlogId(e.target.value || null)}
+              className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">블로그 선택</option>
+              {blogs.map((b, i) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* TipTap 에디터 */}
+          <PostEditor
+            content={htmlContent}
+            onChange={(html) => { setHtmlContent(html); triggerAutoSave(html) }}
+          />
+
+          {/* 태그 */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">태그</Label>
+            <Input
+              placeholder="태그를 쉼표로 구분해서 입력 (예: 여행, 제주도)"
+              value={tags.join(', ')}
+              onChange={e => setTags(e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
+              className="text-sm" />
+          </div>
+
+          {/* SEO 설정 */}
+          <SEOMetaForm
+            seoTitle={seoMeta.title}
+            seoDescription={seoMeta.description}
+            onTitleChange={v => setSeoMeta({ ...seoMeta, title: v })}
+            onDescChange={v => setSeoMeta({ ...seoMeta, description: v })}
+          />
+        </div>
+      )}
+
+      {/* 스니펫 드로어 */}
+      <SnippetDrawer
+        blogId={selectedBlogId}
+        isOpen={snippetOpen}
+        onClose={() => setSnippetOpen(false)}
+        onInsert={(content) => {
+          setHtmlContent(htmlContent + content)
+        }}
+      />
+    </div>
+  )
+}
