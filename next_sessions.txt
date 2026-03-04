@@ -1,0 +1,43 @@
+ 이제 해야 할 것 (순서대로)
+
+  개발을 시작하기 전 딱 하나의 준비가 필요합니다:
+
+  1. Supabase.com 에서 새 프로젝트 생성
+  2. .env.local.example 복사해서 .env.local 만들고
+     NEXT_PUBLIC_SUPABASE_URL 과 NEXT_PUBLIC_SUPABASE_ANON_KEY 입력
+  3. npm run dev → localhost:3000 확인
+
+  그 다음은 docs/planning/06-tasks.md 순서대로 진행:
+
+  Phase 0  P0-T1       프로젝트 초기화 확인
+  Phase 1  P1-R1       Supabase Auth + 미들웨어
+           P1-S0       사이드바 + 헤더 레이아웃
+  Phase 2  P2-R1~R3    Blogs/Posts/Snippets API
+           P2-S1~S7    로그인/대시보드/블로그 관리 화면
+  Phase 3  P3-R1~R2    AI API Keys + AI 글 생성
+           P3-S1~S2    에디터 화면
+  Phase 4  P4-R1~R4    스케줄러/통계/광고/키워드 API
+           P4-S1~S5    나머지 모든 화면
+
+  ---
+  돌아와서 개발할 때 지시 방법
+
+  특정 태스크 구현 요청:
+  "P1-R1-T1 구현해줘"
+  "P2-S1-T1 로그인 화면 만들어줘"
+  "P3-S1 에디터 구현 시작해줘"
+
+  여러 태스크 한번에:
+  "P2 백엔드 리소스 3개 동시에 구현해줘"
+  "Phase 1 전체 진행해줘"
+
+  현재 상태 확인:
+  "지금까지 뭐가 완료됐어?"
+  "TASKS.md 보여줘"
+
+  화면 명세 확인:
+  "screen-08 에디터 명세 보여줘"
+  "대시보드 화면에 어떤 컴포넌트가 있어?"
+
+  ---
+  푹 쉬세요! 돌아오면 .env.local 설정부터 시작하면 됩니다.

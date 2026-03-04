@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(dir \"C:\\\\Users\\\\PC_1M\\\\blog_hub_project\")",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(openssl rand -hex 16)",
+      "Bash(npx shadcn@latest add button dropdown-menu --yes)",
+      "Bash(npx shadcn@latest add input label card --yes)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx shadcn@latest add badge dialog tabs select textarea switch checkbox separator --yes)"
     ]
   }
 }
