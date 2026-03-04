@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, PenLine, BookOpen, Send, Calendar, ChevronDown } from 'lucide-react'
+import { Sparkles, PenLine, BookOpen, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,8 +14,6 @@ import { useEditorStore, type GeneratedPostResult } from '@/store/editorStore'
 
 type EditorMode = 'ai' | 'manual'
 
-const BLOG_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#84cc16','#f97316']
-
 export default function EditorNewPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -23,7 +21,7 @@ export default function EditorNewPage() {
   const initKeyword = searchParams.get('keyword') ?? ''
 
   const [mode, setMode] = useState<EditorMode>(initKeyword ? 'ai' : 'manual')
-  const [blogs, setBlogs] = useState<any[]>([])
+  const [blogs, setBlogs] = useState<{ id: string; name: string; color: string | null; ai_provider: string | null }[]>([])
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPostResult[]>([])
   const [activeGenTab, setActiveGenTab] = useState(0)
   const [snippetOpen, setSnippetOpen] = useState(false)
@@ -204,7 +202,7 @@ export default function EditorNewPage() {
               onChange={e => setSelectedBlogId(e.target.value || null)}
               className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">블로그 선택</option>
-              {blogs.map((b, i) => (
+              {blogs.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { encrypt, maskKey } from '@/lib/utils/encryption'
+import { encrypt } from '@/lib/utils/encryption'
 
 export async function GET() {
   const supabase = createClient()

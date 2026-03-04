@@ -12,8 +12,8 @@ import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
 
 export default function EditorEditPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const [post, setPost] = useState<any>(null)
-  const [blogs, setBlogs] = useState<any[]>([])
+  const [post, setPost] = useState<{ id: string; title: string; content?: string; html_content?: string; blog_id: string; tags?: string[]; seo_meta?: { title?: string; description?: string } } | null>(null)
+  const [blogs, setBlogs] = useState<{ id: string; name: string }[]>([])
   const [title, setTitle] = useState('')
   const [htmlContent, setHtmlContent] = useState('')
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null)

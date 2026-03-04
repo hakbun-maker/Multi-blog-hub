@@ -25,9 +25,9 @@ const BLOG_COLORS = [
 export default function BlogDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('posts')
-  const [blog, setBlog] = useState<any>(null)
-  const [posts, setPosts] = useState<any[]>([])
-  const [snippets, setSnippets] = useState<any[]>([])
+  const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; url?: string; is_active?: boolean; subdomain?: string; custom_domain?: string; slug?: string } | null>(null)
+  const [posts, setPosts] = useState<{ id: string; title: string | null; status: string; view_count: number | null; published_at: string | null; created_at: string }[]>([])
+  const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
   if (!blog) return null
 
   const color = blog.color ?? BLOG_COLORS[0]
-  const publishedCount = posts.filter((p: any) => p.status === 'published').length
+  const publishedCount = posts.filter((p) => p.status === 'published').length
 
   return (
     <div className="space-y-6">

@@ -29,8 +29,8 @@ const STYLES = ['설명형', '스토리텔링', '리스트형', '튜토리얼', 
 export default function BlogSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>('basic')
-  const [blog, setBlog] = useState<any>(null)
-  const [allBlogs, setAllBlogs] = useState<any[]>([])
+  const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; custom_domain?: string; is_active?: boolean; ai_provider?: string; character_name?: string; character_tone?: string; character_style?: string; persona?: string; linked_blog_ids?: string[]; ai_character_config?: Record<string, unknown> } | null>(null)
+  const [allBlogs, setAllBlogs] = useState<{ id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
@@ -64,7 +64,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       const { data: blogsData } = await blogsRes.json()
 
       setBlog(blogData)
-      setAllBlogs((blogsData ?? []).filter((b: any) => b.id !== params.id))
+      setAllBlogs((blogsData ?? []).filter((b: { id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }) => b.id !== params.id))
 
       // 폼 초기화
       setName(blogData.name ?? '')
