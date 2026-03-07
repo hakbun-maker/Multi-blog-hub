@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check } from 'lucide-react'
 
 interface AIKey {
   id: string
@@ -56,6 +56,7 @@ export default function SettingsPage() {
   const [testingId, setTestingId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, boolean>>({})
   const [addingKey, setAddingKey] = useState(false)
+  const [addResult, setAddResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -94,16 +95,23 @@ export default function SettingsPage() {
   async function addKey() {
     if (!newKey.trim()) return
     setAddingKey(true)
+    setAddResult(null)
     try {
       const res = await fetch('/api/ai-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: selectedProvider, apiKey: newKey.trim() }),
       })
+      const json = await res.json()
       if (res.ok) {
         setNewKey('')
+        setAddResult({ ok: true, message: `${ALL_PROVIDERS.find(p => p.value === selectedProvider)?.label} 키가 성공적으로 등록되었습니다.` })
         fetchAll()
+      } else {
+        setAddResult({ ok: false, message: json.error ?? '등록에 실패했습니다.' })
       }
+    } catch {
+      setAddResult({ ok: false, message: '네트워크 오류가 발생했습니다.' })
     } finally {
       setAddingKey(false)
     }
@@ -268,35 +276,47 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>텍스트 생성 AI</Label>
                   <div className="flex gap-2 flex-wrap">
-                    {TEXT_PROVIDERS.map(p => (
-                      <button
-                        key={p.value}
-                        onClick={() => setSelectedProvider(p.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                          selectedProvider === p.value
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'border-border hover:bg-muted'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+                    {TEXT_PROVIDERS.map(p => {
+                      const registered = aiKeys.some(k => k.provider === p.value)
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => setSelectedProvider(p.value)}
+                          className={`relative px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedProvider === p.value
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          {p.label}
+                          {registered && (
+                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-primary-foreground' : 'text-green-500'}`} />
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                   <Label className="mt-2 block">이미지 생성 AI</Label>
                   <div className="flex gap-2 flex-wrap">
-                    {IMAGE_PROVIDERS.map(p => (
-                      <button
-                        key={p.value}
-                        onClick={() => setSelectedProvider(p.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                          selectedProvider === p.value
-                            ? 'bg-violet-600 text-white border-violet-600'
-                            : 'border-border hover:bg-muted'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+                    {IMAGE_PROVIDERS.map(p => {
+                      const registered = aiKeys.some(k => k.provider === p.value)
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => setSelectedProvider(p.value)}
+                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedProvider === p.value
+                              ? 'bg-violet-600 text-white border-violet-600'
+                              : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          {p.label}
+                          {registered && (
+                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                   {isImageProvider(selectedProvider) && (
                     <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 mt-1">
@@ -331,6 +351,19 @@ export default function SettingsPage() {
                   {addingKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   API 키 등록
                 </Button>
+
+                {addResult && (
+                  <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                    addResult.ok
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {addResult.ok
+                      ? <CheckCircle className="h-4 w-4 shrink-0" />
+                      : <XCircle className="h-4 w-4 shrink-0" />}
+                    {addResult.message}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

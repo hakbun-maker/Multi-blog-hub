@@ -23,8 +23,71 @@ const COLORS = [
   '#ef4444','#06b6d4','#84cc16','#f97316',
 ]
 
-const TONES = ['친근함', '전문적', '유머러스', '진지함', '캐주얼', '학술적']
-const STYLES = ['설명형', '스토리텔링', '리스트형', '튜토리얼', '리뷰형', '뉴스형']
+const FIELD_GUIDES = {
+  tone: {
+    label: '글쓰기 톤',
+    description: 'AI가 글을 쓸 때 전반적으로 유지할 감정적 분위기와 어조를 서술해주세요.',
+    placeholder: `예시:
+따뜻하고 친근한 톤을 유지합니다. 독자가 친한 언니/오빠에게 이야기를 듣는 것처럼 편안하게 느끼도록 합니다. 너무 격식을 차리지 않되, 가볍고 유쾌한 분위기를 기본으로 깔아주세요. 때로는 공감하는 표현("다들 이런 경험 있으시죠?")을 섞어 독자와의 거리를 좁힙니다.
+
+다른 예시:
+- 전문적이고 신뢰감 있는 톤. 데이터와 근거를 들며, 독자가 "이 사람 진짜 아는구나" 싶은 느낌.
+- 유머러스하고 위트 있는 톤. 비유와 드립을 적절히 사용하되, 억지스럽지 않게.`,
+  },
+  style: {
+    label: '글쓰기 스타일',
+    description: '글의 구조, 전개 방식, 표현 기법 등 "어떻게 쓸 것인가"를 구체적으로 서술해주세요.',
+    placeholder: `예시:
+도입부에서 독자의 공감을 끌어내는 질문이나 상황 묘사로 시작합니다. 본문은 소제목(##)으로 나누어 스캔하기 쉽게 구성합니다. 각 섹션은 핵심 포인트 → 구체적 설명 → 실제 사례 순으로 전개합니다. 마무리는 독자에게 행동을 유도하는 한 줄 요약으로 끝냅니다.
+
+다른 예시:
+- 스토리텔링형: "지난주에 이런 일이 있었어요" 식의 경험담 중심 전개.
+- 리스트형: 번호를 매겨 깔끔하게 정리. "TOP 7", "꼭 알아야 할 5가지" 같은 포맷.
+- 비교분석형: A vs B 구조로 장단점을 표로 정리하며 결론 제시.`,
+  },
+  persona: {
+    label: '페르소나 설명',
+    description: 'AI가 어떤 인물로서 글을 쓸지 — 배경, 전문성, 성격, 경험 등을 구체적으로 묘사해주세요.',
+    placeholder: `예시:
+"나나"는 10년차 여행 블로거입니다. 30개국 이상을 방문했으며, 특히 동남아 저예산 배낭여행에 전문성이 있습니다. MBTI는 ENFP로 사람 만나는 것을 좋아하고, 현지인 맛집을 찾아다니는 것이 취미입니다. 여행지에서의 실패담도 솔직하게 공유하는 것이 특징이며, "직접 가봤으니까 말하는 건데..."라는 식의 경험 기반 서술을 선호합니다.
+
+다른 예시:
+- IT 개발자 출신 테크 리뷰어. 스펙보다 실사용 경험 중심. "3개월 써보고 내린 결론"
+- 육아 3년차 워킹맘. 현실적인 팁 위주. 광고성 리뷰 싫어하는 솔직한 성격.`,
+  },
+  writingFormat: {
+    label: '글쓰기 포맷',
+    description: '글의 뼈대(구조)를 어떤 형식으로 잡을지 구체적으로 서술해주세요.',
+    placeholder: `예시:
+[도입] 독자의 관심을 끄는 질문 또는 상황 묘사 (2~3줄)
+[본문] 소제목(##) 3~5개로 구분
+  - 각 소제목 아래 핵심 요약 한 줄 → 상세 설명 → 실제 사례/팁
+  - 중요한 정보는 **볼드**나 > 인용블록으로 강조
+  - 비교가 필요하면 표(| A | B |) 활용
+[이미지] 본문 중간에 자연스럽게 배치 (소제목 사이)
+[마무리] 핵심 내용 3줄 요약 + 독자 행동 유도 ("댓글로 알려주세요!")
+[SEO] 키워드를 제목, 첫 문단, 소제목에 자연스럽게 포함`,
+  },
+  speechExamples: {
+    label: '말투 예시',
+    description: '실제로 AI가 사용할 문장 패턴과 표현의 구체적인 예시를 적어주세요. AI가 이 말투를 참고해서 글을 씁니다.',
+    placeholder: `예시:
+✅ 사용할 표현:
+- "솔직히 말하면, 이건 진짜 대박이에요."
+- "제가 직접 써봤는데요, 결론부터 말씀드리면..."
+- "이거 모르면 손해예요, 진심으로."
+- "다들 이런 경험 있으시죠? 저도 처음엔 그랬어요."
+- "한 줄 요약: ~입니다. 끝!"
+
+❌ 피할 표현:
+- "~하는 것이 좋을 것으로 사료됩니다" (너무 딱딱함)
+- "독자 여러분께서는~" (너무 격식체)
+- "무조건 이걸 사세요!" (과장 광고 느낌)
+
+문장 길이: 한 문장은 40자 이내로 짧게. 긴 설명이 필요하면 문장을 나눠주세요.
+이모지: 소제목에 1개씩만. 본문에서는 자제.`,
+  },
+} as const
 
 export default function BlogSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -45,9 +108,11 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   // AI 캐릭터 폼
   const [aiProvider, setAiProvider] = useState('claude')
   const [characterName, setCharacterName] = useState('')
-  const [tone, setTone] = useState('친근함')
-  const [style, setStyle] = useState('설명형')
+  const [tone, setTone] = useState('')
+  const [style, setStyle] = useState('')
   const [persona, setPersona] = useState('')
+  const [writingFormat, setWritingFormat] = useState('')
+  const [speechExamples, setSpeechExamples] = useState('')
 
   // 크로스링킹
   const [linkedBlogIds, setLinkedBlogIds] = useState<string[]>([])
@@ -76,9 +141,11 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
 
       const aiConfig = blogData.ai_character_config ?? {}
       setCharacterName(aiConfig.name ?? '')
-      setTone(aiConfig.tone ?? '친근함')
-      setStyle(aiConfig.style ?? '설명형')
+      setTone(aiConfig.tone ?? '')
+      setStyle(aiConfig.style ?? '')
       setPersona(aiConfig.persona ?? '')
+      setWritingFormat(aiConfig.writingFormat ?? '')
+      setSpeechExamples(aiConfig.speechExamples ?? '')
       setLinkedBlogIds(aiConfig.linkedBlogIds ?? [])
 
       setLoading(false)
@@ -109,7 +176,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         aiProvider,
-        aiCharacterConfig: { name: characterName, tone, style, persona },
+        aiCharacterConfig: { name: characterName, tone, style, persona, writingFormat, speechExamples },
       }),
     })
     setSaving(false)
@@ -230,7 +297,8 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
 
       {/* AICharacterTab */}
       {activeTab === 'ai' && (
-        <div className="space-y-5">
+        <div className="space-y-6">
+          {/* AI 공급자 */}
           <div className="space-y-2">
             <Label>AI 공급자</Label>
             <div className="flex gap-2">
@@ -244,43 +312,45 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
               ))}
             </div>
           </div>
+
+          {/* 캐릭터 이름 */}
           <div className="space-y-1.5">
             <Label>캐릭터 이름</Label>
             <Input value={characterName} onChange={e => setCharacterName(e.target.value)}
-              placeholder="예: 여행 전문가 나나" />
+              placeholder="예: 여행 전문가 나나, IT 리뷰어 민수" />
+            <p className="text-xs text-gray-400">AI가 이 이름으로 자칭하며 글을 씁니다.</p>
           </div>
-          <div className="space-y-2">
-            <Label>글쓰기 톤</Label>
-            <div className="flex flex-wrap gap-2">
-              {TONES.map(t => (
-                <button key={t} type="button" onClick={() => setTone(t)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
-                    tone === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
-                  }`}>{t}</button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>글쓰기 스타일</Label>
-            <div className="flex flex-wrap gap-2">
-              {STYLES.map(s => (
-                <button key={s} type="button" onClick={() => setStyle(s)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
-                    style === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
-                  }`}>{s}</button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>페르소나 설명</Label>
-            <textarea
-              value={persona}
-              onChange={e => setPersona(e.target.value)}
-              rows={4}
-              placeholder="AI 캐릭터의 배경, 전문성, 글쓰기 특성을 설명해주세요..."
-              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <Button onClick={handleSaveAI} disabled={saving}>
+
+          {/* 서술형 필드들 */}
+          {([
+            { key: 'tone', value: tone, setter: setTone },
+            { key: 'style', value: style, setter: setStyle },
+            { key: 'persona', value: persona, setter: setPersona },
+            { key: 'writingFormat', value: writingFormat, setter: setWritingFormat },
+            { key: 'speechExamples', value: speechExamples, setter: setSpeechExamples },
+          ] as const).map(({ key, value, setter }) => {
+            const guide = FIELD_GUIDES[key]
+            return (
+              <div key={key} className="space-y-1.5">
+                <Label>{guide.label}</Label>
+                <p className="text-xs text-gray-500">{guide.description}</p>
+                <textarea
+                  value={value}
+                  onChange={e => setter(e.target.value)}
+                  rows={6}
+                  placeholder={guide.placeholder}
+                  className="w-full text-sm border border-gray-200 rounded-md px-3 py-2.5 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                />
+                {value.trim() && (
+                  <p className="text-xs text-green-600">
+                    {value.trim().length}자 작성됨
+                  </p>
+                )}
+              </div>
+            )
+          })}
+
+          <Button onClick={handleSaveAI} disabled={saving} className="w-full sm:w-auto">
             <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : 'AI 설정 저장'}
           </Button>
         </div>

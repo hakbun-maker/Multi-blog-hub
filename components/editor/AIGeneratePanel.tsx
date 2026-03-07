@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BlogMultiSelect } from './BlogMultiSelect'
+import { ImageGeneratePanel } from './ImageGeneratePanel'
 import { useEditorStore, type GeneratedPostResult } from '@/store/editorStore'
 
 interface Blog {
@@ -18,9 +19,10 @@ interface Blog {
 interface AIGeneratePanelProps {
   blogs: Blog[]
   onGenerated: (posts: GeneratedPostResult[]) => void
+  onImageInsert?: (html: string) => void
 }
 
-export function AIGeneratePanel({ blogs, onGenerated }: AIGeneratePanelProps) {
+export function AIGeneratePanel({ blogs, onGenerated, onImageInsert }: AIGeneratePanelProps) {
   const {
     keyword, setKeyword,
     relatedKeywords, setRelatedKeywords,
@@ -109,11 +111,19 @@ export function AIGeneratePanel({ blogs, onGenerated }: AIGeneratePanelProps) {
       {/* 이미지 수 */}
       <div className="space-y-1.5">
         <Label>이미지 수: {imageCount}개</Label>
-        <input type="range" min={0} max={10} value={imageCount}
+        <input type="range" min={0} max={4} value={imageCount}
           onChange={e => setImageCount(Number(e.target.value))}
           className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600" />
-        <p className="text-xs text-gray-400">AI가 본문에 이미지 삽입 위치를 표시합니다.</p>
+        <p className="text-xs text-gray-400">0이면 이미지 없이 글만 생성합니다. 최대 4개.</p>
       </div>
+
+      {/* 이미지 생성 패널 (imageCount > 0일 때 표시) */}
+      {imageCount > 0 && onImageInsert && (
+        <ImageGeneratePanel
+          count={imageCount}
+          onInsert={onImageInsert}
+        />
+      )}
 
       {/* 블로그 선택 */}
       <div className="space-y-1.5">

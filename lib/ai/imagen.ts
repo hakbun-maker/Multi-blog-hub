@@ -1,11 +1,10 @@
 /**
- * Google Imagen 어댑터
+ * Google 이미지 생성 어댑터
  *
- * Google Imagen 3 API를 사용한 이미지 생성
- * API 문서: https://cloud.google.com/vertex-ai/generative-ai/docs/image/generate-images
+ * 1순위: Imagen 3 (imagen-3.0-generate-001) — 일부 지역/키에서 사용 불가
+ * 2순위: Gemini 2.0 Flash Image Generation — 동일 API 키, 더 넓은 가용성
  *
- * 인증: Google AI Studio API Key (Gemini API Key와 동일)
- * - 엔드포인트: https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict
+ * 인증: Google AI Studio API Key (AIzaSy...)
  */
 
 export interface GenerateImageParams {
@@ -16,7 +15,7 @@ export interface GenerateImageParams {
 }
 
 export interface GeneratedImage {
-  base64: string          // base64 인코딩된 PNG 이미지
+  base64: string
   mimeType: string
 }
 
@@ -31,18 +30,33 @@ export class ImagenAdapter {
   async generateImage(params: GenerateImageParams): Promise<GeneratedImage[]> {
     const { prompt, negativePrompt, count = 1, aspectRatio = '16:9' } = params
 
-    const response = await fetch(
+    // 1순위: Imagen 3
+    try {
+      return await this._generateWithImagen3(prompt, negativePrompt, count, aspectRatio)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      // 404 = 지역/키 미지원 → Gemini Flash로 폴백
+      if (msg.includes('404') || msg.includes('not found') || msg.includes('not supported')) {
+        return await this._generateWithGeminiFlash(prompt, aspectRatio, count)
+      }
+      throw err
+    }
+  }
+
+  /** Imagen 3 (predict 엔드포인트) */
+  private async _generateWithImagen3(
+    prompt: string,
+    negativePrompt: string | undefined,
+    count: number,
+    aspectRatio: string
+  ): Promise<GeneratedImage[]> {
+    const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${this.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instances: [
-            {
-              prompt,
-              ...(negativePrompt ? { negativePrompt } : {}),
-            },
-          ],
+          instances: [{ prompt, ...(negativePrompt ? { negativePrompt } : {}) }],
           parameters: {
             sampleCount: Math.min(Math.max(count, 1), 4),
             aspectRatio,
@@ -53,19 +67,18 @@ export class ImagenAdapter {
       }
     )
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
       throw new Error(
-        `Imagen API 오류 (${response.status}): ${
-          (err as { error?: { message?: string } })?.error?.message ?? response.statusText
+        `Imagen API 오류 (${res.status}): ${
+          (err as { error?: { message?: string } })?.error?.message ?? res.statusText
         }`
       )
     }
 
-    const data = (await response.json()) as {
+    const data = (await res.json()) as {
       predictions?: { bytesBase64Encoded?: string; mimeType?: string }[]
     }
-
     return (data.predictions ?? []).map(p => ({
       base64: p.bytesBase64Encoded ?? '',
       mimeType: p.mimeType ?? 'image/png',
@@ -73,9 +86,70 @@ export class ImagenAdapter {
   }
 
   /**
-   * API 키 유효성 검증
-   * 작은 1:1 이미지 1장 생성 시도로 테스트
+   * Gemini 2.0 Flash Image Generation (generateContent 엔드포인트)
+   * Imagen 3를 사용할 수 없는 지역/키에서 자동으로 사용됩니다.
+   * count만큼 순차 요청합니다 (Gemini Flash는 1회에 1장 생성).
    */
+  private async _generateWithGeminiFlash(
+    prompt: string,
+    aspectRatio: string,
+    count: number
+  ): Promise<GeneratedImage[]> {
+    const aspectHint: Record<string, string> = {
+      '16:9': 'landscape 16:9 aspect ratio',
+      '9:16': 'portrait 9:16 aspect ratio',
+      '1:1': 'square 1:1 aspect ratio',
+      '4:3': '4:3 aspect ratio',
+      '3:4': '3:4 portrait aspect ratio',
+    }
+    const fullPrompt = `${prompt}. ${aspectHint[aspectRatio] ?? ''}`
+
+    const results: GeneratedImage[] = []
+    const total = Math.min(Math.max(count, 1), 4)
+
+    for (let i = 0; i < total; i++) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${this.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          }),
+        }
+      )
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(
+          `Gemini Image API 오류 (${res.status}): ${
+            (err as { error?: { message?: string } })?.error?.message ?? res.statusText
+          }`
+        )
+      }
+
+      const data = (await res.json()) as {
+        candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[]
+      }
+
+      const parts = data.candidates?.[0]?.content?.parts ?? []
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          results.push({
+            base64: part.inlineData.data,
+            mimeType: part.inlineData.mimeType ?? 'image/png',
+          })
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error('이미지가 생성되지 않았습니다. 프롬프트를 영어로 수정하거나 다른 내용을 시도해보세요.')
+    }
+    return results
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       const images = await this.generateImage({

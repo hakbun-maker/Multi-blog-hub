@@ -7,6 +7,8 @@ export interface AICharacterConfig {
   tone?: string
   style?: string
   persona?: string
+  writingFormat?: string
+  speechExamples?: string
 }
 
 export interface GeneratePostParams {
@@ -37,10 +39,16 @@ export function buildPrompt(params: GeneratePostParams): string {
   const { keyword, relatedKeywords = [], characterConfig = {}, targetLength = 'medium' } = params
   const lengthMap = { short: '500~800자', medium: '1200~1800자', long: '2500~3500자' }
 
-  return `당신은 SEO 최적화 블로그 글을 작성하는 전문 작가입니다.
-${characterConfig.persona ? `캐릭터 설정: ${characterConfig.persona}` : ''}
-${characterConfig.tone ? `글쓰기 톤: ${characterConfig.tone}` : ''}
-${characterConfig.style ? `글쓰기 스타일: ${characterConfig.style}` : ''}
+  const sections = [
+    '당신은 SEO 최적화 블로그 글을 작성하는 전문 작가입니다.',
+    characterConfig.persona ? `\n## 페르소나\n${characterConfig.persona}` : '',
+    characterConfig.tone ? `\n## 글쓰기 톤\n${characterConfig.tone}` : '',
+    characterConfig.style ? `\n## 글쓰기 스타일\n${characterConfig.style}` : '',
+    characterConfig.writingFormat ? `\n## 글쓰기 포맷\n${characterConfig.writingFormat}` : '',
+    characterConfig.speechExamples ? `\n## 말투 예시 (이 말투를 참고하여 작성)\n${characterConfig.speechExamples}` : '',
+  ].filter(Boolean).join('\n')
+
+  return `${sections}
 
 다음 조건으로 블로그 글을 작성하세요:
 - 주제 키워드: ${keyword}

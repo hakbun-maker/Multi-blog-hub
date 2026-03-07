@@ -138,7 +138,11 @@ export default function EditorNewPage() {
       {mode === 'ai' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
-            <AIGeneratePanel blogs={blogs} onGenerated={posts => { setGeneratedPosts(posts); setActiveGenTab(0) }} />
+            <AIGeneratePanel
+            blogs={blogs}
+            onGenerated={posts => { setGeneratedPosts(posts); setActiveGenTab(0) }}
+            onImageInsert={(html) => setHtmlContent(htmlContent + html)}
+          />
           </div>
 
           {generatedPosts.length > 0 && (

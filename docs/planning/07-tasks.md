@@ -706,7 +706,7 @@ flowchart TD
 
 ### P5-R1: Image Generation API
 
-#### [ ] P5-R1-T1: Google Imagen 어댑터 구현
+#### [x] P5-R1-T1: Google Imagen 어댑터 구현
 - **담당**: backend-specialist
 - **리소스**: `ai_api_keys` (provider='imagen' 추가)
 - **아키텍처**: `ImagenAdapter` 클래스 — `AIAdapter`와 별도 `ImageAdapter` 인터페이스
@@ -717,7 +717,7 @@ flowchart TD
   - [x] `lib/ai/imagen.ts`: `ImagenAdapter` 구현 (`generateImage`, `testConnection`)
   - [x] `lib/ai/adapter.ts`: `ImageProvider`, `AnyAIProvider` 타입, `createImageAdapter()` 팩토리 추가
   - [x] `supabase/migrations/010_imagen_provider.sql`: CHECK 제약 조건에 `imagen` 추가
-  - [ ] `app/api/ai/generate-image/route.ts`: `POST /api/ai/generate-image`
+  - [x] `app/api/ai/generate-image/route.ts`: `POST /api/ai/generate-image`
     - 입력: `{ prompt, count, aspectRatio, blogId }`
     - 출력: `{ images: [{ base64, mimeType }] }`
     - Supabase Storage에 업로드 후 공개 URL 반환
@@ -728,7 +728,7 @@ flowchart TD
   - `app/api/ai/generate-image/route.ts`
 - **TDD**: `tests/lib/imagen.test.ts` → 구현
 
-#### [ ] P5-R1-T2: 이미지 생성 → Supabase Storage 업로드
+#### [x] P5-R1-T2: 이미지 생성 → Supabase Storage 업로드
 - **담당**: backend-specialist
 - **로직**:
   1. Imagen API에서 base64 이미지 수신
@@ -750,7 +750,7 @@ flowchart TD
   - [x] Imagen 선택 시 설명 노트 표시 (Google AI Studio 키 안내)
   - [x] 등록된 키 목록에 `이미지 생성` / `텍스트 생성` 배지 표시
 
-#### [ ] P5-S1-T2: 에디터 이미지 생성 패널
+#### [x] P5-S1-T2: 에디터 이미지 생성 패널
 - **담당**: frontend-specialist
 - **화면**: /editor/new (기존 P3-S1 확장)
 - **컴포넌트 변경**:
