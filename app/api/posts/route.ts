@@ -30,22 +30,28 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { blogId, title, content, htmlContent, status, keywords, tags, seoMeta } = body
+  const { blogId, title, htmlContent, status, tags, seoMeta } = body
 
-  if (!blogId) return NextResponse.json({ error: 'blogId는 필수입니다.' }, { status: 400 })
+  // 발행 시에만 blogId 필수
+  if (status === 'published' && !blogId) {
+    return NextResponse.json({ error: 'blogId는 필수입니다.' }, { status: 400 })
+  }
+
+  const finalTitle = (title && title.trim()) ? title : '제목없음'
+  const slug = finalTitle.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now()
 
   const { data, error } = await supabase
     .from('posts')
     .insert({
-      blog_id: blogId,
+      ...(blogId ? { blog_id: blogId } : {}),
       user_id: user.id,
-      title: title ?? '',
-      content: content ?? '',
-      html_content: htmlContent ?? '',
+      title: finalTitle,
+      slug,
+      content_html: htmlContent ?? '',
       status: status ?? 'draft',
-      keywords: keywords ?? [],
-      tags: tags ?? [],
-      seo_meta: seoMeta ?? {},
+      keyword: Array.isArray(tags) ? tags.join(',') : '',
+      seo_title: seoMeta?.title ?? '',
+      meta_description: seoMeta?.description ?? '',
       ...(status === 'published' && { published_at: new Date().toISOString() }),
     })
     .select()

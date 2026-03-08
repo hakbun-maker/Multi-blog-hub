@@ -15,7 +15,6 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // encrypted_key를 노출하지 않고 마스킹된 키만 반환
   const masked = (data ?? []).map(k => {
     let maskedKey = '••••••••'
     try {
@@ -33,8 +32,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const body = await request.json()
-  const { provider, apiKey } = body
+  const { provider, apiKey } = await request.json()
 
   if (!provider || !apiKey) {
     return NextResponse.json({ error: 'provider와 apiKey는 필수입니다.' }, { status: 400 })

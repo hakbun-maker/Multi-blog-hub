@@ -5,13 +5,17 @@ import { useState, useCallback } from 'react'
 export interface Post {
   id: string
   blog_id: string
+  user_id: string
   title: string
-  content: string
-  html_content: string
+  slug: string
+  content_html: string
   status: string
-  tags: string[]
-  seo_meta: { title: string; description: string }
-  view_count: number
+  source_type: string
+  keyword: string
+  focus_keyword: string
+  seo_title: string
+  meta_description: string
+  reference_links: string
   published_at: string | null
   created_at: string
 }

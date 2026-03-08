@@ -9,7 +9,14 @@
       "Bash(npx shadcn@latest add input label card --yes)",
       "Bash(npx tsc --noEmit)",
       "Bash(npx shadcn@latest add badge dialog tabs select textarea switch checkbox separator --yes)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npx next build)",
+      "Bash(ls \"c:/Users/PC_1M/blog_hub_project/app/\\(dashboard\\)/editor/\")",
+      "Bash(ls \"c:/Users/PC_1M/blog_hub_project/app/\\(dashboard\\)/editor/[id]/\")",
+      "Bash(ls /c/Users/PC_1M/blog_hub_project/app/\\\\\\(dashboard\\\\\\)/editor/)",
+      "Bash(ls /c/Users/PC_1M/blog_hub_project/app/\\\\\\(dashboard\\\\\\)/)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(npm ls sharp)"
     ]
   }
 }

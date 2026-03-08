@@ -6,7 +6,7 @@ export class OpenAIAdapter implements AIAdapter {
 
   constructor(private apiKey: string) {}
 
-  async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
+  private async callOpenAI(prompt: string): Promise<string> {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -16,7 +16,7 @@ export class OpenAIAdapter implements AIAdapter {
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 4096,
-        messages: [{ role: 'user', content: buildPrompt(params) }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     })
 
@@ -26,7 +26,15 @@ export class OpenAIAdapter implements AIAdapter {
     }
 
     const data = await response.json()
-    const text = data.choices?.[0]?.message?.content ?? ''
+    return data.choices?.[0]?.message?.content ?? ''
+  }
+
+  async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
+    const text = await this.callOpenAI(buildPrompt(params))
     return parseAIResponse(text, params.blogId)
+  }
+
+  async generateText(prompt: string): Promise<string> {
+    return this.callOpenAI(prompt)
   }
 }

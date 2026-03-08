@@ -15,7 +15,7 @@
 | P2 | 블로그 관리 핵심 | 14 | ⬜ |
 | P3 | 에디터 + AI 통합 | 8 | ⬜ |
 | P4 | 자동화 + 통계 + 광고 + 키워드 | 18 | ⬜ |
-| P5 | AI 이미지 생성 (Google Imagen) | 4 | ⬜ |
+| P5 | AI 이미지 생성 (Google Imagen) | 4 | ✅ |
 | **합계** | | **49** | |
 
 ---
@@ -762,11 +762,11 @@ flowchart TD
   - `components/editor/AIGeneratePanel.tsx` (수정)
   - `components/editor/ImageGeneratePanel.tsx` (신규)
 
-#### [ ] P5-S1-V: 이미지 생성 검증
+#### [x] P5-S1-V: 이미지 생성 검증
 - **검증 항목**:
-  - [ ] Imagen API 키 등록 → 테스트 성공
-  - [ ] 에디터에서 이미지 생성 → Supabase Storage 업로드 → 에디터 삽입
-  - [ ] 스케줄러 cron 실행 시 imageCount > 0이면 이미지 자동 생성 + 글에 포함
+  - [x] Imagen API 키 등록 → 테스트 성공
+  - [x] 에디터에서 이미지 생성 → Supabase Storage 업로드 → 에디터 삽입
+  - [x] 스케줄러 cron 실행 시 imageCount > 0이면 이미지 자동 생성 + 글에 포함
 
 ---
 

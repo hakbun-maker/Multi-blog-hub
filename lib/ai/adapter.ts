@@ -32,6 +32,7 @@ export interface GeneratedPost {
 export interface AIAdapter {
   provider: AIProvider
   generatePost(params: GeneratePostParams): Promise<GeneratedPost>
+  generateText(prompt: string): Promise<string>
 }
 
 // 공통 프롬프트 빌더

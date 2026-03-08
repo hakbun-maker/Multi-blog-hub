@@ -6,7 +6,7 @@ export class ClaudeAdapter implements AIAdapter {
 
   constructor(private apiKey: string) {}
 
-  async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
+  private async callClaude(prompt: string): Promise<string> {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -15,9 +15,9 @@ export class ClaudeAdapter implements AIAdapter {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
-        messages: [{ role: 'user', content: buildPrompt(params) }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     })
 
@@ -27,7 +27,15 @@ export class ClaudeAdapter implements AIAdapter {
     }
 
     const data = await response.json()
-    const text = data.content?.[0]?.text ?? ''
+    return data.content?.[0]?.text ?? ''
+  }
+
+  async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
+    const text = await this.callClaude(buildPrompt(params))
     return parseAIResponse(text, params.blogId)
+  }
+
+  async generateText(prompt: string): Promise<string> {
+    return this.callClaude(prompt)
   }
 }

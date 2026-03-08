@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check } from 'lucide-react'
 
 interface AIKey {
@@ -54,7 +55,7 @@ export default function SettingsPage() {
   const [newKey, setNewKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<Record<string, boolean>>({})
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [addingKey, setAddingKey] = useState(false)
   const [addResult, setAddResult] = useState<{ ok: boolean; message: string } | null>(null)
 
@@ -120,16 +121,33 @@ export default function SettingsPage() {
   async function testKey(id: string) {
     setTestingId(id)
     try {
-      const res = await fetch('/api/ai-keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', keyId: id }),
-      })
+      const res = await fetch(`/api/ai-keys/${id}`, { method: 'POST' })
       const json = await res.json()
-      setTestResults(prev => ({ ...prev, [id]: json.success ?? false }))
+      setTestResults(prev => ({
+        ...prev,
+        [id]: { success: json.success ?? false, message: json.message ?? '' },
+      }))
+    } catch {
+      setTestResults(prev => ({
+        ...prev,
+        [id]: { success: false, message: '네트워크 오류' },
+      }))
     } finally {
       setTestingId(null)
     }
+  }
+
+  async function toggleKey(id: string, currentActive: boolean) {
+    try {
+      const res = await fetch(`/api/ai-keys/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !currentActive }),
+      })
+      if (res.ok) {
+        setAIKeys(prev => prev.map(k => k.id === id ? { ...k, is_active: !currentActive } : k))
+      }
+    } catch { /* ignore */ }
   }
 
   async function deleteKey(id: string) {
@@ -226,42 +244,60 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground text-center py-4">등록된 API 키가 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
-                    {aiKeys.map(key => (
-                      <div key={key.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{providerLabel(key.provider)}</span>
-                              <Badge variant={isImageProvider(key.provider) ? 'outline' : 'default'}>
-                                {isImageProvider(key.provider) ? '이미지 생성' : '텍스트 생성'}
-                              </Badge>
-                              <Badge variant={key.is_active ? 'secondary' : 'outline'}>
-                                {key.is_active ? '활성' : '비활성'}
-                              </Badge>
-                              {key.id in testResults && (
-                                testResults[key.id]
-                                  ? <CheckCircle className="h-4 w-4 text-green-500" />
-                                  : <XCircle className="h-4 w-4 text-destructive" />
-                              )}
+                    {aiKeys.map(key => {
+                      const result = testResults[key.id]
+                      return (
+                        <div key={key.id} className={`p-3 border rounded-lg ${!key.is_active ? 'opacity-60' : ''}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">{providerLabel(key.provider)}</span>
+                                  <Badge variant={isImageProvider(key.provider) ? 'outline' : 'default'}>
+                                    {isImageProvider(key.provider) ? '이미지 생성' : '텍스트 생성'}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground font-mono mt-0.5">{key.masked_key}</p>
+                              </div>
                             </div>
-                            <p className="text-xs text-muted-foreground font-mono mt-0.5">{key.masked_key}</p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <Switch
+                                  checked={key.is_active}
+                                  onCheckedChange={() => toggleKey(key.id, key.is_active)}
+                                />
+                                <span className="text-xs text-muted-foreground w-8">
+                                  {key.is_active ? '활성' : '비활성'}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => testKey(key.id)}
+                                disabled={testingId === key.id}
+                              >
+                                {testingId === key.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '테스트'}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => deleteKey(key.id)}>
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </div>
                           </div>
+                          {result && (
+                            <div className={`flex items-center gap-1.5 mt-2 text-xs px-2.5 py-1.5 rounded ${
+                              result.success
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}>
+                              {result.success
+                                ? <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                                : <XCircle className="h-3.5 w-3.5 shrink-0" />}
+                              {result.message}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => testKey(key.id)}
-                            disabled={testingId === key.id}
-                          >
-                            {testingId === key.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '테스트'}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => deleteKey(key.id)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

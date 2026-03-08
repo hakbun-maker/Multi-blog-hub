@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { createAIAdapter } from '@/lib/ai/adapter'
+import { createAIAdapter, createImageAdapter } from '@/lib/ai/adapter'
 import { decrypt } from '@/lib/utils/encryption'
+import { uploadImageFromBase64 } from '@/lib/storage/uploadImage'
 
 export async function POST(request: Request) {
   // Vercel Cron 인증
@@ -82,13 +83,41 @@ async function runJob(supabase: ReturnType<typeof createClient>, job: Record<str
           blogId: blog.id as string,
         })
 
+        // imageCount > 0이면 이미지 자동 생성 + HTML에 삽입
+        let finalHtml = generated.htmlContent
+        const imageCount = (job.image_count as number) ?? 0
+        if (imageCount > 0 && keyMap['imagen']) {
+          try {
+            const imgAdapter = await createImageAdapter('imagen', keyMap['imagen'])
+            if (imgAdapter) {
+              const images = await imgAdapter.generateImage({
+                prompt: `Blog illustration for: ${generated.title}`,
+                count: Math.min(imageCount, 4),
+                aspectRatio: '16:9',
+              })
+              const urls = await Promise.all(
+                images.map(img => uploadImageFromBase64(img.base64, img.mimeType, userId))
+              )
+              // 이미지를 HTML 본문 상단에 삽입
+              const imgTags = urls.map(url => `<img src="${url}" alt="${generated.title}" style="max-width:100%;height:auto;margin:1em 0;" />`).join('\n')
+              finalHtml = imgTags + '\n' + finalHtml
+            }
+          } catch {
+            // 이미지 생성 실패해도 글 발행은 계속
+          }
+        }
+
         const { data: post } = await supabase
           .from('posts')
           .insert({
             blog_id: blog.id, user_id: userId,
-            title: generated.title, content: generated.content,
-            html_content: generated.htmlContent, tags: generated.tags,
-            seo_meta: generated.seoMeta, status: 'published',
+            title: generated.title,
+            slug: generated.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now(),
+            content_html: finalHtml,
+            keyword: Array.isArray(generated.tags) ? generated.tags.join(',') : '',
+            seo_title: generated.seoMeta?.title ?? '',
+            meta_description: generated.seoMeta?.description ?? '',
+            status: 'published',
             published_at: new Date().toISOString(),
           })
           .select('id').single()

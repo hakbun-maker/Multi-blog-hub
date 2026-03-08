@@ -12,7 +12,7 @@ import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
 
 export default function EditorEditPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const [post, setPost] = useState<{ id: string; title: string; content?: string; html_content?: string; blog_id: string; tags?: string[]; seo_meta?: { title?: string; description?: string } } | null>(null)
+  const [post, setPost] = useState<{ id: string; title: string; content_html?: string; blog_id: string; keyword?: string; seo_title?: string; meta_description?: string } | null>(null)
   const [blogs, setBlogs] = useState<{ id: string; name: string }[]>([])
   const [title, setTitle] = useState('')
   const [htmlContent, setHtmlContent] = useState('')
@@ -32,10 +32,10 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
       const p = postData.data
       setPost(p)
       setTitle(p.title ?? '')
-      setHtmlContent(p.html_content ?? '')
+      setHtmlContent(p.content_html ?? '')
       setSelectedBlogId(p.blog_id ?? null)
-      setTags(p.tags ?? [])
-      setSeoMeta(p.seo_meta ?? { title: '', description: '' })
+      setTags(p.keyword ? p.keyword.split(',').map((t: string) => t.trim()).filter(Boolean) : [])
+      setSeoMeta({ title: p.seo_title ?? '', description: p.meta_description ?? '' })
       setBlogs(blogsData.data ?? [])
     })
   }, [params.id])
@@ -51,7 +51,7 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title, htmlContent: html ?? htmlContent, content: html ?? htmlContent,
+        title, htmlContent: html ?? htmlContent,
         status: 'draft', tags, seoMeta,
       }),
     })
@@ -66,7 +66,7 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title, htmlContent, content: htmlContent,
+        title, htmlContent,
         status: 'published', tags, seoMeta,
         publishedAt: new Date().toISOString(),
         blogId: selectedBlogId,

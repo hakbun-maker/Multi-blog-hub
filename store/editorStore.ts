@@ -14,7 +14,7 @@ export interface GeneratedPostResult {
 
 interface EditorStore {
   // AI 생성 모드
-  keyword: string
+  keywords: string[]
   relatedKeywords: string[]
   selectedBlogIds: string[]
   imageCount: number
@@ -31,7 +31,7 @@ interface EditorStore {
   seoMeta: { title: string; description: string }
 
   // Actions
-  setKeyword: (k: string) => void
+  setKeywords: (kws: string[]) => void
   setRelatedKeywords: (kws: string[]) => void
   toggleBlogId: (id: string) => void
   setImageCount: (n: number) => void
@@ -48,10 +48,10 @@ interface EditorStore {
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
-  keyword: '',
+  keywords: [],
   relatedKeywords: [],
   selectedBlogIds: [],
-  imageCount: 0,
+  imageCount: 1,
   isGenerating: false,
   generatedPosts: [],
   currentPostId: null,
@@ -62,7 +62,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   tags: [],
   seoMeta: { title: '', description: '' },
 
-  setKeyword: (keyword) => set({ keyword }),
+  setKeywords: (keywords) => set({ keywords }),
   setRelatedKeywords: (relatedKeywords) => set({ relatedKeywords }),
   toggleBlogId: (id) => set((s) => ({
     selectedBlogIds: s.selectedBlogIds.includes(id)

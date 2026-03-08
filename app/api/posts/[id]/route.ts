@@ -23,18 +23,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { title, content, htmlContent, status, keywords, tags, seoMeta } = body
+  const { title, htmlContent, status, tags, seoMeta, blogId } = body
+
+  // 제목이 비어 있으면 '제목없음' 기본값
+  const finalTitle = title !== undefined ? ((title && title.trim()) ? title : '제목없음') : undefined
 
   const { data, error } = await supabase
     .from('posts')
     .update({
-      ...(title !== undefined && { title }),
-      ...(content !== undefined && { content }),
-      ...(htmlContent !== undefined && { html_content: htmlContent }),
+      ...(finalTitle !== undefined && { title: finalTitle }),
+      ...(htmlContent !== undefined && { content_html: htmlContent }),
       ...(status !== undefined && { status }),
-      ...(keywords !== undefined && { keywords }),
-      ...(tags !== undefined && { tags }),
-      ...(seoMeta !== undefined && { seo_meta: seoMeta }),
+      ...(tags !== undefined && { keyword: Array.isArray(tags) ? tags.join(',') : '' }),
+      ...(seoMeta !== undefined && { seo_title: seoMeta?.title ?? '', meta_description: seoMeta?.description ?? '' }),
+      ...(blogId !== undefined && { blog_id: blogId }),
       ...(status === 'published' && { published_at: new Date().toISOString() }),
     })
     .eq('id', params.id)
