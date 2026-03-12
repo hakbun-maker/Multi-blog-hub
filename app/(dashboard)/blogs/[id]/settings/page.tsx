@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save, Trash2, Pencil, X } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Pencil, X, Sparkles, RotateCw, Loader2, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCategories } from '@/hooks/useCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,76 +25,198 @@ const COLORS = [
   '#ef4444','#06b6d4','#84cc16','#f97316',
 ]
 
-const FIELD_GUIDES = {
-  tone: {
-    label: '글쓰기 톤',
-    description: 'AI가 글을 쓸 때 전반적으로 유지할 감정적 분위기와 어조를 서술해주세요.',
-    placeholder: `예시:
-따뜻하고 친근한 톤을 유지합니다. 독자가 친한 언니/오빠에게 이야기를 듣는 것처럼 편안하게 느끼도록 합니다. 너무 격식을 차리지 않되, 가볍고 유쾌한 분위기를 기본으로 깔아주세요. 때로는 공감하는 표현("다들 이런 경험 있으시죠?")을 섞어 독자와의 거리를 좁힙니다.
+const BLOG_TYPES = [
+  { value: 'legal', label: '법률' },
+  { value: 'finance', label: '금융/재테크' },
+  { value: 'medical', label: '의료/건강' },
+  { value: 'it-tech', label: 'IT/테크' },
+  { value: 'education', label: '교육' },
+  { value: 'beauty-fashion', label: '뷰티/패션' },
+  { value: 'food', label: '음식/요리' },
+  { value: 'travel', label: '여행' },
+  { value: 'parenting', label: '육아/가족' },
+  { value: 'lifestyle', label: '라이프스타일' },
+  { value: 'real-estate', label: '부동산' },
+  { value: 'business', label: '비즈니스/마케팅' },
+  { value: 'entertainment', label: '엔터테인먼트' },
+  { value: 'sports', label: '스포츠/피트니스' },
+  { value: 'pets', label: '반려동물' },
+  { value: 'automotive', label: '자동차' },
+  { value: 'interior', label: '인테리어/홈' },
+  { value: 'news', label: '뉴스/시사' },
+  { value: 'science', label: '과학/기술' },
+  { value: 'other', label: '기타' },
+]
 
-다른 예시:
-- 전문적이고 신뢰감 있는 톤. 데이터와 근거를 들며, 독자가 "이 사람 진짜 아는구나" 싶은 느낌.
-- 유머러스하고 위트 있는 톤. 비유와 드립을 적절히 사용하되, 억지스럽지 않게.`,
-  },
-  style: {
-    label: '글쓰기 스타일',
-    description: '글의 구조, 전개 방식, 표현 기법 등 "어떻게 쓸 것인가"를 구체적으로 서술해주세요.',
-    placeholder: `예시:
-도입부에서 독자의 공감을 끌어내는 질문이나 상황 묘사로 시작합니다. 본문은 소제목(##)으로 나누어 스캔하기 쉽게 구성합니다. 각 섹션은 핵심 포인트 → 구체적 설명 → 실제 사례 순으로 전개합니다. 마무리는 독자에게 행동을 유도하는 한 줄 요약으로 끝냅니다.
+// ─── AI 캐릭터 필드 정의 ───
 
-다른 예시:
-- 스토리텔링형: "지난주에 이런 일이 있었어요" 식의 경험담 중심 전개.
-- 리스트형: 번호를 매겨 깔끔하게 정리. "TOP 7", "꼭 알아야 할 5가지" 같은 포맷.
-- 비교분석형: A vs B 구조로 장단점을 표로 정리하며 결론 제시.`,
-  },
-  persona: {
-    label: '페르소나 설명',
-    description: 'AI가 어떤 인물로서 글을 쓸지 — 배경, 전문성, 성격, 경험 등을 구체적으로 묘사해주세요.',
-    placeholder: `예시:
-"나나"는 10년차 여행 블로거입니다. 30개국 이상을 방문했으며, 특히 동남아 저예산 배낭여행에 전문성이 있습니다. MBTI는 ENFP로 사람 만나는 것을 좋아하고, 현지인 맛집을 찾아다니는 것이 취미입니다. 여행지에서의 실패담도 솔직하게 공유하는 것이 특징이며, "직접 가봤으니까 말하는 건데..."라는 식의 경험 기반 서술을 선호합니다.
+interface CharacterField {
+  key: string
+  label: string
+  description: string
+  placeholder: string
+  type: 'input' | 'textarea' | 'select'
+  options?: string[]
+}
 
-다른 예시:
-- IT 개발자 출신 테크 리뷰어. 스펙보다 실사용 경험 중심. "3개월 써보고 내린 결론"
-- 육아 3년차 워킹맘. 현실적인 팁 위주. 광고성 리뷰 싫어하는 솔직한 성격.`,
-  },
-  writingFormat: {
-    label: '글쓰기 포맷',
-    description: '글의 뼈대(구조)를 어떤 형식으로 잡을지 구체적으로 서술해주세요.',
-    placeholder: `예시:
-[도입] 독자의 관심을 끄는 질문 또는 상황 묘사 (2~3줄)
-[본문] 소제목(##) 3~5개로 구분
-  - 각 소제목 아래 핵심 요약 한 줄 → 상세 설명 → 실제 사례/팁
-  - 중요한 정보는 **볼드**나 > 인용블록으로 강조
-  - 비교가 필요하면 표(| A | B |) 활용
-[이미지] 본문 중간에 자연스럽게 배치 (소제목 사이)
-[마무리] 핵심 내용 3줄 요약 + 독자 행동 유도 ("댓글로 알려주세요!")
-[SEO] 키워드를 제목, 첫 문단, 소제목에 자연스럽게 포함`,
-  },
-  speechExamples: {
-    label: '말투 예시',
-    description: '실제로 AI가 사용할 문장 패턴과 표현의 구체적인 예시를 적어주세요. AI가 이 말투를 참고해서 글을 씁니다.',
-    placeholder: `예시:
-✅ 사용할 표현:
-- "솔직히 말하면, 이건 진짜 대박이에요."
-- "제가 직접 써봤는데요, 결론부터 말씀드리면..."
-- "이거 모르면 손해예요, 진심으로."
-- "다들 이런 경험 있으시죠? 저도 처음엔 그랬어요."
-- "한 줄 요약: ~입니다. 끝!"
+interface CharacterCategory {
+  title: string
+  fields: CharacterField[]
+}
 
-❌ 피할 표현:
-- "~하는 것이 좋을 것으로 사료됩니다" (너무 딱딱함)
-- "독자 여러분께서는~" (너무 격식체)
-- "무조건 이걸 사세요!" (과장 광고 느낌)
-
-문장 길이: 한 문장은 40자 이내로 짧게. 긴 설명이 필요하면 문장을 나눠주세요.
-이모지: 소제목에 1개씩만. 본문에서는 자제.`,
+const CHARACTER_CATEGORIES: CharacterCategory[] = [
+  {
+    title: '페르소나 (기본 정체성)',
+    fields: [
+      { key: 'nickname', label: '닉네임', description: '블로그 필자 이름', placeholder: '"테크민수", "소소한하루", "여행하는 나나"', type: 'input' },
+      { key: 'ageRange', label: '나이대', description: '문체와 감성에 영향', placeholder: '"20대 후반", "30대 중반", "40대 초반"', type: 'input' },
+      { key: 'expertise', label: '직업/전문분야', description: '글의 관점을 결정', placeholder: '"IT 개발자", "육아맘", "요리사", "금융 컨설턴트"', type: 'input' },
+      { key: 'personalityKeywords', label: '성격 키워드', description: '3~5개 핵심 성격', placeholder: '"꼼꼼한, 유머러스한, 솔직한, 다정한"', type: 'input' },
+      { key: 'blogPurpose', label: '블로그 운영 목적', description: '글의 방향성 결정', placeholder: '"정보 공유", "일상 기록", "수익화", "전문 지식 전달"', type: 'input' },
+    ],
   },
-} as const
+  {
+    title: '말투 & 톤 (차별화 요소)',
+    fields: [
+      { key: 'honorificStyle', label: '존칭 스타일', description: '문체의 기본 틀', placeholder: '~해요체', type: 'select', options: ['~해요체', '~합니다체', '반말(~임,~거든)', '~다체'] },
+      { key: 'sentenceLength', label: '문장 길이 경향', description: '호흡감 차이', placeholder: '중간', type: 'select', options: ['짧고 끊어쓰기', '중간', '길고 흐르는 문체'] },
+      { key: 'emotionLevel', label: '감정 표현 수준', description: '글의 온도감', placeholder: '보통', type: 'select', options: ['절제형', '보통', '풍부형'] },
+      { key: 'humorStyle', label: '유머 스타일', description: '재미 요소 차별화', placeholder: '없음', type: 'select', options: ['없음', '드라이', '자기비하', '말장난'] },
+      { key: 'habitExpressions', label: '습관 표현', description: '캐릭터 고유 버릇 2~3가지', placeholder: '"솔직히~", "근데 이게 진짜~", "~인 거 아시죠?"', type: 'textarea' },
+      { key: 'emojiUsage', label: '이모지 사용', description: '시각적 차이', placeholder: '가끔(1~2개)', type: 'select', options: ['안 씀', '가끔(1~2개)', '자주(문단마다)'] },
+    ],
+  },
+  {
+    title: '글 구조 & 포맷',
+    fields: [
+      { key: 'introPattern', label: '도입부 패턴', description: '첫인상 차별화', placeholder: '질문형', type: 'select', options: ['질문형', '일화/경험형', '바로 본론형', '공감 유도형'] },
+      { key: 'subtitleStyle', label: '소제목 스타일', description: '글의 시각적 구조', placeholder: '키워드형', type: 'select', options: ['번호형', '키워드형', '질문형', '안 씀'] },
+      { key: 'closingPattern', label: '마무리 패턴', description: '글의 끝맺음 차이', placeholder: '요약 정리형', type: 'select', options: ['요약 정리형', '개인 감상형', '질문/소통 유도형', '한줄 마무리'] },
+      { key: 'postLengthRange', label: '글 길이 범위', description: '분량 차이', placeholder: '보통(1500~2500자)', type: 'select', options: ['짧음(800~1200자)', '보통(1500~2500자)', '긴글(3000자+)'] },
+    ],
+  },
+  {
+    title: '콘텐츠 관점',
+    fields: [
+      { key: 'approachAngle', label: '접근 앵글', description: '같은 키워드를 다르게 해석', placeholder: '실용 정보', type: 'select', options: ['실용 정보', '개인 체험기', '비교 분석', '감성 에세이'] },
+      { key: 'expertiseDepth', label: '전문성 깊이', description: '설명 수준 차이', placeholder: '중급', type: 'select', options: ['초보 눈높이', '중급', '전문가'] },
+      { key: 'personalExpRatio', label: '개인 경험 비율', description: '체험담 삽입 정도', placeholder: '보통(20~30%)', type: 'select', options: ['높음(50%+)', '보통(20~30%)', '낮음(거의 없음)'] },
+      { key: 'evidenceStyle', label: '근거 제시 방식', description: '신뢰감 구축 스타일', placeholder: '직접 체험형', type: 'select', options: ['직접 체험형', '전문가 인용형', '다수 의견형'] },
+    ],
+  },
+  {
+    title: '핵심 차별점',
+    fields: [
+      { key: 'diffKeywords', label: '핵심 차별 키워드 3개', description: '이 캐릭터를 다른 캐릭터와 구별짓는 가장 중요한 특성 3가지', placeholder: '"솔직한 체험 리뷰, 데이터 기반 분석, 유머러스한 비유"', type: 'textarea' },
+      { key: 'forbiddenExpressions', label: '절대 금지 표현', description: '다른 캐릭터와 겹치지 않도록 쓰지 말아야 할 표현/패턴', placeholder: '"~하는 것이 좋을 것으로 사료됩니다", "독자 여러분께서는~"', type: 'textarea' },
+    ],
+  },
+]
+
+const ALL_FIELD_KEYS = CHARACTER_CATEGORIES.flatMap(c => c.fields.map(f => f.key))
+
+// ─── 도메인 설정 서브 컴포넌트 ───
+
+function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain: string; setCustomDomain: (v: string) => void }) {
+  const [showGuide, setShowGuide] = useState(false)
+
+  return (
+    <div className="space-y-2">
+      <Label>내 도메인 연결</Label>
+      <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
+        placeholder="myblog.com 또는 blog.mydomain.com" />
+      <p className="text-xs text-gray-500">
+        가비아, 카페24, GoDaddy 등에서 구매한 도메인을 입력하면 이 블로그의 주소로 사용됩니다.
+        도메인이 없으면 비워두세요.
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setShowGuide(!showGuide)}
+        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+      >
+        <Info className="w-3.5 h-3.5" />
+        도메인 연결 방법 (DNS 설정 가이드)
+        {showGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+
+      {showGuide && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4 text-xs text-gray-700">
+          <p className="font-semibold text-sm text-gray-900">도메인을 구매한 사이트에서 DNS 설정이 필요합니다</p>
+
+          <div className="space-y-2">
+            <p className="font-medium text-gray-800">myblog.com 같은 루트 도메인을 연결할 때</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse bg-white rounded">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">타입</th>
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">이름(호스트)</th>
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">값(위치/대상)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">A</td>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">@</td>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">76.76.21.21</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-gray-500">@ 는 &quot;도메인 자체&quot;를 의미합니다.</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-medium text-gray-800">blog.mydomain.com 같은 서브도메인을 연결할 때</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse bg-white rounded">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">타입</th>
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">이름(호스트)</th>
+                    <th className="border border-gray-200 px-3 py-1.5 text-left font-medium">값(위치/대상)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">CNAME</td>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">blog</td>
+                    <td className="border border-gray-200 px-3 py-1.5 font-mono">cname.vercel-dns.com</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-gray-500">&quot;blog&quot; 자리에 원하는 이름(www, news 등)을 넣습니다.</p>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded p-3 space-y-1">
+            <p className="font-medium text-amber-800">참고사항</p>
+            <ul className="list-disc list-inside text-amber-700 space-y-0.5">
+              <li>DNS 설정 후 적용까지 <b>최대 24~48시간</b> 소요 (보통 10분~1시간)</li>
+              <li>SSL 인증서(https)는 <b>자동 발급</b>됩니다</li>
+            </ul>
+          </div>
+
+          <div className="space-y-1">
+            <p className="font-medium text-gray-800">업체별 DNS 설정 위치</p>
+            <ul className="list-disc list-inside text-gray-600 space-y-0.5">
+              <li><b>가비아</b>: My가비아 &gt; 도메인 관리 &gt; DNS 설정</li>
+              <li><b>카페24</b>: 나의서비스관리 &gt; 도메인 관리 &gt; DNS 관리</li>
+              <li><b>GoDaddy</b>: 내 도메인 &gt; DNS 관리 &gt; 레코드 추가</li>
+              <li><b>Cloudflare</b>: 대시보드 &gt; 해당 도메인 &gt; DNS &gt; 레코드</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function BlogSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>('basic')
-  const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; url?: string; custom_domain?: string; is_active?: boolean; ai_provider?: string; character_name?: string; character_tone?: string; character_style?: string; persona?: string; linked_blog_ids?: string[]; ai_character_config?: Record<string, unknown> } | null>(null)
+  const [blog, setBlog] = useState<Record<string, unknown> | null>(null)
   const [allBlogs, setAllBlogs] = useState<{ id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -107,15 +229,14 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [customDomain, setCustomDomain] = useState('')
   const [color, setColor] = useState(COLORS[0])
   const [isActive, setIsActive] = useState(true)
+  const [blogType, setBlogType] = useState('')
+  const [slug, setSlug] = useState('')
 
-  // AI 캐릭터 폼
-  const [aiProvider, setAiProvider] = useState('claude')
-  const [characterName, setCharacterName] = useState('')
-  const [tone, setTone] = useState('')
-  const [style, setStyle] = useState('')
-  const [persona, setPersona] = useState('')
-  const [writingFormat, setWritingFormat] = useState('')
-  const [speechExamples, setSpeechExamples] = useState('')
+  // AI 캐릭터 폼 (21개 필드를 단일 객체로 관리)
+  const [aiProvider, setAiProvider] = useState<'claude' | 'gemini'>('gemini')
+  const [characterConfig, setCharacterConfig] = useState<Record<string, string>>({})
+  const [generatingAll, setGeneratingAll] = useState(false)
+  const [regeneratingField, setRegeneratingField] = useState<string | null>(null)
 
   // 카테고리
   const { categories, fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories(params.id)
@@ -143,7 +264,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       const { data: blogsData } = await blogsRes.json()
 
       setBlog(blogData)
-      setAllBlogs((blogsData ?? []).filter((b: { id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }) => b.id !== params.id))
+      setAllBlogs((blogsData ?? []).filter((b: { id: string }) => b.id !== params.id))
 
       // 폼 초기화
       setName(blogData.name ?? '')
@@ -152,15 +273,18 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       setCustomDomain(blogData.custom_domain ?? '')
       setColor(blogData.color ?? COLORS[0])
       setIsActive(blogData.is_active ?? true)
-      setAiProvider(blogData.ai_provider ?? 'claude')
+      setBlogType(blogData.blog_type ?? '')
+      setSlug(blogData.slug ?? '')
+      setAiProvider(blogData.ai_provider ?? 'gemini')
 
+      // AI 캐릭터 설정 로드
       const aiConfig = blogData.ai_character_config ?? {}
-      setCharacterName(aiConfig.name ?? '')
-      setTone(aiConfig.tone ?? '')
-      setStyle(aiConfig.style ?? '')
-      setPersona(aiConfig.persona ?? '')
-      setWritingFormat(aiConfig.writingFormat ?? '')
-      setSpeechExamples(aiConfig.speechExamples ?? '')
+      const config: Record<string, string> = {}
+      for (const key of ALL_FIELD_KEYS) {
+        if (aiConfig[key]) config[key] = aiConfig[key]
+      }
+      setCharacterConfig(config)
+
       setLinkedBlogIds(aiConfig.linkedBlogIds ?? [])
       setDefaultCategoryId(blogData.default_category_id ?? null)
 
@@ -174,12 +298,16 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
     setTimeout(() => setSuccess(''), 3000)
   }
 
+  const updateCharField = useCallback((key: string, value: string) => {
+    setCharacterConfig(prev => ({ ...prev, [key]: value }))
+  }, [])
+
   const handleSaveBasic = async () => {
     setSaving(true)
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, url: blogUrl || null, customDomain: customDomain || null, color, isActive }),
+      body: JSON.stringify({ name, description, url: blogUrl || null, customDomain: customDomain || null, color, isActive, blogType: blogType || null }),
     })
     setSaving(false)
     if (res.ok) showSuccess('기본정보가 저장되었습니다.')
@@ -192,16 +320,77 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         aiProvider,
-        aiCharacterConfig: { name: characterName, tone, style, persona, writingFormat, speechExamples },
+        aiCharacterConfig: { ...characterConfig, linkedBlogIds },
       }),
     })
     setSaving(false)
     if (res.ok) showSuccess('AI 캐릭터 설정이 저장되었습니다.')
   }
 
+  // 블로그 정보를 AI에 전달하기 위한 헬퍼
+  const getBlogInfo = () => ({
+    name,
+    description,
+    blogType,
+    categories: categories.map(c => c.name),
+  })
+
+  const handleGenerateAll = async () => {
+    setGeneratingAll(true)
+    try {
+      const res = await fetch('/api/ai/generate-character', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogId: params.id, provider: aiProvider, blogInfo: getBlogInfo() }),
+      })
+      const data = await res.json()
+      if (data.character) {
+        setCharacterConfig(prev => {
+          const merged = { ...prev }
+          for (const [k, v] of Object.entries(data.character)) {
+            if (typeof v === 'string' && v.trim()) merged[k] = v.trim()
+          }
+          return merged
+        })
+        showSuccess('AI 캐릭터가 생성되었습니다. 확인 후 저장해주세요.')
+      } else {
+        alert(data.error ?? 'AI 생성에 실패했습니다.')
+      }
+    } catch {
+      alert('AI 생성 중 오류가 발생했습니다.')
+    }
+    setGeneratingAll(false)
+  }
+
+  const handleRegenerateField = async (fieldKey: string) => {
+    setRegeneratingField(fieldKey)
+    try {
+      const res = await fetch('/api/ai/generate-character', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blogId: params.id,
+          provider: aiProvider,
+          fieldKey,
+          existingConfig: characterConfig,
+          blogInfo: getBlogInfo(),
+        }),
+      })
+      const data = await res.json()
+      if (data.value) {
+        updateCharField(fieldKey, data.value)
+      } else {
+        alert(data.error ?? '재생성에 실패했습니다.')
+      }
+    } catch {
+      alert('재생성 중 오류가 발생했습니다.')
+    }
+    setRegeneratingField(null)
+  }
+
   const handleSaveCrossLink = async () => {
     setSaving(true)
-    const aiConfig = blog?.ai_character_config ?? {}
+    const aiConfig = (blog?.ai_character_config ?? {}) as Record<string, unknown>
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -212,7 +401,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   }
 
   const handleDeleteBlog = async () => {
-    if (!confirm(`"${blog?.name}" 블로그를 삭제하시겠습니까?\n모든 글과 데이터가 삭제됩니다.`)) return
+    if (!confirm(`"${name}" 블로그를 삭제하시겠습니까?\n모든 글과 데이터가 삭제됩니다.`)) return
     const res = await fetch(`/api/blogs/${params.id}`, { method: 'DELETE' })
     if (res.ok) router.push('/blogs')
   }
@@ -236,7 +425,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">블로그 설정</h1>
-            <p className="text-sm text-gray-500">{blog?.name}</p>
+            <p className="text-sm text-gray-500">{name}</p>
           </div>
         </div>
       </div>
@@ -244,7 +433,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       {/* 성공 토스트 */}
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2.5 rounded-lg">
-          ✓ {success}
+          {success}
         </div>
       )}
 
@@ -264,7 +453,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </div>
       </div>
 
-      {/* BasicInfoTab */}
+      {/* ═══ BasicInfoTab ═══ */}
       {activeTab === 'basic' && (
         <div className="space-y-5">
           <div className="space-y-1.5">
@@ -276,17 +465,34 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
             <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="블로그 설명" />
           </div>
           <div className="space-y-1.5">
+            <Label>슬러그 (URL)</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400 whitespace-nowrap">blog.hub/</span>
+              <Input value={slug} readOnly disabled className="bg-gray-50 text-gray-500" />
+            </div>
+            <p className="text-xs text-gray-400">슬러그는 블로그의 고유 URL 주소로, 생성 후 변경할 수 없습니다.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>블로그 유형</Label>
+            <select
+              value={blogType}
+              onChange={e => setBlogType(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">선택 안함</option>
+              {BLOG_TYPES.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400">Google YMYL 기준 블로그 유형입니다. AI 캐릭터 생성 및 글 작성 시 유형에 맞는 전문성과 톤을 반영합니다.</p>
+          </div>
+          <div className="space-y-1.5">
             <Label>블로그 URL</Label>
             <Input value={blogUrl} onChange={e => setBlogUrl(e.target.value)}
               placeholder="https://moneymakingwisdom.tistory.com" />
             <p className="text-xs text-gray-400">실제 블로그 주소를 입력하세요. 블로그 보기 버튼에 사용됩니다.</p>
           </div>
-          <div className="space-y-1.5">
-            <Label>커스텀 도메인</Label>
-            <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
-              placeholder="example.com" />
-            <p className="text-xs text-gray-400">DNS A레코드를 76.76.21.21에 연결하세요.</p>
-          </div>
+          <DomainSettingSection customDomain={customDomain} setCustomDomain={setCustomDomain} />
           <div className="space-y-2">
             <Label>블로그 색상</Label>
             <div className="flex gap-2">
@@ -317,7 +523,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </div>
       )}
 
-      {/* CategoriesTab */}
+      {/* ═══ CategoriesTab ═══ */}
       {activeTab === 'categories' && (
         <div className="space-y-6">
           {/* 기본 카테고리 설정 */}
@@ -499,68 +705,115 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </div>
       )}
 
-      {/* AICharacterTab */}
+      {/* ═══ AICharacterTab ═══ */}
       {activeTab === 'ai' && (
         <div className="space-y-6">
-          {/* AI 공급자 */}
-          <div className="space-y-2">
-            <Label>AI 공급자</Label>
-            <div className="flex gap-2">
-              {['claude', 'openai', 'gemini'].map(p => (
-                <button key={p} type="button" onClick={() => setAiProvider(p)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                    aiProvider === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
-                  }`}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 캐릭터 이름 */}
-          <div className="space-y-1.5">
-            <Label>캐릭터 이름</Label>
-            <Input value={characterName} onChange={e => setCharacterName(e.target.value)}
-              placeholder="예: 여행 전문가 나나, IT 리뷰어 민수" />
-            <p className="text-xs text-gray-400">AI가 이 이름으로 자칭하며 글을 씁니다.</p>
-          </div>
-
-          {/* 서술형 필드들 */}
-          {([
-            { key: 'tone', value: tone, setter: setTone },
-            { key: 'style', value: style, setter: setStyle },
-            { key: 'persona', value: persona, setter: setPersona },
-            { key: 'writingFormat', value: writingFormat, setter: setWritingFormat },
-            { key: 'speechExamples', value: speechExamples, setter: setSpeechExamples },
-          ] as const).map(({ key, value, setter }) => {
-            const guide = FIELD_GUIDES[key]
-            return (
-              <div key={key} className="space-y-1.5">
-                <Label>{guide.label}</Label>
-                <p className="text-xs text-gray-500">{guide.description}</p>
-                <textarea
-                  value={value}
-                  onChange={e => setter(e.target.value)}
-                  rows={6}
-                  placeholder={guide.placeholder}
-                  className="w-full text-sm border border-gray-200 rounded-md px-3 py-2.5 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-                />
-                {value.trim() && (
-                  <p className="text-xs text-green-600">
-                    {value.trim().length}자 작성됨
-                  </p>
-                )}
+          {/* AI 공급자 선택 + 일괄 생성 버튼 */}
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div className="space-y-2">
+              <Label>AI 공급자</Label>
+              <div className="flex gap-2">
+                {(['claude', 'gemini'] as const).map(p => (
+                  <button key={p} type="button" onClick={() => setAiProvider(p)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                      aiProvider === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
+                    }`}>
+                    {p === 'claude' ? 'Claude' : 'Gemini'}
+                  </button>
+                ))}
               </div>
-            )
-          })}
+            </div>
+            <Button
+              onClick={handleGenerateAll}
+              disabled={generatingAll}
+              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
+            >
+              {generatingAll ? (
+                <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />캐릭터 생성 중...</>
+              ) : (
+                <><Sparkles className="w-4 h-4 mr-1.5" />AI 캐릭터 일괄 생성</>
+              )}
+            </Button>
+          </div>
+
+          {!blogType && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-lg">
+              기본정보 탭에서 &quot;블로그 유형&quot;을 먼저 설정하면, AI가 유형에 맞는 캐릭터를 더 정확하게 생성합니다.
+            </div>
+          )}
+
+          {/* 카테고리별 필드 렌더링 */}
+          {CHARACTER_CATEGORIES.map((category) => (
+            <div key={category.title} className="space-y-4">
+              <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-2">
+                {category.title}
+              </h3>
+              <div className="space-y-3">
+                {category.fields.map((field) => {
+                  const value = characterConfig[field.key] ?? ''
+                  const isRegenerating = regeneratingField === field.key
+
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm">{field.label}</Label>
+                          <p className="text-xs text-gray-400">{field.description}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-purple-500 hover:text-purple-700 hover:bg-purple-50"
+                          disabled={isRegenerating || generatingAll}
+                          onClick={() => handleRegenerateField(field.key)}
+                          title="AI로 이 항목만 재생성"
+                        >
+                          {isRegenerating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <RotateCw className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </div>
+
+                      {field.type === 'select' ? (
+                        <select
+                          value={field.options?.includes(value) ? value : ''}
+                          onChange={e => updateCharField(field.key, e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">{field.placeholder}</option>
+                          {field.options?.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          {/* AI가 옵션에 없는 값을 생성한 경우 표시 */}
+                          {value && !field.options?.includes(value) && (
+                            <option value={value}>{value} (AI 생성)</option>
+                          )}
+                        </select>
+                      ) : (
+                        <textarea
+                          value={value}
+                          onChange={e => updateCharField(field.key, e.target.value)}
+                          rows={field.type === 'textarea' ? 3 : 1}
+                          placeholder={field.placeholder}
+                          className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed min-h-[38px]"
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
 
           <Button onClick={handleSaveAI} disabled={saving} className="w-full sm:w-auto">
-            <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : 'AI 설정 저장'}
+            <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : 'AI 캐릭터 저장'}
           </Button>
         </div>
       )}
 
-      {/* AdsTab */}
+      {/* ═══ AdsTab ═══ */}
       {activeTab === 'ads' && (
         <Card className="shadow-none border border-gray-200">
           <CardContent className="p-6 text-center text-gray-400">
@@ -571,7 +824,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </Card>
       )}
 
-      {/* CrossLinkTab */}
+      {/* ═══ CrossLinkTab ═══ */}
       {activeTab === 'crosslink' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500">

@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { name, description, customDomain, aiCharacterConfig, aiProvider, isActive, color, url, defaultCategoryId } = body
+  const { name, description, customDomain, aiCharacterConfig, aiProvider, isActive, color, url, defaultCategoryId, blogType } = body
 
   const { data, error } = await supabase
     .from('blogs')
@@ -37,6 +37,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(color !== undefined && { color }),
       ...(url !== undefined && { url }),
       ...(defaultCategoryId !== undefined && { default_category_id: defaultCategoryId }),
+      ...(blogType !== undefined && { blog_type: blogType }),
     })
     .eq('id', params.id)
     .eq('user_id', user.id)

@@ -17,7 +17,31 @@
       "Bash(ls /c/Users/PC_1M/blog_hub_project/app/\\\\\\(dashboard\\\\\\)/)",
       "WebFetch(domain:ai.google.dev)",
       "Bash(npm ls sharp)",
-      "Bash(grep -n \"CREATE TABLE\\\\|ALTER TABLE\" supabase/migrations/*.sql)"
+      "Bash(grep -n \"CREATE TABLE\\\\|ALTER TABLE\" supabase/migrations/*.sql)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && gh auth login)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx tsc --noEmit --pretty 2>&1 | head -50)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx tsc --noEmit --pretty 2>&1 | head -30)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx tsc --noEmit --pretty 2>&1 | head -10)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx tsc --noEmit --pretty 2>&1 | head -20)",
+      "Bash(which vercel:*)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && vercel link 2>&1 | head -20)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx vercel link 2>&1 | head -30)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && cat .env.local 2>/dev/null | grep -v \"^#\" | grep -v \"^$\" | sed 's/=.*/=***/')",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx vercel --prod 2>&1)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && cat package.json | grep -E \"tiptap\")",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npm install @tiptap/extension-text-align@^2.10.4 @tiptap/extension-youtube@^2.10.4 --save 2>&1 | tail -10)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && cat package.json | grep -E \"text-align|youtube\")",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx vercel logs multi-blog-hub.vercel.app --limit 20 2>&1)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx vercel inspect multi-blog-n82vate8h-hakbun-makers-projects.vercel.app --logs 2>&1 | tail -50)",
+      "WebFetch(domain:multi-blog-hub.vercel.app)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && npx vercel env ls 2>&1)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"NEXT_PUBLIC_SUPABASE_URL\" .env.local)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"NEXT_PUBLIC_SUPABASE_ANON_KEY\" .env.local | cut -d'=' -f2-)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"SUPABASE_SERVICE_ROLE_KEY\" .env.local | cut -d'=' -f2-)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"CRON_SECRET\" .env.local | cut -d'=' -f2-)",
+      "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"ENCRYPTION_KEY\" .env.local | cut -d'=' -f2-)",
+      "Bash(grep -r \"google\\\\|oauth\\\\|GOOGLE\\\\|OAuth\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.json\" 2>/dev/null | grep -v node_modules | grep -v \".next\" | head -30)",
+      "Bash(grep -r \"NEXT_PUBLIC_APP_URL\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules | grep -v \".next\")"
     ]
   }
 }

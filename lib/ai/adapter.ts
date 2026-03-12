@@ -3,12 +3,36 @@ export type ImageProvider = 'imagen'
 export type AnyAIProvider = AIProvider | ImageProvider
 
 export interface AICharacterConfig {
+  // 레거시 필드 (하위 호환)
   name?: string
   tone?: string
   style?: string
   persona?: string
   writingFormat?: string
   speechExamples?: string
+  // 신규 21개 필드
+  nickname?: string
+  ageRange?: string
+  expertise?: string
+  personalityKeywords?: string
+  blogPurpose?: string
+  honorificStyle?: string
+  sentenceLength?: string
+  emotionLevel?: string
+  humorStyle?: string
+  habitExpressions?: string
+  emojiUsage?: string
+  introPattern?: string
+  subtitleStyle?: string
+  closingPattern?: string
+  postLengthRange?: string
+  approachAngle?: string
+  expertiseDepth?: string
+  personalExpRatio?: string
+  evidenceStyle?: string
+  diffKeywords?: string
+  forbiddenExpressions?: string
+  linkedBlogIds?: string[]
 }
 
 export interface GeneratePostParams {
@@ -35,18 +59,80 @@ export interface AIAdapter {
   generateText(prompt: string): Promise<string>
 }
 
+// 신규 캐릭터 설정을 프롬프트 섹션으로 변환
+function buildCharacterSections(config: AICharacterConfig): string {
+  const sections: string[] = []
+
+  // 페르소나 (기본 정체성)
+  const personaParts = [
+    config.nickname && `필자명: ${config.nickname}`,
+    config.ageRange && `나이대: ${config.ageRange}`,
+    config.expertise && `직업/전문분야: ${config.expertise}`,
+    config.personalityKeywords && `성격: ${config.personalityKeywords}`,
+    config.blogPurpose && `블로그 운영 목적: ${config.blogPurpose}`,
+  ].filter(Boolean)
+  if (personaParts.length) sections.push(`## 페르소나\n${personaParts.join('\n')}`)
+
+  // 말투 & 톤
+  const toneParts = [
+    config.honorificStyle && `존칭 스타일: ${config.honorificStyle}`,
+    config.sentenceLength && `문장 길이: ${config.sentenceLength}`,
+    config.emotionLevel && `감정 표현: ${config.emotionLevel}`,
+    config.humorStyle && `유머 스타일: ${config.humorStyle}`,
+    config.habitExpressions && `습관 표현: ${config.habitExpressions}`,
+    config.emojiUsage && `이모지 사용: ${config.emojiUsage}`,
+  ].filter(Boolean)
+  if (toneParts.length) sections.push(`## 말투 & 톤\n${toneParts.join('\n')}`)
+
+  // 글 구조 & 포맷
+  const formatParts = [
+    config.introPattern && `도입부: ${config.introPattern}`,
+    config.subtitleStyle && `소제목 스타일: ${config.subtitleStyle}`,
+    config.closingPattern && `마무리: ${config.closingPattern}`,
+    config.postLengthRange && `글 길이: ${config.postLengthRange}`,
+  ].filter(Boolean)
+  if (formatParts.length) sections.push(`## 글 구조 & 포맷\n${formatParts.join('\n')}`)
+
+  // 콘텐츠 관점
+  const contentParts = [
+    config.approachAngle && `접근 앵글: ${config.approachAngle}`,
+    config.expertiseDepth && `전문성 깊이: ${config.expertiseDepth}`,
+    config.personalExpRatio && `개인 경험 비율: ${config.personalExpRatio}`,
+    config.evidenceStyle && `근거 제시 방식: ${config.evidenceStyle}`,
+  ].filter(Boolean)
+  if (contentParts.length) sections.push(`## 콘텐츠 관점\n${contentParts.join('\n')}`)
+
+  // 핵심 차별점
+  const diffParts = [
+    config.diffKeywords && `핵심 차별 키워드: ${config.diffKeywords}`,
+    config.forbiddenExpressions && `절대 금지 표현: ${config.forbiddenExpressions}`,
+  ].filter(Boolean)
+  if (diffParts.length) sections.push(`## 핵심 차별점\n${diffParts.join('\n')}`)
+
+  return sections.join('\n\n')
+}
+
 // 공통 프롬프트 빌더
 export function buildPrompt(params: GeneratePostParams): string {
   const { keyword, relatedKeywords = [], characterConfig = {}, targetLength = 'medium' } = params
   const lengthMap = { short: '500~800자', medium: '1200~1800자', long: '2500~3500자' }
 
+  // 신규 필드가 있으면 새 방식, 없으면 레거시 방식
+  const hasNewFields = !!(characterConfig.nickname || characterConfig.honorificStyle || characterConfig.introPattern)
+
+  const characterPrompt = hasNewFields
+    ? buildCharacterSections(characterConfig)
+    : [
+        characterConfig.persona ? `## 페르소나\n${characterConfig.persona}` : '',
+        characterConfig.tone ? `## 글쓰기 톤\n${characterConfig.tone}` : '',
+        characterConfig.style ? `## 글쓰기 스타일\n${characterConfig.style}` : '',
+        characterConfig.writingFormat ? `## 글쓰기 포맷\n${characterConfig.writingFormat}` : '',
+        characterConfig.speechExamples ? `## 말투 예시 (이 말투를 참고하여 작성)\n${characterConfig.speechExamples}` : '',
+      ].filter(Boolean).join('\n\n')
+
   const sections = [
     '당신은 SEO 최적화 블로그 글을 작성하는 전문 작가입니다.',
-    characterConfig.persona ? `\n## 페르소나\n${characterConfig.persona}` : '',
-    characterConfig.tone ? `\n## 글쓰기 톤\n${characterConfig.tone}` : '',
-    characterConfig.style ? `\n## 글쓰기 스타일\n${characterConfig.style}` : '',
-    characterConfig.writingFormat ? `\n## 글쓰기 포맷\n${characterConfig.writingFormat}` : '',
-    characterConfig.speechExamples ? `\n## 말투 예시 (이 말투를 참고하여 작성)\n${characterConfig.speechExamples}` : '',
+    characterPrompt ? `\n${characterPrompt}` : '',
   ].filter(Boolean).join('\n')
 
   return `${sections}

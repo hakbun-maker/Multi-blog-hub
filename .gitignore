@@ -41,3 +41,5 @@ next-env.d.ts
 
 # claude-labs installer (프로젝트 파일 아님)
 claude-labs-v*/
+
+.vercel

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Globe, Plus } from 'lucide-react'
+import { Globe, Plus, Settings } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -8,6 +8,29 @@ const BLOG_COLORS = [
   '#3b82f6','#8b5cf6','#10b981','#f59e0b',
   '#ef4444','#06b6d4','#84cc16','#f97316',
 ]
+
+const BLOG_TYPE_LABELS: Record<string, string> = {
+  'legal': '법률',
+  'finance': '금융/재테크',
+  'medical': '의료/건강',
+  'it-tech': 'IT/테크',
+  'education': '교육',
+  'beauty-fashion': '뷰티/패션',
+  'food': '음식/요리',
+  'travel': '여행',
+  'parenting': '육아/가족',
+  'lifestyle': '라이프스타일',
+  'real-estate': '부동산',
+  'business': '비즈니스/마케팅',
+  'entertainment': '엔터테인먼트',
+  'sports': '스포츠/피트니스',
+  'pets': '반려동물',
+  'automotive': '자동차',
+  'interior': '인테리어/홈',
+  'news': '뉴스/시사',
+  'science': '과학/기술',
+  'other': '기타',
+}
 
 export default async function BlogsPage() {
   const supabase = createClient()
@@ -56,9 +79,16 @@ export default async function BlogsPage() {
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                       <h3 className="font-semibold text-gray-900">{blog.name}</h3>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {blog.is_active ? '활성' : '비활성'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {blog.blog_type && BLOG_TYPE_LABELS[blog.blog_type] && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                          {BLOG_TYPE_LABELS[blog.blog_type]}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {blog.is_active ? '활성' : '비활성'}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mb-3">{blog.subdomain ?? blog.custom_domain ?? blog.slug}</p>
                   {blog.description && (
@@ -69,9 +99,14 @@ export default async function BlogsPage() {
                     <span>발행 {published}개</span>
                     <span>전체 {blogPosts.length}개</span>
                   </div>
-                  <Button asChild size="sm" className="w-full">
-                    <Link href={`/blogs/${blog.id}`}>확인</Link>
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button asChild size="sm" className="flex-1">
+                      <Link href={`/blogs/${blog.id}`}>확인</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/blogs/${blog.id}/settings`}><Settings className="w-3.5 h-3.5 mr-1" />설정</Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )
