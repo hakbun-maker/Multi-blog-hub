@@ -41,7 +41,8 @@
       "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"CRON_SECRET\" .env.local | cut -d'=' -f2-)",
       "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"ENCRYPTION_KEY\" .env.local | cut -d'=' -f2-)",
       "Bash(grep -r \"google\\\\|oauth\\\\|GOOGLE\\\\|OAuth\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.json\" 2>/dev/null | grep -v node_modules | grep -v \".next\" | head -30)",
-      "Bash(grep -r \"NEXT_PUBLIC_APP_URL\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules | grep -v \".next\")"
+      "Bash(grep -r \"NEXT_PUBLIC_APP_URL\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules | grep -v \".next\")",
+      "WebFetch(domain:dailyfinancial.ruhaworld.co.kr)"
     ]
   }
 }

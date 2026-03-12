@@ -125,13 +125,14 @@ const STATUS_CONFIG: Record<DomainStatus, { color: string; bg: string; border: s
   connected: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200', label: '정상 연결됨' },
   misconfigured: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', label: 'DNS 설정 오류 - CNAME 또는 A 레코드를 확인하세요' },
   pending_verification: { color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200', label: '도메인 소유권 확인 필요' },
-  not_found: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: 'Vercel에 등록되지 않음 - 저장 버튼을 눌러주세요' },
+  not_found: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: 'Vercel에 등록되지 않음 - 이 페이지 하단의 "저장" 버튼을 눌러 도메인을 등록하세요' },
   error: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: '상태 확인 실패' },
 }
 
 function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain: string; setCustomDomain: (v: string) => void }) {
   const [showGuide, setShowGuide] = useState(false)
   const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle')
+  const [hasAutoChecked, setHasAutoChecked] = useState(false)
 
   const checkDomainStatus = useCallback(async (domain: string) => {
     if (!domain.trim()) { setDomainStatus('idle'); return }
@@ -145,9 +146,13 @@ function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain:
     }
   }, [])
 
+  // 데이터 로드 후 도메인 값이 들어오면 자동 체크 (1회만)
   useEffect(() => {
-    if (customDomain) checkDomainStatus(customDomain)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (customDomain && !hasAutoChecked) {
+      checkDomainStatus(customDomain)
+      setHasAutoChecked(true)
+    }
+  }, [customDomain, hasAutoChecked, checkDomainStatus])
 
   const statusConfig = STATUS_CONFIG[domainStatus]
 
