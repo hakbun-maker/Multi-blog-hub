@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return response
     }
+    console.error('OAuth callback error:', error.message, error)
+  } else {
+    console.error('OAuth callback: no code parameter received')
   }
 
   return NextResponse.redirect(`${origin}/login?error=oauth`)
