@@ -117,14 +117,65 @@ const ALL_FIELD_KEYS = CHARACTER_CATEGORIES.flatMap(c => c.fields.map(f => f.key
 
 // ─── 도메인 설정 서브 컴포넌트 ───
 
+type DomainStatus = 'idle' | 'checking' | 'connected' | 'misconfigured' | 'pending_verification' | 'not_found' | 'error'
+
+const STATUS_CONFIG: Record<DomainStatus, { color: string; bg: string; border: string; label: string } | null> = {
+  idle: null,
+  checking: { color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', label: '확인 중...' },
+  connected: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200', label: '정상 연결됨' },
+  misconfigured: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', label: 'DNS 설정 오류 - CNAME 또는 A 레코드를 확인하세요' },
+  pending_verification: { color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200', label: '도메인 소유권 확인 필요' },
+  not_found: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: 'Vercel에 등록되지 않음 - 저장 버튼을 눌러주세요' },
+  error: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: '상태 확인 실패' },
+}
+
 function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain: string; setCustomDomain: (v: string) => void }) {
   const [showGuide, setShowGuide] = useState(false)
+  const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle')
+
+  const checkDomainStatus = useCallback(async (domain: string) => {
+    if (!domain.trim()) { setDomainStatus('idle'); return }
+    setDomainStatus('checking')
+    try {
+      const res = await fetch(`/api/domains/status?domain=${encodeURIComponent(domain)}`)
+      const data = await res.json()
+      setDomainStatus(data.status as DomainStatus)
+    } catch {
+      setDomainStatus('error')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (customDomain) checkDomainStatus(customDomain)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const statusConfig = STATUS_CONFIG[domainStatus]
 
   return (
     <div className="space-y-2">
       <Label>내 도메인 연결</Label>
-      <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
-        placeholder="myblog.com 또는 blog.mydomain.com" />
+      <div className="flex gap-2">
+        <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
+          placeholder="myblog.com 또는 blog.mydomain.com" className="flex-1" />
+        {customDomain && (
+          <Button type="button" variant="outline" size="sm"
+            onClick={() => checkDomainStatus(customDomain)}
+            disabled={domainStatus === 'checking'}
+            className="whitespace-nowrap"
+          >
+            {domainStatus === 'checking' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '상태 확인'}
+          </Button>
+        )}
+      </div>
+      {statusConfig && (
+        <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border ${statusConfig.bg} ${statusConfig.border} ${statusConfig.color}`}>
+          {domainStatus === 'checking' && <Loader2 className="w-3 h-3 animate-spin" />}
+          {domainStatus === 'connected' && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
+          {(domainStatus === 'misconfigured' || domainStatus === 'pending_verification') && <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />}
+          {(domainStatus === 'not_found' || domainStatus === 'error') && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
+          {statusConfig.label}
+        </div>
+      )}
       <p className="text-xs text-gray-500">
         가비아, 카페24, GoDaddy 등에서 구매한 도메인을 입력하면 이 블로그의 주소로 사용됩니다.
         도메인이 없으면 비워두세요.
