@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Settings, PenSquare, Globe, ArrowLeft } from 'lucide-react'
+import { Settings, PenSquare, Globe, ArrowLeft, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PostsTab } from '@/components/blogs/PostsTab'
 import { StatsTab } from '@/components/blogs/StatsTab'
@@ -26,29 +26,33 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('posts')
   const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; url?: string; is_active?: boolean; subdomain?: string; custom_domain?: string; slug?: string } | null>(null)
-  const [posts, setPosts] = useState<{ id: string; title: string | null; status: string; view_count: number | null; published_at: string | null; created_at: string }[]>([])
-  const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
+  const [posts, setPosts] = useState<{ id: string; title: string | null; slug?: string; status: string; view_count: number | null; published_at: string | null; created_at: string; category_id?: string | null }[]>([])
+  const [blogs, setBlogs] = useState<{ id: string; name: string }[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      const [blogRes, postsRes, snippetsRes] = await Promise.all([
+      const [blogRes, postsRes, blogsRes, catRes] = await Promise.all([
         fetch(`/api/blogs/${params.id}`),
         fetch(`/api/posts?blogId=${params.id}`),
-        fetch(`/api/snippets?blogId=${params.id}`),
+        fetch('/api/blogs'),
+        fetch(`/api/categories?blogId=${params.id}`),
       ])
 
       if (!blogRes.ok) { router.push('/blogs'); return }
 
-      const [{ data: blogData }, { data: postsData }, { data: snippetsData }] = await Promise.all([
+      const [{ data: blogData }, { data: postsData }, { data: blogsData }, { data: catData }] = await Promise.all([
         blogRes.json(),
         postsRes.json(),
-        snippetsRes.json(),
+        blogsRes.json(),
+        catRes.json(),
       ])
 
       setBlog(blogData)
       setPosts(postsData ?? [])
-      setSnippets(snippetsData ?? [])
+      setBlogs((blogsData ?? []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })))
+      setCategories(catData ?? [])
       setLoading(false)
     }
     fetchData()
@@ -68,6 +72,8 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
 
   const color = blog.color ?? BLOG_COLORS[0]
   const publishedCount = posts.filter((p) => p.status === 'published').length
+  const externalUrl = blog.url || (blog.custom_domain ? `https://${blog.custom_domain}` : '')
+  const internalUrl = `/blog/${blog.slug}`
 
   return (
     <div className="space-y-6">
@@ -100,6 +106,18 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
         </div>
 
         <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={internalUrl} target="_blank">
+              <ExternalLink className="w-4 h-4 mr-1.5" />블로그 보기
+            </Link>
+          </Button>
+          {externalUrl && (
+            <Button asChild size="sm" variant="outline">
+              <a href={externalUrl} target="_blank" rel="noopener noreferrer">
+                <Globe className="w-4 h-4 mr-1.5" />외부 블로그
+              </a>
+            </Button>
+          )}
           <Button asChild size="sm">
             <Link href={`/editor/new?blogId=${blog.id}`}>
               <PenSquare className="w-4 h-4 mr-1.5" />글 작성
@@ -131,11 +149,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
                   {posts.length}
                 </span>
               )}
-              {t.id === 'memo' && snippets.length > 0 && (
-                <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                  {snippets.length}
-                </span>
-              )}
+              {/* memo 뱃지는 MemoTab이 직접 fetch하므로 제거 */}
             </button>
           ))}
         </div>
@@ -143,9 +157,9 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
 
       {/* Tab 콘텐츠 */}
       <div>
-        {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} />}
+        {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} categories={categories} />}
         {tab === 'stats' && <StatsTab posts={posts} />}
-        {tab === 'memo' && <MemoTab snippets={snippets} blogId={blog.id} />}
+        {tab === 'memo' && <MemoTab blogId={blog.id} blogName={blog.name} blogs={blogs} />}
       </div>
     </div>
   )

@@ -12,6 +12,20 @@ export interface GeneratedPostResult {
   error?: string
 }
 
+export type PipelineStep = 'idle' | 'keywords' | 'writing' | 'images' | 'meta' | 'done' | 'error'
+
+export interface BlogPipelineState {
+  blogId: string
+  blogName: string
+  step: PipelineStep
+  stepMessage: string
+  title: string
+  htmlContent: string
+  tags: string[]
+  seoMeta: { title: string; description: string }
+  error?: string
+}
+
 interface EditorStore {
   // AI 생성 모드
   keywords: string[]
@@ -20,6 +34,11 @@ interface EditorStore {
   imageCount: number
   isGenerating: boolean
   generatedPosts: GeneratedPostResult[]
+
+  // 파이프라인 상태 (블로그별)
+  pipelineStates: Record<string, BlogPipelineState>
+  pipelineGlobalStep: PipelineStep
+  autoPublish: boolean
 
   // 직접 작성 모드 (현재 편집 중인 글)
   currentPostId: string | null
@@ -44,6 +63,10 @@ interface EditorStore {
   setTags: (tags: string[]) => void
   setSeoMeta: (meta: { title: string; description: string }) => void
   setCurrentPostId: (id: string | null) => void
+  setPipelineState: (blogId: string, state: Partial<BlogPipelineState>) => void
+  setPipelineGlobalStep: (step: PipelineStep) => void
+  setAutoPublish: (v: boolean) => void
+  resetPipeline: () => void
   resetEditor: () => void
 }
 
@@ -54,6 +77,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
   imageCount: 1,
   isGenerating: false,
   generatedPosts: [],
+  pipelineStates: {},
+  pipelineGlobalStep: 'idle',
+  autoPublish: typeof window !== 'undefined' ? localStorage.getItem('ai_auto_publish') === 'true' : false,
   currentPostId: null,
   title: '',
   content: '',
@@ -79,6 +105,18 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setTags: (tags) => set({ tags }),
   setSeoMeta: (seoMeta) => set({ seoMeta }),
   setCurrentPostId: (currentPostId) => set({ currentPostId }),
+  setPipelineState: (blogId, partial) => set((s) => ({
+    pipelineStates: {
+      ...s.pipelineStates,
+      [blogId]: { ...s.pipelineStates[blogId], ...partial },
+    },
+  })),
+  setPipelineGlobalStep: (pipelineGlobalStep) => set({ pipelineGlobalStep }),
+  setAutoPublish: (autoPublish) => {
+    if (typeof window !== 'undefined') localStorage.setItem('ai_auto_publish', String(autoPublish))
+    set({ autoPublish })
+  },
+  resetPipeline: () => set({ pipelineStates: {}, pipelineGlobalStep: 'idle', isGenerating: false }),
   resetEditor: () => set({
     title: '', content: '', htmlContent: '', tags: [],
     seoMeta: { title: '', description: '' }, currentPostId: null, selectedBlogId: null,

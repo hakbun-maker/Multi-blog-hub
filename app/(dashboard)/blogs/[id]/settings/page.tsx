@@ -3,16 +3,18 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Pencil, X } from 'lucide-react'
+import { useCategories } from '@/hooks/useCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 
-type SettingsTab = 'basic' | 'ai' | 'ads' | 'crosslink'
+type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads' | 'crosslink'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'basic', label: '기본정보' },
+  { id: 'categories', label: '카테고리' },
   { id: 'ai', label: 'AI 캐릭터' },
   { id: 'ads', label: '광고' },
   { id: 'crosslink', label: '크로스링킹' },
@@ -92,7 +94,7 @@ const FIELD_GUIDES = {
 export default function BlogSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>('basic')
-  const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; custom_domain?: string; is_active?: boolean; ai_provider?: string; character_name?: string; character_tone?: string; character_style?: string; persona?: string; linked_blog_ids?: string[]; ai_character_config?: Record<string, unknown> } | null>(null)
+  const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; url?: string; custom_domain?: string; is_active?: boolean; ai_provider?: string; character_name?: string; character_tone?: string; character_style?: string; persona?: string; linked_blog_ids?: string[]; ai_character_config?: Record<string, unknown> } | null>(null)
   const [allBlogs, setAllBlogs] = useState<{ id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -101,6 +103,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   // 기본정보 폼
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [blogUrl, setBlogUrl] = useState('')
   const [customDomain, setCustomDomain] = useState('')
   const [color, setColor] = useState(COLORS[0])
   const [isActive, setIsActive] = useState(true)
@@ -114,8 +117,19 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [writingFormat, setWritingFormat] = useState('')
   const [speechExamples, setSpeechExamples] = useState('')
 
+  // 카테고리
+  const { categories, fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories(params.id)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  const [editingCatName, setEditingCatName] = useState('')
+  const [defaultCategoryId, setDefaultCategoryId] = useState<string | null>(null)
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
+  const [moveToCatId, setMoveToCatId] = useState<string>('none')
+
   // 크로스링킹
   const [linkedBlogIds, setLinkedBlogIds] = useState<string[]>([])
+
+  useEffect(() => { fetchCategories() }, [fetchCategories])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -134,6 +148,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       // 폼 초기화
       setName(blogData.name ?? '')
       setDescription(blogData.description ?? '')
+      setBlogUrl(blogData.url ?? '')
       setCustomDomain(blogData.custom_domain ?? '')
       setColor(blogData.color ?? COLORS[0])
       setIsActive(blogData.is_active ?? true)
@@ -147,6 +162,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       setWritingFormat(aiConfig.writingFormat ?? '')
       setSpeechExamples(aiConfig.speechExamples ?? '')
       setLinkedBlogIds(aiConfig.linkedBlogIds ?? [])
+      setDefaultCategoryId(blogData.default_category_id ?? null)
 
       setLoading(false)
     }
@@ -163,7 +179,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive }),
+      body: JSON.stringify({ name, description, url: blogUrl || null, customDomain: customDomain || null, color, isActive }),
     })
     setSaving(false)
     if (res.ok) showSuccess('기본정보가 저장되었습니다.')
@@ -260,6 +276,12 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
             <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="블로그 설명" />
           </div>
           <div className="space-y-1.5">
+            <Label>블로그 URL</Label>
+            <Input value={blogUrl} onChange={e => setBlogUrl(e.target.value)}
+              placeholder="https://moneymakingwisdom.tistory.com" />
+            <p className="text-xs text-gray-400">실제 블로그 주소를 입력하세요. 블로그 보기 버튼에 사용됩니다.</p>
+          </div>
+          <div className="space-y-1.5">
             <Label>커스텀 도메인</Label>
             <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
               placeholder="example.com" />
@@ -291,6 +313,188 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
               onClick={handleDeleteBlog}>
               <Trash2 className="w-4 h-4 mr-1.5" />블로그 삭제
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* CategoriesTab */}
+      {activeTab === 'categories' && (
+        <div className="space-y-6">
+          {/* 기본 카테고리 설정 */}
+          <div className="space-y-2">
+            <Label>기본 카테고리</Label>
+            <p className="text-xs text-gray-400">새 글 작성 시 자동으로 선택되는 카테고리입니다.</p>
+            <select
+              value={defaultCategoryId ?? ''}
+              onChange={async (e) => {
+                const val = e.target.value || null
+                setDefaultCategoryId(val)
+                await fetch(`/api/blogs/${params.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ defaultCategoryId: val }),
+                })
+                showSuccess('기본 카테고리가 변경되었습니다.')
+              }}
+              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">없음</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 카테고리 추가 */}
+          <div className="space-y-2">
+            <Label>카테고리 추가</Label>
+            <div className="flex gap-2">
+              <Input
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                placeholder="새 카테고리 이름"
+                className="max-w-xs"
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && newCategoryName.trim()) {
+                    await createCategory(newCategoryName.trim())
+                    setNewCategoryName('')
+                    showSuccess('카테고리가 추가되었습니다.')
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={!newCategoryName.trim()}
+                onClick={async () => {
+                  await createCategory(newCategoryName.trim())
+                  setNewCategoryName('')
+                  showSuccess('카테고리가 추가되었습니다.')
+                }}
+              >
+                추가
+              </Button>
+            </div>
+          </div>
+
+          {/* 카테고리 목록 */}
+          <div className="space-y-2">
+            <Label>카테고리 목록</Label>
+            {categories.length === 0 ? (
+              <p className="text-sm text-gray-400">등록된 카테고리가 없습니다.</p>
+            ) : (
+              <div className="space-y-1">
+                {categories.map(cat => (
+                  <div key={cat.id}>
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50">
+                      {editingCatId === cat.id ? (
+                        <>
+                          <Input
+                            value={editingCatName}
+                            onChange={e => setEditingCatName(e.target.value)}
+                            className="flex-1 h-8 text-sm"
+                            autoFocus
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && editingCatName.trim()) {
+                                await updateCategory(cat.id, { name: editingCatName.trim() })
+                                setEditingCatId(null)
+                                showSuccess('카테고리 이름이 변경되었습니다.')
+                              }
+                              if (e.key === 'Escape') setEditingCatId(null)
+                            }}
+                          />
+                          <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingCatId(null)}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" className="h-7" onClick={async () => {
+                            if (!editingCatName.trim()) return
+                            await updateCategory(cat.id, { name: editingCatName.trim() })
+                            setEditingCatId(null)
+                            showSuccess('카테고리 이름이 변경되었습니다.')
+                          }}>
+                            저장
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm text-gray-800">{cat.name}</span>
+                          {defaultCategoryId === cat.id && (
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">기본</span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => { setEditingCatId(cat.id); setEditingCatName(cat.name) }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+                            onClick={async () => {
+                              const result = await deleteCategory(cat.id)
+                              if (result.ok) {
+                                showSuccess('카테고리가 삭제되었습니다.')
+                                if (defaultCategoryId === cat.id) setDefaultCategoryId(null)
+                              } else if (result.postCount) {
+                                setDeletingCatId(cat.id)
+                                setMoveToCatId('none')
+                              } else {
+                                alert(result.error ?? '삭제에 실패했습니다.')
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {/* 글 이동 다이얼로그 */}
+                    {deletingCatId === cat.id && (
+                      <div className="ml-4 mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-lg space-y-2">
+                        <p className="text-sm text-yellow-800">
+                          이 카테고리에 글이 있습니다. 글을 이동할 곳을 선택하세요.
+                        </p>
+                        <select
+                          value={moveToCatId}
+                          onChange={e => setMoveToCatId(e.target.value)}
+                          className="text-sm border border-yellow-300 rounded-md px-2 py-1.5 bg-white w-full"
+                        >
+                          <option value="none">미분류</option>
+                          {categories.filter(c => c.id !== cat.id).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeletingCatId(null)}
+                          >
+                            취소
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                            onClick={async () => {
+                              const result = await deleteCategory(cat.id, moveToCatId)
+                              if (result.ok) {
+                                setDeletingCatId(null)
+                                showSuccess('카테고리가 삭제되고 글이 이동되었습니다.')
+                                if (defaultCategoryId === cat.id) setDefaultCategoryId(null)
+                              }
+                            }}
+                          >
+                            글 이동 후 삭제
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

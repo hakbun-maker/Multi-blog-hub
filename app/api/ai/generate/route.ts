@@ -37,6 +37,21 @@ export async function POST(request: Request) {
     try { keyMap[row.provider] = decrypt(row.encrypted_key) } catch {}
   }
 
+  // Gemini 과부하 등 일시적 오류 시 재시도
+  async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 3000): Promise<T> {
+    try {
+      return await fn()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      const isRetryable = msg.includes('high demand') || msg.includes('overloaded') || msg.includes('503') || msg.includes('rate limit')
+      if (retries > 0 && isRetryable) {
+        await new Promise(r => setTimeout(r, delayMs))
+        return withRetry(fn, retries - 1, delayMs * 1.5)
+      }
+      throw e
+    }
+  }
+
   // 블로그별 병렬 생성
   const results = await Promise.allSettled(
     blogs.map(async (blog) => {
@@ -45,14 +60,13 @@ export async function POST(request: Request) {
       if (!apiKey) throw new Error(`${provider} API 키가 등록되지 않았습니다.`)
 
       const adapter = await createAIAdapter(provider, apiKey)
-      const generated = await adapter.generatePost({
+      return withRetry(() => adapter.generatePost({
         keyword,
         relatedKeywords,
         characterConfig: blog.ai_character_config ?? {},
         imageCount,
         blogId: blog.id,
-      })
-      return generated
+      }))
     })
   )
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
+import { useSidebar } from '@/components/layout/SidebarContext'
 
 interface AppHeaderProps {
   userEmail?: string
@@ -18,6 +19,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ userEmail, userName }: AppHeaderProps) {
   const router = useRouter()
+  const { collapsed, toggle } = useSidebar()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -29,9 +31,19 @@ export function AppHeader({ userEmail, userName }: AppHeaderProps) {
 
   return (
     <header className="h-14 flex items-center justify-between px-6 bg-white border-b border-gray-200 sticky top-0 z-40">
-      {/* 모바일 로고 */}
-      <span className="md:hidden text-base font-bold text-blue-600">Multi Blog Hub</span>
-      <div className="hidden md:block" />
+      {/* 좌측: 모바일 로고 + 데스크톱 토글 */}
+      <div className="flex items-center gap-2">
+        <span className="md:hidden text-base font-bold text-blue-600">Multi Blog Hub</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggle}
+          className="hidden md:flex h-8 w-8 p-0"
+          title={collapsed ? '사이드바 열기' : '사이드바 닫기'}
+        >
+          {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        </Button>
+      </div>
 
       {/* 우측: 프로필 드롭다운 */}
       <DropdownMenu>

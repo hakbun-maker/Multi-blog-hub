@@ -81,6 +81,18 @@
   display: block;
 }
 
+/* figure + figcaption (에디터 내 이미지 설명 가운데 정렬) */
+.ProseMirror figure {
+  text-align: center !important;
+  margin: 1.5em auto !important;
+}
+.ProseMirror figcaption {
+  text-align: center !important;
+  font-size: 0.875rem !important;
+  color: #6b7280 !important;
+  margin-top: 0.5rem !important;
+}
+
 /* 이미지 캡션 (에디터 + 미리보기 공통) */
 .image-caption,
 .ProseMirror .image-caption {

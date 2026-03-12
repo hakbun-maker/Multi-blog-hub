@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { Globe, PenSquare, Plus } from 'lucide-react'
+import { Globe, Plus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -11,9 +11,12 @@ const BLOG_COLORS = [
 
 export default async function BlogsPage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const userId = user?.id
+
   const [{ data: blogs }, { data: posts }] = await Promise.all([
-    supabase.from('blogs').select('*').order('created_at', { ascending: true }),
-    supabase.from('posts').select('id, blog_id, status'),
+    supabase.from('blogs').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+    supabase.from('posts').select('id, blog_id, status').eq('user_id', userId),
   ])
 
   return (
@@ -46,8 +49,8 @@ export default async function BlogsPage() {
             const blogPosts = posts?.filter(p => p.blog_id === blog.id) ?? []
             const published = blogPosts.filter(p => p.status === 'published').length
             return (
-              <Card key={blog.id} className="shadow-none border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all">
-                <CardContent className="p-5">
+              <Card key={blog.id} className="shadow-none border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all h-full">
+                <CardContent className="p-5 h-full flex flex-col">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
@@ -61,20 +64,14 @@ export default async function BlogsPage() {
                   {blog.description && (
                     <p className="text-sm text-gray-500 mb-3 line-clamp-2">{blog.description}</p>
                   )}
+                  <div className="flex-1" />
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
                     <span>발행 {published}개</span>
                     <span>전체 {blogPosts.length}개</span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button asChild size="sm" className="flex-1">
-                      <Link href={`/editor/new?blogId=${blog.id}`}>
-                        <PenSquare className="w-3.5 h-3.5 mr-1" />글 작성
-                      </Link>
-                    </Button>
-                    <Button asChild size="sm" variant="outline" className="flex-1">
-                      <Link href={`/blogs/${blog.id}`}>상세 보기</Link>
-                    </Button>
-                  </div>
+                  <Button asChild size="sm" className="w-full">
+                    <Link href={`/blogs/${blog.id}`}>확인</Link>
+                  </Button>
                 </CardContent>
               </Card>
             )

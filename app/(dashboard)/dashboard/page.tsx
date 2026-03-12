@@ -11,10 +11,12 @@ const BLOG_COLORS = [
 
 export default async function DashboardPage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const userId = user?.id
 
   const [{ data: blogs }, { data: posts }] = await Promise.all([
-    supabase.from('blogs').select('*').order('created_at', { ascending: true }),
-    supabase.from('posts').select('*').order('published_at', { ascending: false }),
+    supabase.from('blogs').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+    supabase.from('posts').select('*').eq('user_id', userId).order('published_at', { ascending: false }),
   ])
 
   const publishedPosts = posts?.filter(p => p.status === 'published') ?? []

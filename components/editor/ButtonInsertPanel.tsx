@@ -17,6 +17,7 @@ export interface ButtonEditData {
 }
 
 interface ButtonInsertPanelProps {
+  isOpen: boolean
   onInsert: (html: string) => void
   onClose: () => void
   editData?: ButtonEditData | null
@@ -135,7 +136,7 @@ function ColorPicker({ presets, value, onChange, label }: {
   )
 }
 
-export function ButtonInsertPanel({ onInsert, onClose, editData, onUpdate }: ButtonInsertPanelProps) {
+export function ButtonInsertPanel({ isOpen, onInsert, onClose, editData, onUpdate }: ButtonInsertPanelProps) {
   const isEditMode = !!editData
 
   const [config, setConfig] = useState<ButtonConfig>(DEFAULT_CONFIG)
@@ -200,79 +201,89 @@ export function ButtonInsertPanel({ onInsert, onClose, editData, onUpdate }: But
   }
 
   return (
-    <div className="border-b border-gray-100 bg-blue-50/30 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-700">
-          {isEditMode ? '버튼 수정' : '버튼 추가'}
-        </h4>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">버튼 텍스트</Label>
-          <Input value={config.text} onChange={e => update({ text: e.target.value })}
-            placeholder="버튼 텍스트" className="text-sm h-8" />
+    <>
+      {isOpen && <div className="fixed inset-0 z-40 bg-black/10" onClick={onClose} />}
+      <div
+        className={`fixed top-0 right-0 h-full bg-white shadow-2xl border-l border-gray-200 z-50 flex flex-col transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ width: 'min(440px, 92vw)' }}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-blue-50 flex-shrink-0">
+          <h3 className="text-sm font-semibold text-blue-800">
+            {isEditMode ? '버튼 수정' : 'CTA 버튼 추가'}
+          </h3>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">링크 URL</Label>
-          <Input value={config.href} onChange={e => update({ href: e.target.value })}
-            placeholder="https://..." className="text-sm h-8" />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <ColorPicker presets={BG_PRESETS} value={config.bgColor} onChange={v => update({ bgColor: v })} label="배경색" />
-        <ColorPicker presets={TEXT_PRESETS} value={config.textColor} onChange={v => update({ textColor: v })} label="글자색" />
-        <div className="space-y-1">
-          <Label className="text-xs">글자크기</Label>
-          <div className="flex gap-1">
-            {FONT_SIZE_OPTIONS.map(f => (
-              <button key={f.value} onClick={() => update({ fontSize: f.value })}
-                className={`px-2 py-1 text-xs rounded border transition-colors ${
-                  config.fontSize === f.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
-                }`}>{f.label}</button>
-            ))}
+        {/* 스크롤 콘텐츠 */}
+        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">버튼 텍스트</Label>
+              <Input value={config.text} onChange={e => update({ text: e.target.value })}
+                placeholder="버튼 텍스트" className="text-sm h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">링크 URL</Label>
+              <Input value={config.href} onChange={e => update({ href: e.target.value })}
+                placeholder="https://..." className="text-sm h-8" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <ColorPicker presets={BG_PRESETS} value={config.bgColor} onChange={v => update({ bgColor: v })} label="배경색" />
+            <ColorPicker presets={TEXT_PRESETS} value={config.textColor} onChange={v => update({ textColor: v })} label="글자색" />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">글자크기</Label>
+            <div className="flex gap-1.5">
+              {FONT_SIZE_OPTIONS.map(f => (
+                <button key={f.value} onClick={() => update({ fontSize: f.value })}
+                  className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                    config.fontSize === f.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
+                  }`}>{f.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">모서리</Label>
+            <div className="flex gap-1.5">
+              {ROUND_OPTIONS.map(r => (
+                <button key={r.value} onClick={() => update({ round: r.value })}
+                  className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                    config.round === r.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
+                  }`}>{r.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">높이</Label>
+            <div className="flex gap-1.5">
+              {HEIGHT_OPTIONS.map(h => (
+                <button key={h.value} onClick={() => update({ height: h.value })}
+                  className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                    config.height === h.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
+                  }`}>{h.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+            <div>
+              <span className="text-xs text-gray-400 mr-2">미리보기:</span>
+              <span style={previewStyle}>{config.text || '버튼'}</span>
+            </div>
+            <Button size="sm" onClick={handleInsert} disabled={!config.text.trim()}>
+              {isEditMode ? '수정' : '추가'}
+            </Button>
           </div>
         </div>
       </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">모서리</Label>
-          <div className="flex gap-1">
-            {ROUND_OPTIONS.map(r => (
-              <button key={r.value} onClick={() => update({ round: r.value })}
-                className={`px-2 py-1 text-xs rounded border transition-colors ${
-                  config.round === r.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
-                }`}>{r.label}</button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">높이</Label>
-          <div className="flex gap-1">
-            {HEIGHT_OPTIONS.map(h => (
-              <button key={h.value} onClick={() => update({ height: h.value })}
-                className={`px-2 py-1 text-xs rounded border transition-colors ${
-                  config.height === h.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 hover:bg-gray-100'
-                }`}>{h.label}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-        <div>
-          <span className="text-xs text-gray-400 mr-2">미리보기:</span>
-          <span style={previewStyle}>{config.text || '버튼'}</span>
-        </div>
-        <Button size="sm" onClick={handleInsert} disabled={!config.text.trim()}>
-          {isEditMode ? '수정' : '추가'}
-        </Button>
-      </div>
-    </div>
+    </>
   )
 }

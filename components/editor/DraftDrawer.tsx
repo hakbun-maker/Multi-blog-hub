@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, FileText, Clock } from 'lucide-react'
+import { X, FileText, Clock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Draft {
@@ -24,15 +24,38 @@ interface DraftDrawerProps {
 export function DraftDrawer({ isOpen, onClose, onLoad }: DraftDrawerProps) {
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isOpen) return
+  const fetchDrafts = () => {
     setLoading(true)
     fetch('/api/posts?status=draft')
       .then(r => r.json())
       .then(d => setDrafts(d.data ?? []))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetchDrafts()
   }, [isOpen])
+
+  const handleDelete = async (e: React.MouseEvent, draftId: string) => {
+    e.stopPropagation()
+    if (!confirm('이 임시저장 글을 삭제하시겠습니까?')) return
+    setDeleting(draftId)
+    try {
+      const res = await fetch(`/api/posts/${draftId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setDrafts(prev => prev.filter(d => d.id !== draftId))
+      } else {
+        alert('삭제에 실패했습니다.')
+      }
+    } catch {
+      alert('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
@@ -66,27 +89,36 @@ export function DraftDrawer({ isOpen, onClose, onLoad }: DraftDrawerProps) {
           <p className="text-sm text-gray-400 text-center py-8">임시저장된 글이 없습니다.</p>
         ) : (
           drafts.map(draft => (
-            <button key={draft.id}
-              onClick={() => { onLoad(draft); onClose() }}
-              className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all">
-              <p className="text-sm font-medium text-gray-800 truncate">
-                {draft.title || '(제목 없음)'}
-              </p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="flex items-center gap-0.5 text-xs text-gray-400">
-                  <Clock className="w-3 h-3" />{formatDate(draft.created_at)}
-                </span>
-                {draft.keyword && (
-                  <span className="text-xs text-gray-400 truncate max-w-[120px]">
-                    {draft.keyword.split(',').slice(0, 3).join(', ')}
+            <div key={draft.id} className="relative group">
+              <button
+                onClick={() => { onLoad(draft); onClose() }}
+                className="w-full text-left p-3 pr-10 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all">
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  {draft.title || '(제목 없음)'}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="flex items-center gap-0.5 text-xs text-gray-400">
+                    <Clock className="w-3 h-3" />{formatDate(draft.created_at)}
                   </span>
+                  {draft.keyword && (
+                    <span className="text-xs text-gray-400 truncate max-w-[120px]">
+                      {draft.keyword.split(',').slice(0, 3).join(', ')}
+                    </span>
+                  )}
+                </div>
+                {draft.content_html && (
+                  <p className="text-xs text-gray-400 mt-1 line-clamp-2"
+                    dangerouslySetInnerHTML={{ __html: draft.content_html.replace(/<[^>]*>/g, ' ').slice(0, 100) }} />
                 )}
-              </div>
-              {draft.content_html && (
-                <p className="text-xs text-gray-400 mt-1 line-clamp-2"
-                  dangerouslySetInnerHTML={{ __html: draft.content_html.replace(/<[^>]*>/g, ' ').slice(0, 100) }} />
-              )}
-            </button>
+              </button>
+              <button
+                onClick={(e) => handleDelete(e, draft.id)}
+                disabled={deleting === draft.id}
+                className="absolute top-3 right-3 p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                title="삭제">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           ))
         )}
       </div>

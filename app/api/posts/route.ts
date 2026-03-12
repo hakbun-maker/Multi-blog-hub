@@ -18,6 +18,8 @@ export async function GET(request: Request) {
 
   if (blogId) query = query.eq('blog_id', blogId)
   if (status) query = query.eq('status', status)
+  const categoryId = searchParams.get('categoryId')
+  if (categoryId) query = query.eq('category_id', categoryId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { blogId, title, htmlContent, status, tags, seoMeta } = body
+  const { blogId, title, htmlContent, status, tags, seoMeta, categoryId } = body
 
   // 발행 시에만 blogId 필수
   if (status === 'published' && !blogId) {
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
     .from('posts')
     .insert({
       ...(blogId ? { blog_id: blogId } : {}),
+      ...(categoryId ? { category_id: categoryId } : {}),
       user_id: user.id,
       title: finalTitle,
       slug,

@@ -14,18 +14,28 @@ export class GeminiAdapter implements AIAdapter {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 4096 },
+          generationConfig: {
+            maxOutputTokens: 8192,
+          },
         }),
       }
     )
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      throw new Error(`Gemini API 오류: ${err.error?.message ?? response.statusText}`)
+      throw new Error(`Gemini API 오류: ${(err as { error?: { message?: string } })?.error?.message ?? response.statusText}`)
     }
 
-    const data = await response.json()
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const data = await response.json() as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[]
+    }
+    // Gemini는 여러 parts를 반환할 수 있음 (thinking + response)
+    const parts = data.candidates?.[0]?.content?.parts ?? []
+    // 마지막 text part가 실제 응답
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i].text) return parts[i].text!
+    }
+    return ''
   }
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {

@@ -2,11 +2,15 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import CodeExtension from '@tiptap/extension-code'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
-import { useState, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
+
+// Enter 시 코드 마크가 다음 줄로 이어지지 않도록 inclusive: false 설정
+const NonInclusiveCode = CodeExtension.extend({ inclusive: false })
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
 import {
   Bold, Italic, List, Code,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -18,6 +22,7 @@ import { ImageInsertPanel } from './ImageInsertPanel'
 import { VideoInsertPanel } from './VideoInsertPanel'
 import { HrInsertPanel } from './HrInsertPanel'
 import { EmojiPickerPanel } from './EmojiPickerPanel'
+import { RelatedPostPanel } from './RelatedPostPanel'
 import { IframeExtension } from '@/lib/tiptap/iframe-extension'
 import { StyledButtonExtension } from '@/lib/tiptap/button-extension'
 
@@ -43,6 +48,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
   const [showVideoPanel, setShowVideoPanel] = useState(false)
   const [showHrPanel, setShowHrPanel] = useState(false)
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
+  const [showRelatedPostPanel, setShowRelatedPostPanel] = useState(false)
   const [imageEntryTrigger, setImageEntryTrigger] = useState(0)
   const [buttonEditData, setButtonEditData] = useState<ButtonEditData | null>(null)
   const [editingButtonPos, setEditingButtonPos] = useState<number | null>(null)
@@ -55,13 +61,15 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
     setShowVideoPanel(false)
     setShowHrPanel(false)
     setShowEmojiPanel(false)
+    setShowRelatedPostPanel(false)
     setButtonEditData(null)
     setEditingButtonPos(null)
   }, [])
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ code: false }),
+      NonInclusiveCode,
       Image.configure({ allowBase64: true }),
       Link.configure({
         openOnClick: false,
@@ -80,6 +88,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML()
       const text = ed.getText()
+      isInternalUpdate.current = true
       setHtmlValue(html)
       onChange?.(html, text)
     },
@@ -114,6 +123,19 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
       },
     },
   })
+
+  // content prop 변경 시 에디터 동기화 (draft 로드 등)
+  const isInternalUpdate = useRef(false)
+  useEffect(() => {
+    if (!editor || isInternalUpdate.current) {
+      isInternalUpdate.current = false
+      return
+    }
+    if (content !== editor.getHTML()) {
+      editor.commands.setContent(content || '')
+      setHtmlValue(content || '')
+    }
+  }, [content, editor])
 
   // 에디터 ref 노출
   const getHeadings = useCallback(() => {
@@ -322,6 +344,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
     editor.isActive(name, attrs) ? 'bg-gray-200' : ''
 
   return (
+    <>
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* 툴바 */}
       <div className="flex items-center gap-0.5 p-2 border-b border-gray-100 bg-gray-50 flex-wrap">
@@ -353,6 +376,13 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
           onClick={() => editor.chain().focus().toggleCode().run()} title="코드">
           <Code className="w-3.5 h-3.5" />
         </Button>
+        {/* 구분선 버튼 - 코드 바로 오른쪽 */}
+        <Button type="button" size="sm" variant="ghost"
+          className={`h-7 px-2 text-xs gap-1 ${showHrPanel ? 'bg-gray-200' : ''}`}
+          onClick={() => { const next = !showHrPanel; closeAllPanels(); setShowHrPanel(next) }}
+          title="구분선 삽입">
+          ➖ 구분선
+        </Button>
 
         <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
@@ -376,6 +406,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
 
         <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
+        {/* 미디어 삽입 그룹 */}
         <Button type="button" size="sm" variant="ghost" className={`h-7 px-2 text-xs gap-1 ${isActive('link')}`}
           onClick={insertLink} title="링크 삽입">
           🔗 링크
@@ -394,37 +425,41 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
 
         <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
-        <Button type="button" size="sm" variant="ghost"
-          className={`h-7 px-2 text-xs gap-1 ${showHrPanel ? 'bg-gray-200' : ''}`}
-          onClick={() => { const next = !showHrPanel; closeAllPanels(); setShowHrPanel(next) }}
-          title="구분선 삽입">
-          ➖ 라인
-        </Button>
-        <Button type="button" size="sm" variant="ghost"
-          className={`h-7 px-2 text-xs gap-1 ${showButtonPanel ? 'bg-gray-200' : ''}`}
-          onClick={() => { const next = !showButtonPanel; closeAllPanels(); setShowButtonPanel(next) }}
-          title="CTA 버튼 삽입">
-          🔘 버튼
-        </Button>
-        <Button type="button" size="sm" variant="ghost"
-          className={`h-7 px-2 text-xs gap-1 ${showImagePanel ? 'bg-gray-200' : ''}`}
-          onClick={() => {
-            if (showImagePanel) {
-              setImageEntryTrigger(prev => prev + 1)
-            } else {
-              closeAllPanels()
-              setShowImagePanel(true)
-            }
-          }}
-          title="AI 이미지 생성">
-          🖼️ AI이미지
-        </Button>
-        <Button type="button" size="sm" variant="ghost"
-          className={`h-7 px-2 text-xs gap-1 ${showEmojiPanel ? 'bg-gray-200' : ''}`}
-          onClick={() => { const next = !showEmojiPanel; closeAllPanels(); setShowEmojiPanel(next) }}
-          title="이모티콘 삽입">
-          😀 이모티콘
-        </Button>
+        {/* 특수 기능 버튼 그룹 */}
+        <div className="flex items-center gap-0.5 bg-amber-50 border border-amber-300 rounded-lg px-1.5 py-0.5">
+          <span className="text-[10px] font-semibold text-amber-600 mr-0.5 select-none">★</span>
+          <Button type="button" size="sm" variant="ghost"
+            className={`h-7 px-2 text-xs gap-1 ${showButtonPanel ? 'bg-amber-200' : 'hover:bg-amber-100'}`}
+            onClick={() => { const next = !showButtonPanel; closeAllPanels(); setShowButtonPanel(next) }}
+            title="CTA 버튼 삽입">
+            🔘 CTA버튼
+          </Button>
+          <Button type="button" size="sm" variant="ghost"
+            className={`h-7 px-2 text-xs gap-1 ${showRelatedPostPanel ? 'bg-amber-200' : 'hover:bg-amber-100'}`}
+            onClick={() => { const next = !showRelatedPostPanel; closeAllPanels(); setShowRelatedPostPanel(next) }}
+            title="관련글 삽입">
+            📰 관련글
+          </Button>
+          <Button type="button" size="sm" variant="ghost"
+            className={`h-7 px-2 text-xs gap-1 ${showImagePanel ? 'bg-amber-200' : 'hover:bg-amber-100'}`}
+            onClick={() => {
+              if (showImagePanel) {
+                setImageEntryTrigger(prev => prev + 1)
+              } else {
+                closeAllPanels()
+                setShowImagePanel(true)
+              }
+            }}
+            title="AI 이미지 생성">
+            🖼️ AI이미지
+          </Button>
+          <Button type="button" size="sm" variant="ghost"
+            className={`h-7 px-2 text-xs gap-1 ${showEmojiPanel ? 'bg-amber-200' : 'hover:bg-amber-100'}`}
+            onClick={() => { const next = !showEmojiPanel; closeAllPanels(); setShowEmojiPanel(next) }}
+            title="이모티콘 삽입">
+            😀 이모티콘
+          </Button>
+        </div>
 
         <div className="ml-auto">
           <Button type="button" size="sm" variant="outline" className="h-7 text-xs px-2"
@@ -447,43 +482,9 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
         <HrInsertPanel onInsert={insertHrHtml} onClose={() => setShowHrPanel(false)} />
       )}
 
-      {/* 버튼 추가 패널 */}
-      {showButtonPanel && (
-        <ButtonInsertPanel
-          onInsert={insertButtonHtml}
-          onClose={() => { setShowButtonPanel(false); setButtonEditData(null); setEditingButtonPos(null) }}
-          editData={buttonEditData}
-          onUpdate={handleButtonUpdate}
-        />
-      )}
-
       {/* 영상 삽입 패널 */}
       {showVideoPanel && (
         <VideoInsertPanel onInsert={insertVideoHtml} onClose={() => setShowVideoPanel(false)} />
-      )}
-
-      {/* 이모티콘 패널 */}
-      {showEmojiPanel && (
-        <EmojiPickerPanel
-          onSelect={(emoji) => {
-            editor?.chain().focus().insertContent(emoji).run()
-          }}
-          onClose={() => setShowEmojiPanel(false)}
-        />
-      )}
-
-      {/* 이미지 추가 패널 */}
-      {showImagePanel && (
-        <ImageInsertPanel
-          getHeadings={getHeadings}
-          addEntryTrigger={imageEntryTrigger}
-          onInsert={(h2Text, html) => {
-            insertAtH2End(h2Text, html)
-          }}
-          onClose={() => setShowImagePanel(false)}
-          articleTitle={articleTitle}
-          articleContent={htmlValue}
-        />
       )}
 
       {/* 에디터 영역 */}
@@ -501,5 +502,44 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
         />
       )}
     </div>
+
+    <ButtonInsertPanel
+      isOpen={showButtonPanel}
+      onInsert={insertButtonHtml}
+      onClose={() => { setShowButtonPanel(false); setButtonEditData(null); setEditingButtonPos(null) }}
+      editData={buttonEditData}
+      onUpdate={handleButtonUpdate}
+    />
+    <EmojiPickerPanel
+      isOpen={showEmojiPanel}
+      onSelect={(emoji) => {
+        editor?.chain().focus().insertContent(emoji).run()
+      }}
+      onClose={() => setShowEmojiPanel(false)}
+    />
+    <ImageInsertPanel
+      isOpen={showImagePanel}
+      getHeadings={getHeadings}
+      addEntryTrigger={imageEntryTrigger}
+      onInsert={(h2Text, html) => {
+        insertAtH2End(h2Text, html)
+      }}
+      onClose={() => setShowImagePanel(false)}
+      articleTitle={articleTitle}
+      articleContent={htmlValue}
+    />
+    {/* 관련글 삽입 패널 */}
+    <RelatedPostPanel
+      isOpen={showRelatedPostPanel}
+      onClose={() => setShowRelatedPostPanel(false)}
+      onInsert={(h2Text, html) => {
+        insertAtH2End(h2Text, html)
+        setShowRelatedPostPanel(false)
+      }}
+      articleContent={htmlValue}
+      articleTitle={articleTitle}
+      getHeadings={getHeadings}
+    />
+    </>
   )
 })

@@ -11,8 +11,11 @@ import {
   Megaphone,
   Search,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSidebar } from '@/components/layout/SidebarContext'
 
 const NAV_ITEMS = [
   { href: '/dashboard',  label: '대시보드',    icon: LayoutDashboard },
@@ -27,17 +30,24 @@ const NAV_ITEMS = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { collapsed, toggle } = useSidebar()
 
   return (
     <>
       {/* Desktop / Tablet 사이드바 */}
-      <aside className="hidden md:flex flex-col w-60 lg:w-60 md:w-16 flex-shrink-0 bg-white border-r border-gray-200 min-h-screen">
+      <aside className={cn(
+        'hidden md:flex flex-col flex-shrink-0 bg-white border-r border-gray-200 min-h-screen transition-all duration-200',
+        collapsed ? 'w-16' : 'w-60'
+      )}>
         {/* 로고 */}
         <div className="h-14 flex items-center px-4 border-b border-gray-200">
-          <span className="hidden lg:block text-base font-bold text-blue-600 truncate">
-            Multi Blog Hub
-          </span>
-          <span className="lg:hidden text-blue-600 font-bold text-lg">M</span>
+          {collapsed ? (
+            <span className="text-blue-600 font-bold text-lg mx-auto">M</span>
+          ) : (
+            <span className="text-base font-bold text-blue-600 truncate">
+              Multi Blog Hub
+            </span>
+          )}
         </div>
 
         {/* 네비게이션 */}
@@ -48,19 +58,32 @@ export function AppSidebar() {
               <Link
                 key={href}
                 href={href}
+                title={collapsed ? label : undefined}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  collapsed && 'justify-center px-0',
                   isActive
                     ? 'bg-blue-50 text-blue-600'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 )}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="hidden lg:block">{label}</span>
+                {!collapsed && <span>{label}</span>}
               </Link>
             )
           })}
         </nav>
+
+        {/* 토글 버튼 */}
+        <div className="p-2 border-t border-gray-200">
+          <button
+            onClick={toggle}
+            className="flex items-center justify-center w-full py-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            title={collapsed ? '사이드바 열기' : '사이드바 닫기'}
+          >
+            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          </button>
+        </div>
       </aside>
 
       {/* Mobile 하단 탭바 */}

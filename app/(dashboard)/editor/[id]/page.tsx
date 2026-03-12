@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, BookOpen } from 'lucide-react'
+import { Send, BookOpen, Wand2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,9 +19,12 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
   const [selectedBlogId, setSelectedBlogId] = useState<string | null>(null)
   const [tags, setTags] = useState<string[]>([])
   const [seoMeta, setSeoMeta] = useState({ title: '', description: '' })
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [snippetOpen, setSnippetOpen] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [generatingMeta, setGeneratingMeta] = useState(false)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -34,11 +37,20 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
       setTitle(p.title ?? '')
       setHtmlContent(p.content_html ?? '')
       setSelectedBlogId(p.blog_id ?? null)
+      setSelectedCategoryId(p.category_id ?? null)
       setTags(p.keyword ? p.keyword.split(',').map((t: string) => t.trim()).filter(Boolean) : [])
       setSeoMeta({ title: p.seo_title ?? '', description: p.meta_description ?? '' })
       setBlogs(blogsData.data ?? [])
     })
   }, [params.id])
+
+  // 블로그 변경 시 카테고리 fetch
+  useEffect(() => {
+    if (!selectedBlogId) { setCategories([]); return }
+    fetch(`/api/categories?blogId=${selectedBlogId}`).then(r => r.json()).then(d => {
+      setCategories(d.data ?? [])
+    })
+  }, [selectedBlogId])
 
   const triggerAutoSave = (html: string) => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
@@ -53,6 +65,7 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
       body: JSON.stringify({
         title, htmlContent: html ?? htmlContent,
         status: 'draft', tags, seoMeta,
+        categoryId: selectedCategoryId,
       }),
     })
     setSaveStatus('saved')
@@ -70,10 +83,30 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
         status: 'published', tags, seoMeta,
         publishedAt: new Date().toISOString(),
         blogId: selectedBlogId,
+        categoryId: selectedCategoryId,
       }),
     })
     setPublishing(false)
     if (res.ok) router.push(selectedBlogId ? `/blogs/${selectedBlogId}` : '/dashboard')
+  }
+
+  const generateMeta = async () => {
+    if (!htmlContent.trim() && !title.trim()) { alert('글 내용을 먼저 작성해주세요.'); return }
+    setGeneratingMeta(true)
+    try {
+      const res = await fetch('/api/ai/generate-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, htmlContent }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        if (data.seoTitle) setSeoMeta(prev => ({ ...prev, title: data.seoTitle }))
+        if (data.seoDescription) setSeoMeta(prev => ({ ...prev, description: data.seoDescription }))
+        if (data.tags?.length) setTags(data.tags)
+      }
+    } catch { /* ignore */ }
+    finally { setGeneratingMeta(false) }
   }
 
   if (!post) return <div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-64" /><div className="h-96 bg-gray-100 rounded" /></div>
@@ -99,14 +132,27 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
         placeholder="글 제목을 입력하세요"
         className="text-xl font-bold border-0 border-b border-gray-200 rounded-none px-0 focus-visible:ring-0 h-auto py-2" />
 
-      <div className="flex items-center gap-2">
-        <Label className="text-sm text-gray-500 whitespace-nowrap">발행 블로그:</Label>
-        <select value={selectedBlogId ?? ''}
-          onChange={e => setSelectedBlogId(e.target.value || null)}
-          className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">블로그 선택</option>
-          {blogs.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm text-gray-500 whitespace-nowrap">발행 블로그:</Label>
+          <select value={selectedBlogId ?? ''}
+            onChange={e => setSelectedBlogId(e.target.value || null)}
+            className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">블로그 선택</option>
+            {blogs.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </div>
+        {categories.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-gray-500 whitespace-nowrap">카테고리:</Label>
+            <select value={selectedCategoryId ?? ''}
+              onChange={e => setSelectedCategoryId(e.target.value || null)}
+              className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">미분류</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <PostEditor
@@ -114,9 +160,16 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
         onChange={(html) => { setHtmlContent(html); triggerAutoSave(html) }}
       />
 
-      <div className="space-y-1.5">
-        <Label className="text-sm">태그</Label>
-        <Input placeholder="태그를 쉼표로 구분해서 입력"
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">태그</Label>
+          <Button size="sm" variant="outline" onClick={generateMeta} disabled={generatingMeta}
+            className="h-7 text-xs gap-1">
+            {generatingMeta ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+            AI 기타 설정 작성
+          </Button>
+        </div>
+        <Input placeholder="태그를 쉼표로 구분해서 입력 (예: 여행, 제주도)"
           value={tags.join(', ')}
           onChange={e => setTags(e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
           className="text-sm" />
