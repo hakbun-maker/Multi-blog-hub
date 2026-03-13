@@ -1,41 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-
-// Vercel 도메인 추가
-async function addVercelDomain(domain: string) {
-  const res = await fetch(
-    `https://api.vercel.com/v10/projects/${process.env.VERCEL_PROJECT_ID}/domains`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name: domain }),
-    }
-  )
-  const data = await res.json()
-  if (!res.ok && data.error?.code !== 'domain_already_in_use') {
-    console.error('Vercel domain add failed:', data)
-    return { ok: false, error: data.error?.message ?? 'Failed to add domain' }
-  }
-  return { ok: true }
-}
-
-// Vercel 도메인 삭제
-async function removeVercelDomain(domain: string) {
-  const res = await fetch(
-    `https://api.vercel.com/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains/${domain}`,
-    {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` },
-    }
-  )
-  if (!res.ok) {
-    const data = await res.json()
-    console.error('Vercel domain remove failed:', data)
-  }
-}
+import { addVercelDomain, removeVercelDomain } from '@/lib/vercel'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
