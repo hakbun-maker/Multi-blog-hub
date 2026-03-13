@@ -1,0 +1,92 @@
+version: "2.0"
+
+screen:
+  name: 대시보드
+  route: /dashboard
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: stats_summary
+    needs: [blog_id, date, page_views, unique_visitors, post_count, estimated_revenue]
+  - resource: blogs
+    needs: [id, name, color, is_active]
+  - resource: posts
+    needs: [id, title, status, published_at, blog_id]
+  - resource: ad_units
+    needs: [id, blog_id, name, position]
+
+components:
+  - id: stat_summary_bar
+    type: stat_cards
+    position: main
+    function: 전체 통계 요약 (총 방문자, 총 조회수, 총 글 수, 예상 수익)
+    data_source:
+      resource: stats_summary
+
+  - id: blog_stat_grid
+    type: grid
+    position: main
+    function: 블로그별 통계 카드 (이름, 방문자, 글 수, 수익 기여)
+    data_source:
+      resource: blogs
+    events:
+      - on: click:blog-card
+        do: /blogs/:id로 이동
+
+  - id: recent_posts_list
+    type: list
+    position: main
+    function: 최근 발행글 목록 (제목, 블로그, 발행일, 조회수)
+    data_source:
+      resource: posts
+      filters: { status: published, limit: 10 }
+    events:
+      - on: click:post-row
+        do: /editor/:id로 이동
+
+  - id: revenue_overview
+    type: chart
+    position: main
+    function: 예상 수익 현황 (총 수익 + 광고별 기여 현황)
+    data_source:
+      resource: ad_units
+
+  - id: quick_action_buttons
+    type: button_group
+    position: main
+    function: 빠른 실행 버튼 (글 작성, 스케줄 추가)
+    events:
+      - on: click:new-post
+        do: /editor/new로 이동
+      - on: click:new-schedule
+        do: /scheduler로 이동
+
+connections:
+  navigations:
+    - from: blog_stat_grid
+      to: /blogs/:id
+    - from: recent_posts_list
+      to: /editor/:id
+    - from: quick_action_buttons
+      to: /editor/new
+    - from: quick_action_buttons
+      to: /scheduler
+
+tests:
+  - name: 대시보드 초기 로드
+    when: 인증된 사용자가 /dashboard 접속
+    then:
+      - 전체 통계 표시
+      - 블로그별 카드 표시
+      - 최근 10개 발행글 표시
+
+  - name: 블로그 카드 클릭
+    when: 블로그 카드 클릭
+    then:
+      - /blogs/:id로 이동
+
+  - name: 빠른 글 작성
+    when: 글 작성 버튼 클릭
+    then:
+      - /editor/new로 이동

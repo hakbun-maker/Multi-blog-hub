@@ -1,0 +1,86 @@
+version: "2.0"
+
+screen:
+  name: 블로그 설정
+  route: /blogs/:id/settings
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: blogs
+    needs: [id, name, slug, custom_domain, subdomain, description, ai_character_config, ai_provider, color]
+  - resource: ad_units
+    needs: [id, blog_id, name, ad_client, ad_slot, position, size, is_active]
+
+components:
+  - id: settings_tab_nav
+    type: tabs
+    position: main
+    function: 기본정보 / AI 캐릭터 / 광고 / 크로스링킹 탭 전환
+
+  - id: basic_info_tab
+    type: form
+    position: main
+    function: 블로그 이름, 도메인, 설명 수정
+    data_source:
+      resource: blogs
+    events:
+      - on: submit
+        do: 블로그 기본 정보 저장
+
+  - id: ai_character_tab
+    type: form
+    position: main
+    function: AI 캐릭터 이름, 톤, 스타일, 페르소나 상세 설정
+    data_source:
+      resource: blogs
+      fields: [ai_character_config, ai_provider]
+    events:
+      - on: submit
+        do: AI 캐릭터 설정 저장
+
+  - id: ads_tab
+    type: form
+    position: main
+    function: AdSense 코드 입력, 광고 위치별 단위 설정
+    data_source:
+      resource: ad_units
+      filters: { blog_id: ":id" }
+    events:
+      - on: click:add-unit
+        do: 광고 단위 추가 모달 표시
+      - on: toggle:is_active
+        do: 광고 단위 활성/비활성 토글
+
+  - id: cross_link_tab
+    type: form
+    position: main
+    function: 연결할 블로그 선택, 자동 링크 삽입 설정
+    data_source:
+      resource: blogs
+    events:
+      - on: submit
+        do: 크로스링킹 설정 저장
+
+connections:
+  navigations:
+    - from: basic_info_tab
+      to: /blogs/:id
+
+tests:
+  - name: AI 캐릭터 설정 저장
+    when: AI 캐릭터 탭에서 톤/스타일 수정 후 저장
+    then:
+      - 설정 저장됨
+      - 성공 토스트 표시
+
+  - name: 광고 단위 추가
+    when: 광고 탭에서 단위 추가
+    then:
+      - 모달 표시
+      - 저장 후 광고 목록 갱신
+
+  - name: 크로스링킹 설정
+    when: 연결 블로그 선택 후 저장
+    then:
+      - 크로스링크 설정 반영됨

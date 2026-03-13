@@ -1,0 +1,87 @@
+version: "2.0"
+# Multi Blog Hub 화면 목록 인덱스
+
+screens:
+  - id: screen-01
+    name: 로그인
+    route: /login
+    auth: false
+    file: screen-01-login.yaml
+
+  - id: screen-02
+    name: 회원가입
+    route: /signup
+    auth: false
+    file: screen-02-signup.yaml
+
+  - id: screen-03
+    name: 대시보드
+    route: /dashboard
+    auth: true
+    file: screen-03-dashboard.yaml
+
+  - id: screen-04
+    name: 블로그 목록
+    route: /blogs
+    auth: true
+    file: screen-04-blogs.yaml
+
+  - id: screen-05
+    name: 블로그 상세
+    route: /blogs/:id
+    auth: true
+    file: screen-05-blog-detail.yaml
+
+  - id: screen-06
+    name: 블로그 생성
+    route: /blogs/new
+    auth: true
+    file: screen-06-blog-new.yaml
+
+  - id: screen-07
+    name: 블로그 설정
+    route: /blogs/:id/settings
+    auth: true
+    file: screen-07-blog-settings.yaml
+
+  - id: screen-08
+    name: 글 작성 (에디터)
+    route: /editor/new
+    auth: true
+    file: screen-08-editor-new.yaml
+
+  - id: screen-09
+    name: 글 편집
+    route: /editor/:id
+    auth: true
+    file: screen-09-editor-edit.yaml
+
+  - id: screen-10
+    name: 스케줄러/자동화
+    route: /scheduler
+    auth: true
+    file: screen-10-scheduler.yaml
+
+  - id: screen-11
+    name: 통계
+    route: /stats
+    auth: true
+    file: screen-11-stats.yaml
+
+  - id: screen-12
+    name: 광고/AdSense 관리
+    route: /ads
+    auth: true
+    file: screen-12-ads.yaml
+
+  - id: screen-13
+    name: SEO 키워드 탐색기
+    route: /keywords
+    auth: true
+    file: screen-13-keywords.yaml
+
+  - id: screen-14
+    name: 설정
+    route: /settings
+    auth: true
+    file: screen-14-settings.yaml

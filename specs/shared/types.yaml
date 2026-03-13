@@ -1,0 +1,65 @@
+version: "2.0"
+# 공통 TypeScript 타입 정의
+
+types:
+
+  PostStatus:
+    type: union
+    values: [draft, published, scheduled]
+
+  AIProvider:
+    type: union
+    values: [claude, openai, gemini]
+
+  SchedulerJobStatus:
+    type: union
+    values: [active, paused, completed]
+
+  SchedulerLogStatus:
+    type: union
+    values: [success, failed, running]
+
+  SnippetType:
+    type: union
+    values: [html, ad_code, link, custom]
+
+  AdPosition:
+    type: union
+    values: [top, bottom, sidebar, in-content]
+
+  AdSize:
+    type: union
+    values: [responsive, 728x90, 300x250]
+
+  DomainType:
+    type: union
+    values: [custom, subdomain]
+
+  AICharacterConfig:
+    type: object
+    fields:
+      tone: string        # 친근한 | 전문적 | 유머러스 | 격식체
+      style: string       # 정보성 | 스토리텔링 | 리뷰형 | 목록형
+      persona: string     # 캐릭터 이름/설명
+      language: string    # ko | en
+
+  ScheduleConfig:
+    type: object
+    fields:
+      cron: string
+      timezone: string
+      repeat_type: string   # once | daily | weekly | monthly
+
+  SEOMeta:
+    type: object
+    fields:
+      meta_title: string
+      meta_desc: string
+      og_image: string
+
+  ApiResponse:
+    type: generic
+    description: "ApiResponse<T>"
+    fields:
+      data: T | null
+      error: string | null

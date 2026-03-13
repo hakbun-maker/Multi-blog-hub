@@ -1,0 +1,56 @@
+version: "2.0"
+
+screen:
+  name: 블로그 생성
+  route: /blogs/new
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: blogs
+    needs: [id, name, slug, custom_domain, subdomain, ai_character_config, ai_provider, color]
+  - resource: ai_api_keys
+    needs: [provider, is_active]
+
+components:
+  - id: blog_create_form
+    type: form
+    position: main
+    function: 새 블로그 기본 정보 입력 (이름, 도메인, AI 설정)
+    events:
+      - on: submit
+        do: 블로그 생성 후 /blogs/:id로 이동
+      - on: change:domain-type
+        do: 커스텀 도메인 / 서브도메인 입력 필드 전환
+      - on: change:ai-provider
+        do: 선택된 AI 공급자 표시
+
+  - id: domain_connection_guide
+    type: info_panel
+    position: main
+    function: 도메인 연결 방법 안내 (DNS 설정 가이드)
+    events:
+      - on: toggle
+        do: 가이드 패널 펼침/접힘
+
+connections:
+  navigations:
+    - from: blog_create_form
+      to: /blogs/:id
+
+tests:
+  - name: 블로그 생성 성공
+    when: 이름, 도메인, AI 설정 입력 후 제출
+    then:
+      - 블로그 생성됨
+      - /blogs/:id로 이동
+
+  - name: 중복 서브도메인 오류
+    when: 이미 사용 중인 서브도메인 입력
+    then:
+      - 오류 메시지 표시
+
+  - name: 도메인 타입 전환
+    when: 커스텀 도메인 / 서브도메인 선택 변경
+    then:
+      - 해당 입력 필드 표시

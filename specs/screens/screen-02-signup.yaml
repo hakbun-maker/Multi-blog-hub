@@ -1,0 +1,69 @@
+version: "2.0"
+
+screen:
+  name: 회원가입
+  route: /signup
+  layout: full-width
+  auth: false
+
+data_requirements:
+  - resource: users
+    needs: [id, email, name]
+
+components:
+  - id: signup_form
+    type: form
+    position: main
+    function: 이메일/이름/비밀번호로 신규 계정 생성
+    events:
+      - on: submit
+        do: 계정 생성 후 /dashboard로 이동
+      - on: click:login-link
+        do: /login으로 이동
+
+  - id: social_signup_buttons
+    type: list
+    position: main
+    function: Google/GitHub 소셜 회원가입
+    events:
+      - on: click:google
+        do: Google OAuth 인증 시작
+      - on: click:github
+        do: GitHub OAuth 인증 시작
+
+  - id: terms_checkbox
+    type: checkbox
+    position: main
+    function: 이용약관 및 개인정보처리방침 동의
+    events:
+      - on: change
+        do: 약관 동의 상태 토글
+
+connections:
+  navigations:
+    - from: signup_form
+      to: /dashboard
+    - from: signup_form
+      to: /login
+
+  external:
+    - supabase_auth
+
+tests:
+  - name: 이메일 회원가입 성공
+    when: 유효한 이메일/이름/비밀번호 + 약관 동의 후 제출
+    then:
+      - 계정 생성됨
+      - /dashboard로 이동
+
+  - name: 중복 이메일 오류
+    when: 이미 가입된 이메일로 시도
+    then:
+      - 에러 메시지 표시
+      - 폼 유지
+
+  - name: 약관 미동의 차단
+    when: 약관 미동의 상태로 제출
+    then:
+      - 제출 차단
+      - 약관 동의 요청 메시지 표시

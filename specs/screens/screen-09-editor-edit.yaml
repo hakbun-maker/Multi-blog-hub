@@ -1,0 +1,88 @@
+version: "2.0"
+
+screen:
+  name: 글 편집
+  route: /editor/:id
+  layout: sidebar-main
+  auth: true
+
+data_requirements:
+  - resource: posts
+    needs: [id, title, content, html_content, status, keywords, tags, seo_meta, blog_id, published_at]
+  - resource: blogs
+    needs: [id, name, color, ai_character_config, ai_provider]
+  - resource: snippets
+    needs: [id, name, content, type, blog_id]
+
+components:
+  - id: post_editor
+    type: rich_text_editor
+    position: main
+    function: 기존 글 내용 로드 후 편집 (TipTap + HTML 모드)
+    data_source:
+      resource: posts
+      filters: { id: ":id" }
+    events:
+      - on: change
+        do: 자동 저장 (draft)
+
+  - id: image_uploader
+    type: uploader
+    position: main
+    function: 이미지 추가/교체
+
+  - id: snippet_drawer
+    type: drawer
+    position: right
+    function: 스니펫 패널 (원클릭 삽입)
+    data_source:
+      resource: snippets
+
+  - id: seo_meta_form
+    type: form
+    position: main
+    function: SEO 메타 정보 수정
+    data_source:
+      resource: posts
+      fields: [seo_meta]
+
+  - id: publish_button
+    type: button
+    position: main
+    function: 변경 내용 저장 및 발행
+    events:
+      - on: click
+        do: 글 업데이트 후 /blogs/:blogId로 이동
+
+  - id: schedule_button
+    type: button
+    position: main
+    function: 예약 발행 변경
+    events:
+      - on: click
+        do: 예약 발행 날짜/시간 수정 모달 표시
+
+connections:
+  navigations:
+    - from: publish_button
+      to: /blogs/:blogId
+
+  external:
+    - supabase_storage
+
+tests:
+  - name: 기존 글 로드
+    when: /editor/:id 접속
+    then:
+      - 기존 제목/내용/SEO 정보 에디터에 표시
+
+  - name: 글 업데이트
+    when: 내용 수정 후 저장 클릭
+    then:
+      - 글 업데이트됨
+      - /blogs/:blogId로 이동
+
+  - name: 초안 자동 저장
+    when: 에디터 내용 변경
+    then:
+      - 3초 후 draft 자동 저장

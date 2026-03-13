@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\PC_1M\\\\blog_hub_project\")",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(openssl rand -hex 16)",
+      "Bash(npx shadcn@latest add button dropdown-menu --yes)",
+      "Bash(npx shadcn@latest add input label card --yes)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx shadcn@latest add badge dialog tabs select textarea switch checkbox separator --yes)",
+      "Bash(npm run build)",
+      "Bash(npx next build)",
+      "Bash(ls \"c:/Users/PC_1M/blog_hub_project/app/\\(dashboard\\)/editor/\")",
+      "Bash(ls \"c:/Users/PC_1M/blog_hub_project/app/\\(dashboard\\)/editor/[id]/\")",
+      "Bash(ls /c/Users/PC_1M/blog_hub_project/app/\\\\\\(dashboard\\\\\\)/editor/)",
+      "Bash(ls /c/Users/PC_1M/blog_hub_project/app/\\\\\\(dashboard\\\\\\)/)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(npm ls sharp)",
+      "Bash(grep -n \"CREATE TABLE\\\\|ALTER TABLE\" supabase/migrations/*.sql)",
+      "Bash(grep -r domain 'c:/Users/USER/Dropbox/Director Kim/1_project/blog_hub_project/app/api' --include=*.ts -l)",
+      "Bash(grep -r vercel 'c:/Users/USER/Dropbox/Director Kim/1_project/blog_hub_project' --include=*.ts -l)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

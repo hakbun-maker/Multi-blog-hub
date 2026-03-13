@@ -1,0 +1,62 @@
+version: "2.0"
+# 공통 재사용 컴포넌트 정의
+
+shared_components:
+
+  AppSidebar:
+    description: 좌측 사이드바 네비게이션 (240px)
+    used_in: [screen-03, screen-04, screen-05, screen-06, screen-07, screen-08, screen-09, screen-10, screen-11, screen-12, screen-13, screen-14]
+    items:
+      - 대시보드 (/dashboard)
+      - 블로그관리 (/blogs)
+      - 글작성 (/editor/new)
+      - 스케줄러 (/scheduler)
+      - 통계 (/stats)
+      - 광고관리 (/ads)
+      - 키워드탐색기 (/keywords)
+      - 설정 (/settings)
+
+  AppHeader:
+    description: 상단 헤더 (로고, 검색, 프로필)
+    used_in: [screen-03, screen-04, screen-05, screen-06, screen-07, screen-08, screen-09, screen-10, screen-11, screen-12, screen-13, screen-14]
+
+  BlogMultiSelect:
+    description: 발행 블로그 체크박스 멀티 선택
+    used_in: [screen-08, screen-09, screen-10]
+    data_source:
+      resource: blogs
+      needs: [id, name, color]
+
+  SnippetDrawer:
+    description: 우측 스니펫 패널 드로어 (검색 + 원클릭 삽입)
+    used_in: [screen-08, screen-09]
+    data_source:
+      resource: snippets
+      needs: [id, name, content, type]
+
+  StatCard:
+    description: 통계 카드 (숫자 + 아이콘 + 증감률 + 스파크라인)
+    used_in: [screen-03, screen-11]
+
+  PostTable:
+    description: 글 목록 테이블 (제목, 상태, 발행일, 조회수, 액션)
+    used_in: [screen-03, screen-05]
+    data_source:
+      resource: posts
+      needs: [id, title, status, published_at, view_count, blog_id]
+
+  DateRangePicker:
+    description: 기간 선택 컴포넌트 (기본 30일)
+    used_in: [screen-11, screen-12]
+
+  ConfirmModal:
+    description: 삭제/중요 액션 확인 모달
+    used_in: [screen-05, screen-10, screen-12]
+
+  ToastNotification:
+    description: 저장 성공/실패 토스트 알림
+    used_in: [screen-06, screen-07, screen-08, screen-09, screen-14]
+
+  BlogColorDot:
+    description: 블로그 구분 색상 닷 인디케이터
+    used_in: [screen-03, screen-04, screen-05, screen-10, screen-11]
