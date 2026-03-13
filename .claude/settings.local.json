@@ -20,7 +20,10 @@
       "Bash(grep -n \"CREATE TABLE\\\\|ALTER TABLE\" supabase/migrations/*.sql)",
       "Bash(grep -r domain 'c:/Users/USER/Dropbox/Director Kim/1_project/blog_hub_project/app/api' --include=*.ts -l)",
       "Bash(grep -r vercel 'c:/Users/USER/Dropbox/Director Kim/1_project/blog_hub_project' --include=*.ts -l)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(cmdkey /list)",
+      "Bash(printf \"protocol=https\\\\nhost=github.com\\\\n\")",
+      "Bash(git credential-manager:*)"
     ]
   }
 }
