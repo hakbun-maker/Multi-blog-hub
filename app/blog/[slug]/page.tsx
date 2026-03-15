@@ -35,6 +35,7 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
     ads: { ...DEFAULT_LAYOUT_CONFIG.ads, ...saved.ads },
     footer: { ...DEFAULT_LAYOUT_CONFIG.footer, ...saved.footer },
     tracking: { ...DEFAULT_LAYOUT_CONFIG.tracking, ...saved.tracking },
+    related_posts: { ...DEFAULT_LAYOUT_CONFIG.related_posts, ...saved.related_posts },
   }
 }
 
@@ -211,7 +212,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
   }
 
   // 사이드바 유무
-  const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar'
+  const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
   const isMagazine = cfg.layout.preset === 'magazine'
 
   return (
@@ -272,7 +273,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
           style={{ maxWidth: cfg.layout.max_width }}
         >
           {/* 좌측 사이드바 */}
-          {cfg.layout.preset === 'left_sidebar' && (
+          {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
             <aside className="w-64 flex-shrink-0 space-y-4">
               {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
                 <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
@@ -350,7 +351,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
           </div>
 
           {/* 우측 사이드바 */}
-          {cfg.layout.preset === 'right_sidebar' && (
+          {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
             <aside className="w-64 flex-shrink-0 space-y-4">
               {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
                 <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />

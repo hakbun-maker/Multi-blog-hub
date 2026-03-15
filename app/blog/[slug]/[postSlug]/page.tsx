@@ -36,6 +36,7 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
     ads: { ...DEFAULT_LAYOUT_CONFIG.ads, ...saved.ads },
     footer: { ...DEFAULT_LAYOUT_CONFIG.footer, ...saved.footer },
     tracking: { ...DEFAULT_LAYOUT_CONFIG.tracking, ...saved.tracking },
+    related_posts: { ...DEFAULT_LAYOUT_CONFIG.related_posts, ...saved.related_posts },
   }
 }
 
@@ -85,6 +86,7 @@ function injectInArticleAd(html: string, adCode: string): string {
 export default function PublicPostPage({ params }: { params: { slug: string; postSlug: string } }) {
   const [blog, setBlog] = useState<Blog | null>(null)
   const [post, setPost] = useState<Post | null>(null)
+  const [allPosts, setAllPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
@@ -98,6 +100,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
       .then(data => {
         if (!data) return
         setBlog(data.blog)
+        setAllPosts(data.posts ?? [])
         const found = data.posts.find((p: Post) => p.slug === decodedPostSlug)
         if (!found) { setNotFound(true) } else { setPost(found) }
         setLoading(false)
@@ -206,7 +209,21 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
     contentHtml = injectInArticleAd(contentHtml, cfg.ads.in_article.code)
   }
 
-  const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar'
+  const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
+
+  // 관련글 계산
+  const relatedPostsCfg = cfg.related_posts
+  const relatedPosts = relatedPostsCfg.enabled
+    ? allPosts
+        .filter(p => p.id !== post.id)
+        .sort((a, b) => {
+          if (relatedPostsCfg.type === 'popular') {
+            return (b.view_count ?? 0) - (a.view_count ?? 0)
+          }
+          return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+        })
+        .slice(0, relatedPostsCfg.count)
+    : []
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif` }}>
@@ -259,7 +276,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
       {/* 본문 영역 */}
       <div className={`flex-1 ${hasSidebar ? 'flex gap-8' : ''} mx-auto px-4`} style={{ maxWidth: cfg.layout.max_width }}>
         {/* 좌측 사이드바 */}
-        {cfg.layout.preset === 'left_sidebar' && (
+        {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
           <aside className="w-64 flex-shrink-0 py-10 space-y-4">
             {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
               <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
@@ -311,7 +328,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         </article>
 
         {/* 우측 사이드바 */}
-        {cfg.layout.preset === 'right_sidebar' && (
+        {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
           <aside className="w-64 flex-shrink-0 py-10 space-y-4">
             {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
               <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
@@ -324,6 +341,27 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
         <div className="mx-auto w-full px-4 py-2" style={{ maxWidth: cfg.layout.max_width }}>
           <AdSlotRenderer code={cfg.ads.footer_ad.code} />
+        </div>
+      )}
+
+      {/* 최근글 / 추천글 */}
+      {relatedPosts.length > 0 && (
+        <div className="mx-auto w-full px-4 py-8 border-t border-gray-100" style={{ maxWidth: cfg.layout.max_width }}>
+          <h3 className="text-base font-semibold text-gray-800 mb-4">
+            {relatedPostsCfg.section_title || (relatedPostsCfg.type === 'recent' ? '최근 글' : '추천 글')}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {relatedPosts.map(p => (
+              <Link key={p.id} href={`/blog/${blog.slug}/${p.slug}`}
+                className="block bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all p-4">
+                <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{p.title}</p>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span>{new Date(p.published_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</span>
+                  <span>{(p.view_count ?? 0).toLocaleString()}회</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

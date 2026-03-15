@@ -26,12 +26,18 @@ export interface LayoutConfig {
     nav_items: NavItem[]
   }
   layout: {
-    preset: 'minimal' | 'right_sidebar' | 'left_sidebar' | 'magazine'
+    preset: 'minimal' | 'right_sidebar' | 'left_sidebar' | 'both_sidebar' | 'magazine'
     max_width: string
     bg_color: string
     font: string
     font_size: number
     line_height: number
+  }
+  related_posts: {
+    enabled: boolean
+    type: 'recent' | 'popular'
+    count: number
+    section_title: string
   }
   ads: {
     adsense_pub_id: string
@@ -106,6 +112,12 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
     custom_head: '',
     custom_body: '',
   },
+  related_posts: {
+    enabled: false,
+    type: 'recent',
+    count: 5,
+    section_title: '',
+  },
 }
 
 // ─── 유틸: 기본값과 병합 ───
@@ -118,6 +130,7 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
     ads: { ...DEFAULT_LAYOUT_CONFIG.ads, ...saved.ads },
     footer: { ...DEFAULT_LAYOUT_CONFIG.footer, ...saved.footer },
     tracking: { ...DEFAULT_LAYOUT_CONFIG.tracking, ...saved.tracking },
+    related_posts: { ...DEFAULT_LAYOUT_CONFIG.related_posts, ...saved.related_posts },
   }
 }
 
@@ -187,6 +200,7 @@ const PRESET_OPTIONS: { value: LayoutConfig['layout']['preset']; label: string; 
   { value: 'minimal', label: '미니멀', desc: '전체 너비' },
   { value: 'right_sidebar', label: '우측 사이드바', desc: '본문 + 우측' },
   { value: 'left_sidebar', label: '좌측 사이드바', desc: '좌측 + 본문' },
+  { value: 'both_sidebar', label: '좌우 사이드바', desc: '좌측 + 본문 + 우측' },
   { value: 'magazine', label: '매거진', desc: '카드 그리드' },
 ]
 
@@ -212,6 +226,14 @@ function PresetDiagram({ preset }: { preset: string }) {
         <svg width={w} height={h} className="text-gray-300">
           <rect x={5} y={5} width={22} height={40} rx={2} fill="currentColor" opacity={0.5} />
           <rect x={31} y={5} width={45} height={40} rx={2} fill="currentColor" />
+        </svg>
+      )
+    case 'both_sidebar':
+      return (
+        <svg width={w} height={h} className="text-gray-300">
+          <rect x={2} y={5} width={16} height={40} rx={2} fill="currentColor" opacity={0.5} />
+          <rect x={22} y={5} width={36} height={40} rx={2} fill="currentColor" />
+          <rect x={62} y={5} width={16} height={40} rx={2} fill="currentColor" opacity={0.5} />
         </svg>
       )
     case 'magazine':
@@ -340,6 +362,10 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
 
   const updateTracking = useCallback((patch: Partial<LayoutConfig['tracking']>) => {
     setConfig(prev => ({ ...prev, tracking: { ...prev.tracking, ...patch } }))
+  }, [])
+
+  const updateRelatedPosts = useCallback((patch: Partial<LayoutConfig['related_posts']>) => {
+    setConfig(prev => ({ ...prev, related_posts: { ...prev.related_posts, ...patch } }))
   }, [])
 
   // ─── 저장 ───
@@ -593,7 +619,7 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
               </button>
             ))}
           </div>
-          {(config.layout.preset === 'left_sidebar' || config.layout.preset === 'right_sidebar') && (
+          {(config.layout.preset === 'left_sidebar' || config.layout.preset === 'right_sidebar' || config.layout.preset === 'both_sidebar') && (
             <p className="text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-md">
               사이드바 광고는 아래 &quot;광고 배치&quot; 섹션에서 설정하세요.
             </p>
@@ -613,6 +639,7 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
             <option value="1200px">1200px (넓은)</option>
             <option value="100%">100% (전체)</option>
           </select>
+          <p className="text-xs text-gray-400">헤더·본문·푸터를 포함한 전체 콘텐츠 영역의 최대 가로 폭입니다. 화면이 이 값보다 넓어도 콘텐츠는 이 폭을 넘지 않고 가운데 정렬됩니다.</p>
         </div>
 
         {/* 배경색 */}
@@ -687,8 +714,8 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
           const typedSlot = adSlot as AdSlot
           const isSidebar = slot.key === 'left_sidebar_ad' || slot.key === 'right_sidebar_ad'
           const sidebarInactive =
-            (slot.key === 'left_sidebar_ad' && config.layout.preset !== 'left_sidebar') ||
-            (slot.key === 'right_sidebar_ad' && config.layout.preset !== 'right_sidebar')
+            (slot.key === 'left_sidebar_ad' && config.layout.preset !== 'left_sidebar' && config.layout.preset !== 'both_sidebar') ||
+            (slot.key === 'right_sidebar_ad' && config.layout.preset !== 'right_sidebar' && config.layout.preset !== 'both_sidebar')
 
           return (
             <div key={slot.key} className={`p-3 rounded-lg space-y-2 ${isSidebar && sidebarInactive ? 'bg-gray-50 opacity-60' : 'bg-gray-50'}`}>
@@ -882,6 +909,70 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
             </div>
           </div>
         </details>
+      </Section>
+
+      {/* ═══ 6. 최근글 / 추천글 ═══ */}
+      <Section title="최근글 / 추천글">
+        <Toggle
+          label="글 하단에 관련글 표시"
+          checked={config.related_posts.enabled}
+          onChange={v => updateRelatedPosts({ enabled: v })}
+        />
+        {config.related_posts.enabled && (
+          <>
+            <div className="space-y-1">
+              <Label className="text-xs">표시 방식</Label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'recent', label: '최근글' },
+                  { value: 'popular', label: '추천글 (조회수 순)' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateRelatedPosts({ type: opt.value })}
+                    className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                      config.related_posts.type === opt.value
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">표시 개수</Label>
+              <div className="flex gap-2">
+                {[3, 5, 10].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => updateRelatedPosts({ count: n })}
+                    className={`px-4 py-1.5 text-xs rounded-md border transition-colors ${
+                      config.related_posts.count === n
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {n}개
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">섹션 제목 (비우면 기본값 사용)</Label>
+              <Input
+                value={config.related_posts.section_title}
+                onChange={e => updateRelatedPosts({ section_title: e.target.value })}
+                placeholder={config.related_posts.type === 'recent' ? '최근 글' : '추천 글'}
+                className="text-sm"
+              />
+            </div>
+            <p className="text-xs text-gray-400">글 본문 하단 — 하단 광고 아래에 표시됩니다.</p>
+          </>
+        )}
       </Section>
 
       {/* 저장 버튼 */}
