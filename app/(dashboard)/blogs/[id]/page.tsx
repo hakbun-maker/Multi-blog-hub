@@ -10,12 +10,12 @@ import { PostsTab } from '@/components/blogs/PostsTab'
 import { StatsTab } from '@/components/blogs/StatsTab'
 import { MemoTab } from '@/components/blogs/MemoTab'
 
-type Tab = 'posts' | 'stats' | 'memo'
+type Tab = 'posts' | 'stats' | 'snippets'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'posts', label: '발행글' },
   { id: 'stats', label: '통계' },
-  { id: 'memo', label: '메모' },
+  { id: 'snippets', label: '스니펫' },
 ]
 
 const BLOG_COLORS = [
@@ -152,7 +152,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
       <div>
         {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} categories={categories} />}
         {tab === 'stats' && <StatsTab posts={posts} />}
-        {tab === 'memo' && <MemoTab blogId={blog.id} blogName={blog.name} blogs={blogs} />}
+        {tab === 'snippets' && <MemoTab blogId={blog.id} blogName={blog.name} blogs={blogs} />}
       </div>
     </div>
   )

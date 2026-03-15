@@ -1,7 +1,6 @@
 'use client'
 
 import { Fragment, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,9 +22,10 @@ interface BlogInfo {
 }
 
 interface MemoTabProps {
-  blogId: string
-  blogName: string
-  blogs: BlogInfo[]
+  blogId?: string | null
+  blogName?: string
+  blogs?: BlogInfo[]
+  initialFilter?: 'all' | 'current'
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,11 +38,10 @@ type SortKey = 'type' | 'name' | 'blogName' | 'created_at'
 type SortDir = 'asc' | 'desc'
 type FilterTab = 'all' | 'current'
 
-export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
-  const router = useRouter()
+export function MemoTab({ blogId, blogName, blogs = [], initialFilter }: MemoTabProps) {
   const [allSnippets, setAllSnippets] = useState<Snippet[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterTab, setFilterTab] = useState<FilterTab>('current')
+  const [filterTab, setFilterTab] = useState<FilterTab>(initialFilter ?? (blogId ? 'current' : 'all'))
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -145,7 +144,7 @@ export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
         const res = await fetch('/api/snippets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, blogId }),
+          body: JSON.stringify({ ...form, ...(blogId ? { blogId } : {}) }),
         })
         if (res.ok) {
           const { data } = await res.json()
@@ -155,7 +154,6 @@ export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
     } finally {
       resetForm()
       setSaving(false)
-      router.refresh()
     }
   }
 
@@ -164,7 +162,6 @@ export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
     const res = await fetch(`/api/snippets/${id}`, { method: 'DELETE' })
     if (res.ok) {
       setAllSnippets(prev => prev.filter(s => s.id !== id))
-      router.refresh()
     }
   }
 
@@ -195,13 +192,15 @@ export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
           }`}>
           전체 <span className="text-xs text-gray-400 ml-1">{allCount}</span>
         </button>
-        <button
-          onClick={() => setFilterTab('current')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filterTab === 'current' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}>
-          {blogName} <span className="text-xs text-gray-400 ml-1">{currentCount}</span>
-        </button>
+        {blogId && (
+          <button
+            onClick={() => setFilterTab('current')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              filterTab === 'current' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            {blogName} <span className="text-xs text-gray-400 ml-1">{currentCount}</span>
+          </button>
+        )}
       </div>
 
       {/* 추가/편집 폼 */}
@@ -250,7 +249,7 @@ export function MemoTab({ blogId, blogName, blogs }: MemoTabProps) {
       ) : !sorted.length ? (
         <div className="text-center py-10 text-gray-400">
           <p className="text-sm">
-            {filterTab === 'all' ? '아직 스니펫이 없습니다.' : `${blogName}에 스니펫이 없습니다.`}
+            {filterTab === 'all' ? '아직 스니펫이 없습니다.' : `${blogName ?? '이 블로그'}에 스니펫이 없습니다.`}
           </p>
           <p className="text-xs mt-1">자주 쓰는 문구나 HTML 코드를 저장해두세요.</p>
         </div>

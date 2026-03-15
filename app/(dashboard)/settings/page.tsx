@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors } from 'lucide-react'
+import { MemoTab } from '@/components/blogs/MemoTab'
 
 interface AIKey {
   id: string
@@ -41,7 +43,9 @@ const IMAGE_PROVIDERS = [
 
 const ALL_PROVIDERS = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS]
 
-export default function SettingsPage() {
+function SettingsPageInner() {
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') ?? 'account')
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [aiKeys, setAIKeys] = useState<AIKey[]>([])
   const [loading, setLoading] = useState(true)
@@ -174,7 +178,7 @@ export default function SettingsPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : (
-        <Tabs defaultValue="account">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="account" className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5" /> 계정
@@ -184,6 +188,9 @@ export default function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-1.5">
               <Bell className="h-3.5 w-3.5" /> 알림
+            </TabsTrigger>
+            <TabsTrigger value="snippets" className="flex items-center gap-1.5">
+              <Scissors className="h-3.5 w-3.5" /> 스니펫 관리
             </TabsTrigger>
           </TabsList>
 
@@ -432,8 +439,21 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* 스니펫 관리 탭 */}
+          <TabsContent value="snippets" className="mt-6">
+            <MemoTab />
+          </TabsContent>
         </Tabs>
       )}
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+      <SettingsPageInner />
+    </Suspense>
   )
 }

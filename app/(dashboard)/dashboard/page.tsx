@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { PenSquare, CalendarClock, Globe, FileText, Eye, Users, DollarSign, TrendingUp } from 'lucide-react'
+import { PenSquare, CalendarClock, Globe, FileText, Eye, Users, DollarSign, TrendingUp, BookOpen } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -34,6 +34,9 @@ export default async function DashboardPage() {
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/scheduler"><CalendarClock className="w-4 h-4 mr-1.5" />스케줄 추가</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/settings?tab=snippets"><BookOpen className="w-4 h-4 mr-1.5" />스니펫 관리</Link>
           </Button>
         </div>
       </div>

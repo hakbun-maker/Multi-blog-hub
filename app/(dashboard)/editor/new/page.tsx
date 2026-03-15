@@ -316,20 +316,13 @@ export default function EditorNewPage() {
           {/* ── 파이프라인 완료 후: 생성 결과 영역 ── */}
           {pipelineDone && hasAiResults && !autoPublish && (
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
-              {/* 헤더: 제목 + 재생성 + 전체 발행 */}
+              {/* 헤더: 제목 + 전체 발행 */}
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-gray-900">생성 결과</h2>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline"
-                    onClick={() => activeBlogTab && aiPanelRef.current?.run([activeBlogTab])}
-                    disabled={publishingAll}>
-                    <Sparkles className="w-4 h-4 mr-1.5" />재생성
-                  </Button>
-                  <Button onClick={handlePublishAll} disabled={publishingAll}>
-                    <Send className="w-4 h-4 mr-2" />
-                    {publishingAll ? '발행 중...' : `전체 발행 (${Object.values(aiResults).filter(s => s.step === 'done').length}개)`}
-                  </Button>
-                </div>
+                <Button onClick={handlePublishAll} disabled={publishingAll}>
+                  <Send className="w-4 h-4 mr-2" />
+                  {publishingAll ? '발행 중...' : `전체 발행 (${Object.values(aiResults).filter(s => s.step === 'done').length}개)`}
+                </Button>
               </div>
 
               {/* 블로그 탭 */}
@@ -355,8 +348,13 @@ export default function EditorNewPage() {
               {/* 활성 블로그의 결과 */}
               {activeResult && activeResult.step === 'done' && (
                 <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-                  {/* 미리보기 버튼 */}
-                  <div className="flex justify-end">
+                  {/* 개별 액션 버튼 */}
+                  <div className="flex justify-between items-center">
+                    <Button size="sm" variant="outline"
+                      onClick={() => activeBlogTab && aiPanelRef.current?.run([activeBlogTab])}
+                      disabled={publishingAll}>
+                      <Sparkles className="w-4 h-4 mr-1.5" />이 글 재생성
+                    </Button>
                     <Button size="sm" variant="outline"
                       onClick={() => openPreview(activeResult.title, activeResult.htmlContent, activeResult.tags, activeResult.seoMeta.description, activeBlogTab!)}>
                       <Eye className="w-4 h-4 mr-1.5" />미리보기
@@ -511,9 +509,20 @@ export default function EditorNewPage() {
         </div>
       )}
 
-      <SnippetDrawer blogId={selectedBlogId} isOpen={snippetOpen}
+      <SnippetDrawer
+        blogId={selectedBlogId}
+        blogName={blogs.find(b => b.id === selectedBlogId)?.name}
+        isOpen={snippetOpen}
         onClose={() => setSnippetOpen(false)}
-        onInsert={content => setHtmlContent(htmlContent + content)} />
+        onInsert={content => {
+          const editor = editorRef.current?.getEditor()
+          if (editor) {
+            editor.commands.focus()
+            editor.commands.insertContent(content)
+          } else {
+            setHtmlContent(htmlContent + content)
+          }
+        }} />
 
       <DraftDrawer isOpen={draftOpen} onClose={() => setDraftOpen(false)} onLoad={loadDraft} />
     </div>
