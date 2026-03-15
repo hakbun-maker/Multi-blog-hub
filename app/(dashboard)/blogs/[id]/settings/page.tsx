@@ -9,14 +9,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import LayoutTab from '@/components/blogs/LayoutTab'
+import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 
-type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads'
+type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads' | 'layout'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'basic', label: '기본정보' },
   { id: 'categories', label: '카테고리' },
   { id: 'ai', label: 'AI 캐릭터' },
   { id: 'ads', label: '광고' },
+  { id: 'layout', label: '레이아웃' },
 ]
 
 const COLORS = [
@@ -290,6 +293,9 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [generatingAll, setGeneratingAll] = useState(false)
   const [regeneratingField, setRegeneratingField] = useState<string | null>(null)
 
+  // 레이아웃 설정
+  const [layoutConfig, setLayoutConfig] = useState<Partial<LayoutConfig> | null>(null)
+
   // 카테고리
   const { categories, fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories(params.id)
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -327,6 +333,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       setCharacterConfig(config)
 
       setDefaultCategoryId(blogData.default_category_id ?? null)
+      setLayoutConfig(blogData.layout_config ?? null)
 
       setLoading(false)
     }
@@ -840,10 +847,19 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         <Card className="shadow-none border border-gray-200">
           <CardContent className="p-6 text-center text-gray-400">
             <p className="font-medium text-gray-600 mb-1">광고 관리</p>
-            <p className="text-sm">P4-S3 광고 관리 화면 구현 후 연동됩니다.</p>
-            <p className="text-xs mt-2">AdSense 코드 및 위치별 광고 단위 설정이 가능해집니다.</p>
+            <p className="text-sm">레이아웃 탭의 &quot;광고 배치&quot; 섹션에서 설정할 수 있습니다.</p>
+            <p className="text-xs mt-2">
+              <button onClick={() => setActiveTab('layout')} className="text-blue-600 hover:underline">
+                레이아웃 탭으로 이동 &rarr;
+              </button>
+            </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* ═══ LayoutTab ═══ */}
+      {activeTab === 'layout' && (
+        <LayoutTab blogId={params.id} initialConfig={layoutConfig} onSuccess={showSuccess} />
       )}
 
     </div>
