@@ -181,7 +181,7 @@ export default function EditorEditPage({ params }: { params: { id: string } }) {
         onDescChange={v => setSeoMeta({ ...seoMeta, description: v })}
       />
 
-      <SnippetDrawer blogId={selectedBlogId} isOpen={snippetOpen}
+      <SnippetDrawer isOpen={snippetOpen}
         onClose={() => setSnippetOpen(false)}
         onInsert={(content) => setHtmlContent(htmlContent + content)} />
     </div>

@@ -152,7 +152,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
       <div>
         {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} categories={categories} />}
         {tab === 'stats' && <StatsTab posts={posts} />}
-        {tab === 'snippets' && <MemoTab blogId={blog.id} blogName={blog.name} blogs={blogs} />}
+        {tab === 'snippets' && <MemoTab />}
       </div>
     </div>
   )

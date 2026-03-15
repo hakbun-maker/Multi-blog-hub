@@ -510,8 +510,6 @@ export default function EditorNewPage() {
       )}
 
       <SnippetDrawer
-        blogId={selectedBlogId}
-        blogName={blogs.find(b => b.id === selectedBlogId)?.name}
         isOpen={snippetOpen}
         onClose={() => setSnippetOpen(false)}
         onInsert={content => {
