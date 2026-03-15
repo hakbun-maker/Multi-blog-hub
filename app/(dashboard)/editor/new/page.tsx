@@ -269,24 +269,24 @@ export default function EditorNewPage() {
   return (
     <div className="space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">글 작성</h1>
-        <div className="flex items-center gap-2">
-          {saveStatus === 'saving' && <span className="text-xs text-gray-400">저장 중...</span>}
-          {saveStatus === 'saved' && <span className="text-xs text-green-500">저장됨</span>}
-          <Button size="sm" variant="outline" onClick={() => setSnippetOpen(true)}>
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:pb-0 flex-shrink-0">
+          {saveStatus === 'saving' && <span className="text-xs text-gray-400 whitespace-nowrap">저장 중...</span>}
+          {saveStatus === 'saved' && <span className="text-xs text-green-500 whitespace-nowrap">저장됨</span>}
+          <Button size="sm" variant="outline" onClick={() => setSnippetOpen(true)} className="whitespace-nowrap">
             <BookOpen className="w-4 h-4 mr-1.5" />스니펫
           </Button>
-          <Button size="sm" variant="outline" onClick={() => saveDraft(undefined, true)}>
+          <Button size="sm" variant="outline" onClick={() => saveDraft(undefined, true)} className="whitespace-nowrap">
             <Save className="w-4 h-4 mr-1.5" />임시저장
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setDraftOpen(true)}>
+          <Button size="sm" variant="outline" onClick={() => setDraftOpen(true)} className="whitespace-nowrap">
             <FileText className="w-4 h-4 mr-1.5" />글 불러오기
           </Button>
-          <Button size="sm" variant="outline" onClick={() => openPreview()}>
+          <Button size="sm" variant="outline" onClick={() => openPreview()} className="whitespace-nowrap">
             <Eye className="w-4 h-4 mr-1.5" />미리보기
           </Button>
-          <Button size="sm" onClick={handlePublish} disabled={publishing}>
+          <Button size="sm" onClick={handlePublish} disabled={publishing} className="whitespace-nowrap">
             <Send className="w-4 h-4 mr-1.5" />{publishing ? '발행 중...' : '발행'}
           </Button>
         </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Settings, PenSquare, Globe, ArrowLeft, ExternalLink } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
 import { PostsTab } from '@/components/blogs/PostsTab'
 import { StatsTab } from '@/components/blogs/StatsTab'
@@ -72,8 +73,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
 
   const color = blog.color ?? BLOG_COLORS[0]
   const publishedCount = posts.filter((p) => p.status === 'published').length
-  const externalUrl = blog.url || (blog.custom_domain ? `https://${blog.custom_domain}` : '')
-  const internalUrl = `/blog/${blog.slug}`
+  const publicUrl = blog.custom_domain ? `https://${blog.custom_domain}` : `/blog/${blog.slug}`
 
   return (
     <div className="space-y-6">
@@ -107,17 +107,10 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
 
         <div className="flex gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link href={internalUrl} target="_blank">
-              <ExternalLink className="w-4 h-4 mr-1.5" />블로그 보기
-            </Link>
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-4 h-4 mr-1.5" />공개 페이지
+            </a>
           </Button>
-          {externalUrl && (
-            <Button asChild size="sm" variant="outline">
-              <a href={externalUrl} target="_blank" rel="noopener noreferrer">
-                <Globe className="w-4 h-4 mr-1.5" />외부 블로그
-              </a>
-            </Button>
-          )}
           <Button asChild size="sm">
             <Link href={`/editor/new?blogId=${blog.id}`}>
               <PenSquare className="w-4 h-4 mr-1.5" />글 작성

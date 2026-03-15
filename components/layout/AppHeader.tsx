@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut, User, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import Link from 'next/link'
+import { LogOut, User, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +63,13 @@ export function AppHeader({ userEmail, userName }: AppHeaderProps) {
               <p className="text-xs text-gray-500 truncate">{userEmail}</p>
             )}
           </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href="/settings">
+              <Settings className="w-4 h-4 mr-2" />
+              설정
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={handleLogout}

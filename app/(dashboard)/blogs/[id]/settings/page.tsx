@@ -10,14 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 
-type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads' | 'crosslink'
+type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'basic', label: '기본정보' },
   { id: 'categories', label: '카테고리' },
   { id: 'ai', label: 'AI 캐릭터' },
   { id: 'ads', label: '광고' },
-  { id: 'crosslink', label: '크로스링킹' },
 ]
 
 const COLORS = [
@@ -272,8 +271,6 @@ function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain:
 export default function BlogSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>('basic')
-  const [blog, setBlog] = useState<Record<string, unknown> | null>(null)
-  const [allBlogs, setAllBlogs] = useState<{ id: string; name: string; color?: string; subdomain?: string; custom_domain?: string; slug?: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
@@ -281,7 +278,6 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   // 기본정보 폼
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [blogUrl, setBlogUrl] = useState('')
   const [customDomain, setCustomDomain] = useState('')
   const [color, setColor] = useState(COLORS[0])
   const [isActive, setIsActive] = useState(true)
@@ -303,29 +299,18 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
   const [moveToCatId, setMoveToCatId] = useState<string>('none')
 
-  // 크로스링킹
-  const [linkedBlogIds, setLinkedBlogIds] = useState<string[]>([])
-
   useEffect(() => { fetchCategories() }, [fetchCategories])
 
   useEffect(() => {
     const fetchData = async () => {
-      const [blogRes, blogsRes] = await Promise.all([
-        fetch(`/api/blogs/${params.id}`),
-        fetch('/api/blogs'),
-      ])
+      const blogRes = await fetch(`/api/blogs/${params.id}`)
       if (!blogRes.ok) { router.push('/blogs'); return }
 
       const { data: blogData } = await blogRes.json()
-      const { data: blogsData } = await blogsRes.json()
-
-      setBlog(blogData)
-      setAllBlogs((blogsData ?? []).filter((b: { id: string }) => b.id !== params.id))
 
       // 폼 초기화
       setName(blogData.name ?? '')
       setDescription(blogData.description ?? '')
-      setBlogUrl(blogData.url ?? '')
       setCustomDomain(blogData.custom_domain ?? '')
       setColor(blogData.color ?? COLORS[0])
       setIsActive(blogData.is_active ?? true)
@@ -341,7 +326,6 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       }
       setCharacterConfig(config)
 
-      setLinkedBlogIds(aiConfig.linkedBlogIds ?? [])
       setDefaultCategoryId(blogData.default_category_id ?? null)
 
       setLoading(false)
@@ -363,7 +347,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, url: blogUrl || null, customDomain: customDomain || null, color, isActive, blogType: blogType || null }),
+      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive, blogType: blogType || null }),
     })
     setSaving(false)
     if (res.ok) showSuccess('기본정보가 저장되었습니다.')
@@ -376,7 +360,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         aiProvider,
-        aiCharacterConfig: { ...characterConfig, linkedBlogIds },
+        aiCharacterConfig: { ...characterConfig },
       }),
     })
     setSaving(false)
@@ -442,18 +426,6 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       alert('재생성 중 오류가 발생했습니다.')
     }
     setRegeneratingField(null)
-  }
-
-  const handleSaveCrossLink = async () => {
-    setSaving(true)
-    const aiConfig = (blog?.ai_character_config ?? {}) as Record<string, unknown>
-    const res = await fetch(`/api/blogs/${params.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ aiCharacterConfig: { ...aiConfig, linkedBlogIds } }),
-    })
-    setSaving(false)
-    if (res.ok) showSuccess('크로스링킹 설정이 저장되었습니다.')
   }
 
   const handleDeleteBlog = async () => {
@@ -541,12 +513,6 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
               ))}
             </select>
             <p className="text-xs text-gray-400">Google YMYL 기준 블로그 유형입니다. AI 캐릭터 생성 및 글 작성 시 유형에 맞는 전문성과 톤을 반영합니다.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>블로그 URL</Label>
-            <Input value={blogUrl} onChange={e => setBlogUrl(e.target.value)}
-              placeholder="https://moneymakingwisdom.tistory.com" />
-            <p className="text-xs text-gray-400">실제 블로그 주소를 입력하세요. 블로그 보기 버튼에 사용됩니다.</p>
           </div>
           <DomainSettingSection customDomain={customDomain} setCustomDomain={setCustomDomain} />
           <div className="space-y-2">
@@ -880,44 +846,6 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </Card>
       )}
 
-      {/* ═══ CrossLinkTab ═══ */}
-      {activeTab === 'crosslink' && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            선택한 블로그의 글에 이 블로그 링크를 자동으로 삽입합니다.
-          </p>
-          {!allBlogs.length ? (
-            <Card className="shadow-none border border-gray-200">
-              <CardContent className="p-6 text-center text-gray-400">
-                <p className="text-sm">연결할 다른 블로그가 없습니다.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {allBlogs.map(b => (
-                <label key={b.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={linkedBlogIds.includes(b.id)}
-                    onChange={e => {
-                      if (e.target.checked) setLinkedBlogIds(prev => [...prev, b.id])
-                      else setLinkedBlogIds(prev => prev.filter(id => id !== b.id))
-                    }}
-                    className="w-4 h-4 text-blue-600" />
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color ?? COLORS[0] }} />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{b.name}</p>
-                    <p className="text-xs text-gray-400">{b.subdomain ?? b.custom_domain ?? b.slug}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
-          <Button onClick={handleSaveCrossLink} disabled={saving}>
-            <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : '크로스링킹 저장'}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
