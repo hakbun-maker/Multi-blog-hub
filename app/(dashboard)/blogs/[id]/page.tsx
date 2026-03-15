@@ -26,31 +26,27 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState<Tab>('posts')
   const [blog, setBlog] = useState<{ id: string; name: string; color?: string; description?: string; url?: string; is_active?: boolean; subdomain?: string; custom_domain?: string; slug?: string } | null>(null)
   const [posts, setPosts] = useState<{ id: string; title: string | null; slug?: string; status: string; view_count: number | null; published_at: string | null; created_at: string; category_id?: string | null }[]>([])
-  const [blogs, setBlogs] = useState<{ id: string; name: string }[]>([])
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      const [blogRes, postsRes, blogsRes, catRes] = await Promise.all([
+      const [blogRes, postsRes, catRes] = await Promise.all([
         fetch(`/api/blogs/${params.id}`),
         fetch(`/api/posts?blogId=${params.id}`),
-        fetch('/api/blogs'),
         fetch(`/api/categories?blogId=${params.id}`),
       ])
 
       if (!blogRes.ok) { router.push('/blogs'); return }
 
-      const [{ data: blogData }, { data: postsData }, { data: blogsData }, { data: catData }] = await Promise.all([
+      const [{ data: blogData }, { data: postsData }, { data: catData }] = await Promise.all([
         blogRes.json(),
         postsRes.json(),
-        blogsRes.json(),
         catRes.json(),
       ])
 
       setBlog(blogData)
       setPosts(postsData ?? [])
-      setBlogs((blogsData ?? []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })))
       setCategories(catData ?? [])
       setLoading(false)
     }
