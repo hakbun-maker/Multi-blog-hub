@@ -1,0 +1,277 @@
+version: "2.0"
+
+screen:
+  name: 수익화 로켓 - 키워드탐색기
+  route: /monetize?tab=keywords
+  layout: sidebar-main
+  auth: true
+  tab_group: monetize
+  tab_index: 2
+
+data_requirements:
+  - resource: gold_keywords
+    needs: [id, keyword, revenue_score, keyword_grade, monthly_search_volume, cpc_estimate, competition_score, trend_index, intent_type]
+    trigger: user_search
+  - resource: event_keywords
+    needs: [id, keyword, event_name, event_date, venue, revenue_score, keyword_grade, intent_type, expires_at]
+    trigger: date_range_select
+  - resource: seasonal_keywords
+    needs: [id, keyword, peak_months, yoy_trend, avg_revenue_score, keyword_grade]
+    trigger: month_select
+  - resource: user_blogs
+    needs: [id, name, grade, daily_quota]
+    trigger: page_load
+
+components:
+  - id: monetize_tab_nav
+    type: tab_navigation
+    position: top
+    function: 수익화 로켓 4탭 네비게이션 (키워드탐색기 활성)
+    tabs:
+      - label: 수익대시보드
+        route: /monetize?tab=dashboard
+      - label: 키워드탐색기
+        route: /monetize?tab=keywords
+        active: true
+      - label: 스케줄러
+        route: /monetize?tab=scheduler
+      - label: 글작성&대기
+        route: /monetize?tab=writing
+
+  - id: keyword_type_selector
+    type: tab_group
+    position: main-top
+    function: 탐색 유형 선택 탭 (골드/이벤트/시즌)
+    options:
+      - value: gold
+        label: 골드 키워드
+        icon: Star
+        description: 검색량·CPC 기반 수익성 높은 키워드
+      - value: event
+        label: 이벤트 키워드
+        icon: Calendar
+        description: 공연·스포츠·행사 관련 키워드
+      - value: seasonal
+        label: 시즌 키워드
+        icon: Clock
+        description: 연간 반복 시즌 키워드
+    default: gold
+
+  - id: gold_keyword_panel
+    type: search_panel
+    position: main
+    visible_when: keyword_type == 'gold'
+    function: 검색어 입력 → Revenue Score 순 결과 목록
+    sub_components:
+      - id: gold_search_input
+        type: search_input
+        placeholder: "예: 다이어트 보조제"
+        action: GET /api/monetize/keywords/gold?q={input}
+
+      - id: gold_filter_bar
+        type: filter_bar
+        filters:
+          - key: min_revenue_score
+            label: 최소 Revenue Score
+            type: slider
+            range: [0, 100]
+            default: 60
+          - key: intent_type
+            label: Intent 유형
+            type: multi_select
+            options: [AD, REVIEW, INFO, CRITIC, COMPARE, TREND]
+          - key: max_competition
+            label: 최대 경쟁도
+            type: slider
+            range: [0, 1]
+            default: 0.7
+        sort_options:
+          - value: revenue_score
+            label: Revenue Score 순
+            default: true
+          - value: search_volume
+            label: 검색량 순
+          - value: cpc
+            label: CPC 순
+
+      - id: gold_result_list
+        type: keyword_card_list
+        data_source:
+          resource: gold_keywords
+
+  - id: event_keyword_panel
+    type: search_panel
+    position: main
+    visible_when: keyword_type == 'event'
+    function: 날짜 범위 선택 → 이벤트 API 결과 목록
+    sub_components:
+      - id: event_date_range_picker
+        type: date_range_picker
+        label: 이벤트 기간 선택
+        action: GET /api/monetize/keywords/events?startDate={start}&endDate={end}
+
+      - id: event_source_selector
+        type: checkbox_group
+        label: 이벤트 소스
+        options:
+          - value: ticketlink
+            label: 티켓링크
+            default: true
+          - value: interpark
+            label: 인터파크
+            default: true
+          - value: culture_portal
+            label: 문화포털
+            default: true
+
+      - id: event_result_list
+        type: keyword_card_list
+        data_source:
+          resource: event_keywords
+        extra_fields:
+          - event_name
+          - event_date
+          - expires_at_badge
+
+  - id: seasonal_keyword_panel
+    type: search_panel
+    position: main
+    visible_when: keyword_type == 'seasonal'
+    function: 월 선택 → 연간 반복 시즌 키워드 목록
+    sub_components:
+      - id: month_selector
+        type: month_grid
+        label: 탐색 월 선택
+        action: GET /api/monetize/keywords/seasonal?month={selected}
+
+      - id: seasonal_result_list
+        type: keyword_card_list
+        data_source:
+          resource: seasonal_keywords
+        extra_fields:
+          - peak_months_badges
+          - yoy_trend_arrow
+
+  - id: keyword_result_card
+    type: card
+    position: in_list
+    function: 개별 키워드 결과 카드 (Revenue Score, 등급, 검색량, CPC, 경쟁도)
+    layout: horizontal
+    fields:
+      - key: keyword
+        label: 키워드
+        style: bold
+      - key: keyword_grade
+        label: 등급
+        type: grade_badge
+      - key: revenue_score
+        label: Revenue Score
+        type: score_bar
+        color: gold
+      - key: monthly_search_volume
+        label: 월간 검색량
+        format: number
+      - key: cpc_estimate
+        label: 예상 CPC
+        format: currency
+      - key: competition_score
+        label: 경쟁도
+        type: progress_bar
+        color_scale: red
+      - key: intent_type
+        label: Intent
+        type: badge
+    actions:
+      - id: add_to_calendar_btn
+        label: 달력에 추가
+        type: button
+        style: primary_gold
+        on_click: open_keyword_detail_modal
+
+  - id: keyword_detail_modal
+    type: modal
+    function: 키워드 상세 정보 + 달력 등록
+    fields:
+      - keyword_full_info
+      - revenue_score_breakdown
+      - target_date_picker
+      - target_blog_selector
+    actions:
+      - id: register_btn
+        label: 달력에 등록
+        endpoint: POST /api/monetize/keywords/register
+        on_success: toast("등록 완료") + navigate_to_scheduler
+
+connections:
+  navigations:
+    - from: monetize_tab_nav
+      to: /monetize?tab=dashboard
+      condition: 수익대시보드 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=scheduler
+      condition: 스케줄러 탭 클릭
+    - from: keyword_detail_modal
+      to: /monetize?tab=scheduler
+      condition: 등록 완료 후
+
+  api_calls:
+    - trigger: gold_search_input_submit
+      endpoint: GET /api/monetize/keywords/gold
+      params: [q, min_revenue_score, intent_type, max_competition, sort_by]
+    - trigger: event_date_range_change
+      endpoint: GET /api/monetize/keywords/events
+      params: [startDate, endDate, sources]
+    - trigger: month_selector_change
+      endpoint: GET /api/monetize/keywords/seasonal
+      params: [month]
+    - trigger: register_btn_click
+      endpoint: POST /api/monetize/keywords/register
+      body: [keyword_id, target_date, blog_id]
+
+empty_states:
+  - component: gold_result_list
+    condition: 검색 전
+    message: "키워드를 검색하세요"
+    cta: null
+  - component: gold_result_list
+    condition: 검색 결과 없음
+    message: "조건에 맞는 키워드가 없습니다"
+    cta: "필터 조건 완화하기"
+  - component: event_result_list
+    condition: API 실패 또는 결과 없음
+    message: "해당 기간에 이벤트가 없습니다"
+    cta: "다른 기간으로 탐색하기"
+
+error_states:
+  - type: naver_api_failure
+    display: warning_banner
+    message: "네이버 API 연결 실패 - 캐시 데이터로 표시 중"
+  - type: event_api_failure
+    display: warning_banner
+    message: "이벤트 데이터 미갱신 - 내부 캘린더 기반으로 표시"
+
+tests:
+  - name: 골드 키워드 검색
+    when: 검색어 입력 후 엔터
+    then:
+      - GET /api/monetize/keywords/gold?q={query} 호출
+      - Revenue Score 내림차순 결과 표시
+      - 각 카드에 등급 배지 표시
+
+  - name: Revenue Score 필터 적용
+    when: 최소 Revenue Score 슬라이더 75로 변경
+    then:
+      - 75점 미만 키워드 결과에서 제외
+
+  - name: 키워드 달력 등록
+    when: "달력에 추가" 버튼 클릭 후 날짜/블로그 선택 후 등록
+    then:
+      - POST /api/monetize/keywords/register 호출
+      - 성공 토스트 표시
+      - /monetize?tab=scheduler로 이동
+
+  - name: 이벤트 키워드 탐색
+    when: 이벤트 탭 선택 후 날짜 범위 선택
+    then:
+      - GET /api/monetize/keywords/events 호출
+      - 이벤트명 + 유효기간 배지 표시

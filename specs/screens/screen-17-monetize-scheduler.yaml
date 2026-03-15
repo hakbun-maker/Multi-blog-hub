@@ -1,0 +1,277 @@
+version: "2.0"
+
+screen:
+  name: 수익화 로켓 - 스케줄러
+  route: /monetize?tab=scheduler
+  layout: sidebar-main
+  auth: true
+  tab_group: monetize
+  tab_index: 3
+
+data_requirements:
+  - resource: schedule_entries
+    needs: [id, keyword, keyword_grade, blog_name, blog_grade, scheduled_date, scheduled_time, status]
+    trigger: page_load
+    params: [year, month]
+  - resource: user_blogs
+    needs: [id, name, grade, daily_quota, primary_ad_category]
+    trigger: page_load
+  - resource: distribution_preview
+    needs: [blog_id, keyword_id, scheduled_date, scheduled_time, match_reason]
+    trigger: distribution_engine_run
+
+components:
+  - id: monetize_tab_nav
+    type: tab_navigation
+    position: top
+    function: 수익화 로켓 4탭 네비게이션 (스케줄러 활성)
+    tabs:
+      - label: 수익대시보드
+        route: /monetize?tab=dashboard
+      - label: 키워드탐색기
+        route: /monetize?tab=keywords
+      - label: 스케줄러
+        route: /monetize?tab=scheduler
+        active: true
+      - label: 글작성&대기
+        route: /monetize?tab=writing
+
+  - id: scheduler_header
+    type: action_bar
+    position: main-top
+    function: 월 이동 네비게이션 + 확정 버튼
+    elements:
+      - id: month_navigator
+        type: prev_next_selector
+        format: "YYYY년 MM월"
+      - id: auto_distribute_btn
+        label: 자동 배분 실행
+        type: button
+        style: primary_gold
+        on_click: open_distribution_engine_panel
+      - id: confirm_schedule_btn
+        label: 스케줄 확정
+        type: button
+        style: primary
+        disabled_when: no_pending_entries
+        on_click: open_confirm_modal
+
+  - id: scheduler_layout
+    type: split_panel
+    position: main
+    split: 2/3_1/3
+
+  - id: scheduler_calendar
+    type: calendar
+    position: main-left-2/3
+    function: 월간 키워드 배분 달력 (날짜 셀에 키워드 카드)
+    data_source:
+      resource: schedule_entries
+    config:
+      view: month
+      drag_and_drop: true
+      cell_max_items: 3
+      overflow_label: "+{n}개"
+    events:
+      - on: card_drag
+        do: PUT /api/monetize/scheduler/reassign (new_date)
+      - on: empty_cell_click
+        do: open_keyword_search_modal
+      - on: card_click
+        do: show_entry_detail_popover
+
+  - id: keyword_schedule_card
+    type: card
+    position: in_calendar_cell
+    function: 날짜 셀 내 키워드 카드
+    fields:
+      - key: keyword
+        style: truncate_20chars
+      - key: blog_name
+        style: small_gray
+      - key: scheduled_time
+        style: small
+      - key: keyword_grade
+        type: grade_dot
+      - key: status
+        type: status_dot
+    draggable: true
+    on_click: show_detail_popover
+
+  - id: entry_detail_popover
+    type: popover
+    function: 키워드 스케줄 카드 클릭 시 상세 팝오버
+    fields:
+      - keyword
+      - revenue_score
+      - keyword_grade
+      - assigned_blog
+      - scheduled_date
+      - scheduled_time
+      - status
+    actions:
+      - label: 블로그 변경
+        type: dropdown_select
+        options_from: user_blogs
+        on_change: PUT /api/monetize/scheduler/reassign (new_blog_id)
+      - label: 날짜 변경
+        type: date_picker
+        on_change: PUT /api/monetize/scheduler/reassign (new_date)
+      - label: 삭제
+        type: danger_button
+        on_click: DELETE /api/monetize/scheduler/entry/{id}
+
+  - id: distribution_engine_panel
+    type: side_panel
+    position: main-right-1/3
+    function: 자동 배분 엔진 설정 + 결과 프리뷰
+    sub_components:
+      - id: distribution_date_range
+        type: date_range_picker
+        label: 배분 기간
+        default: current_month
+
+      - id: distribution_blog_selector
+        type: checkbox_list
+        label: 대상 블로그
+        data_source: user_blogs
+        show_grade: true
+        show_quota: true
+
+      - id: distribution_rules
+        type: toggle_group
+        label: 배분 규칙
+        options:
+          - key: grade_matching
+            label: 등급 매칭
+            description: 키워드 등급에 맞는 블로그 우선 배정
+            default: true
+          - key: time_differentiation
+            label: 시간 차별화
+            description: 블로그별 발행 시간 분산
+            default: true
+          - key: date_differentiation
+            label: 날짜 분산
+            description: 동일 키워드 날짜 간격 확보
+            default: true
+
+      - id: run_distribution_btn
+        label: 배분 미리보기
+        type: button
+        style: primary_gold
+        on_click: POST /api/monetize/scheduler/distribute
+
+      - id: distribution_preview_table
+        type: table
+        visible_when: distribution_ran
+        function: 배분 결과 프리뷰 테이블
+        columns:
+          - key: keyword
+            label: 키워드
+          - key: keyword_grade
+            label: 등급
+            type: grade_badge
+          - key: blog_name
+            label: 배정 블로그
+          - key: scheduled_date
+            label: 날짜
+          - key: scheduled_time
+            label: 시간
+          - key: match_reason
+            label: 배정 근거
+            style: small_gray
+        actions:
+          - id: apply_distribution_btn
+            label: 달력에 적용
+            type: button
+            style: primary
+            on_click: apply_preview_to_calendar
+
+  - id: schedule_confirm_modal
+    type: modal
+    function: 스케줄 확정 전 최종 검토 모달
+    content:
+      - 확정 예정 스케줄 요약 (블로그별 글 수, 총 글 수)
+      - pg_cron 등록 안내 메시지
+    actions:
+      - label: 확정
+        style: primary
+        endpoint: POST /api/monetize/scheduler/confirm
+        on_success: toast("스케줄이 확정되었습니다") + close_modal
+      - label: 취소
+        style: secondary
+
+connections:
+  navigations:
+    - from: monetize_tab_nav
+      to: /monetize?tab=dashboard
+      condition: 수익대시보드 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=keywords
+      condition: 키워드탐색기 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=writing
+      condition: 글작성&대기 탭 클릭
+    - from: schedule_confirm_modal
+      to: /monetize?tab=writing
+      condition: 확정 완료 후
+
+  api_calls:
+    - trigger: month_navigate
+      endpoint: GET /api/monetize/scheduler/calendar
+      params: [year, month]
+    - trigger: card_drag_drop
+      endpoint: PUT /api/monetize/scheduler/reassign
+      body: [entry_id, new_date, new_blog_id, new_time]
+    - trigger: run_distribution_btn
+      endpoint: POST /api/monetize/scheduler/distribute
+      body: [date_range, selected_blogs, rules_config]
+    - trigger: apply_distribution_btn
+      endpoint: POST /api/monetize/scheduler/apply-preview
+      body: [preview_entries]
+    - trigger: confirm_schedule_btn_confirm
+      endpoint: POST /api/monetize/scheduler/confirm
+      body: [entry_ids]
+
+empty_states:
+  - component: scheduler_calendar
+    condition: 이번 달 스케줄 없음
+    message: "이번 달 등록된 키워드가 없습니다"
+    cta: "키워드탐색기에서 키워드 등록하기"
+
+error_states:
+  - type: quota_exceeded
+    display: warning_badge_on_cell
+    message: "{블로그명} 오늘 쿼터 초과 - 다음 날로 자동 이동됨"
+  - type: confirm_failure
+    display: toast_error
+    message: "스케줄 확정 실패 - 다시 시도해 주세요"
+
+tests:
+  - name: 달력 초기 로드
+    when: 스케줄러 탭 접속
+    then:
+      - 현재 월 캘린더 표시
+      - 등록된 키워드 카드 날짜별 표시
+      - 배분 엔진 패널 표시
+
+  - name: 키워드 카드 드래그 앤 드롭
+    when: 키워드 카드를 다른 날짜로 드래그
+    then:
+      - PUT /api/monetize/scheduler/reassign 호출
+      - 달력 즉시 업데이트
+      - 성공 토스트 표시
+
+  - name: 자동 배분 실행
+    when: "배분 미리보기" 버튼 클릭
+    then:
+      - POST /api/monetize/scheduler/distribute 호출
+      - 배분 결과 프리뷰 테이블 표시
+      - 등급 매칭 근거 표시
+
+  - name: 스케줄 확정
+    when: "스케줄 확정" 클릭 후 모달에서 확정
+    then:
+      - POST /api/monetize/scheduler/confirm 호출
+      - pg_cron 등록 완료
+      - /monetize?tab=writing으로 이동

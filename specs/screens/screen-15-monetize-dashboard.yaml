@@ -1,0 +1,187 @@
+version: "2.0"
+
+screen:
+  name: 수익화 로켓 - 수익대시보드
+  route: /monetize?tab=dashboard
+  layout: sidebar-main
+  auth: true
+  tab_group: monetize
+  tab_index: 1
+
+data_requirements:
+  - resource: pipeline_status
+    needs: [pending_count, writing_count, reviewing_count, auto_published_count, review_queue_count]
+  - resource: revenue_summary
+    needs: [current_month_revenue, last_month_revenue, estimated_revenue, mom_change_rate]
+  - resource: revenue_time_series
+    needs: [date, actual_revenue, estimated_revenue]
+    period: last_30_days
+  - resource: blog_grades
+    needs: [id, name, grade, monthly_revenue, post_count, rpm]
+  - resource: revenue_by_dimension
+    needs: [dimension_type, dimension_value, revenue, percentage]
+
+components:
+  - id: monetize_tab_nav
+    type: tab_navigation
+    position: top
+    function: 수익화 로켓 4탭 네비게이션 (수익대시보드 활성)
+    tabs:
+      - label: 수익대시보드
+        route: /monetize?tab=dashboard
+        active: true
+      - label: 키워드탐색기
+        route: /monetize?tab=keywords
+      - label: 스케줄러
+        route: /monetize?tab=scheduler
+      - label: 글작성&대기
+        route: /monetize?tab=writing
+
+  - id: rocket_status_card
+    type: stat_cards
+    position: main-top
+    function: 파이프라인 현황 4분할 카드 (대기/작성중/검수중/이번달발행)
+    data_source:
+      resource: pipeline_status
+    layout: 4-column-grid
+    style:
+      highlight_color: gold
+      icon: Rocket
+
+  - id: revenue_summary_cards
+    type: stat_cards
+    position: main-top-right
+    function: 이번달 수익 / 지난달 수익 / 예상 수익 + 전월 대비 증감률
+    data_source:
+      resource: revenue_summary
+    layout: 3-column-grid
+    style:
+      increase_color: green
+      decrease_color: red
+
+  - id: revenue_line_chart
+    type: chart
+    chart_type: LineChart
+    position: main-middle-left
+    function: 실제 수익(골드 실선) + 예상 수익(골드 점선) 트렌드 그래프
+    data_source:
+      resource: revenue_time_series
+    config:
+      x_axis: date
+      y_axis: revenue_amount
+      lines:
+        - key: actual_revenue
+          color: "#F59E0B"
+          stroke: solid
+          label: 실제 수익
+        - key: estimated_revenue
+          color: "#F59E0B"
+          stroke: dashed
+          label: 예상 수익
+      tooltip: true
+      unit: 원
+
+  - id: blog_grade_table
+    type: table
+    position: main-middle-right
+    function: 블로그별 등급 + 이번달 수익 + 발행 글 수 + RPM 표
+    data_source:
+      resource: blog_grades
+    columns:
+      - key: name
+        label: 블로그명
+      - key: grade
+        label: 등급
+        type: grade_badge
+      - key: monthly_revenue
+        label: 이번달 수익
+        format: currency
+        sortable: true
+      - key: post_count
+        label: 발행 글 수
+        sortable: true
+      - key: rpm
+        label: RPM
+        format: currency
+    default_sort: monthly_revenue_desc
+
+  - id: multi_dimension_chart
+    type: chart
+    chart_type: BarChart_PieChart
+    position: main-bottom
+    function: 다차원 수익 분석 (블로그별/광고별/언어별/블로그유형별)
+    data_source:
+      resource: revenue_by_dimension
+    config:
+      dimension_tabs:
+        - key: blog
+          label: 블로그별
+        - key: ad_category
+          label: 광고별
+        - key: language
+          label: 언어별
+        - key: blog_type
+          label: 블로그유형별
+      charts:
+        - type: BarChart
+          label: 수익 비교
+        - type: PieChart
+          label: 비율
+
+connections:
+  navigations:
+    - from: monetize_tab_nav
+      to: /monetize?tab=keywords
+      condition: 키워드탐색기 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=scheduler
+      condition: 스케줄러 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=writing
+      condition: 글작성&대기 탭 클릭
+    - from: rocket_status_card
+      to: /monetize?tab=writing
+      condition: 보류 카드 클릭 (review_queue > 0)
+
+  api_calls:
+    - trigger: page_load
+      endpoint: GET /api/monetize/dashboard
+    - trigger: dimension_tab_change
+      endpoint: GET /api/monetize/analytics?dimension={selected}
+
+empty_states:
+  - component: revenue_line_chart
+    condition: 수익 데이터 없음
+    message: "아직 발행된 글이 없습니다"
+    cta: "키워드탐색기에서 첫 키워드 등록하기"
+  - component: blog_grade_table
+    condition: 블로그 없음
+    message: "등록된 블로그가 없습니다"
+    cta: "블로그 추가하기"
+
+error_states:
+  - type: api_failure
+    display: toast
+    message: "수익 데이터를 불러오는 데 실패했습니다"
+    action: 재시도 버튼
+
+tests:
+  - name: 대시보드 초기 로드
+    when: 인증된 사용자가 /monetize?tab=dashboard 접속
+    then:
+      - 파이프라인 현황 카드 4개 표시
+      - 수익 요약 카드 3개 표시
+      - 수익 트렌드 그래프 표시
+      - 블로그 등급 표 표시
+      - 다차원 분석 차트 표시 (기본: 블로그별)
+
+  - name: 다차원 탭 전환
+    when: "광고별" 탭 클릭
+    then:
+      - GET /api/monetize/analytics?dimension=ad_category 호출
+      - 차트 데이터 업데이트
+
+  - name: 보류 카드 클릭
+    when: rocket_status_card의 보류 카운트 클릭
+    then:
+      - /monetize?tab=writing으로 이동

@@ -85,3 +85,32 @@ screens:
     route: /settings
     auth: true
     file: screen-14-settings.yaml
+
+  # 수익화 로켓 (4탭)
+  - id: screen-15
+    name: 수익화 로켓 - 수익대시보드
+    route: /monetize?tab=dashboard
+    auth: true
+    tab_group: monetize
+    file: screen-15-monetize-dashboard.yaml
+
+  - id: screen-16
+    name: 수익화 로켓 - 키워드탐색기
+    route: /monetize?tab=keywords
+    auth: true
+    tab_group: monetize
+    file: screen-16-monetize-keywords.yaml
+
+  - id: screen-17
+    name: 수익화 로켓 - 스케줄러
+    route: /monetize?tab=scheduler
+    auth: true
+    tab_group: monetize
+    file: screen-17-monetize-scheduler.yaml
+
+  - id: screen-18
+    name: 수익화 로켓 - 글작성&대기
+    route: /monetize?tab=writing
+    auth: true
+    tab_group: monetize
+    file: screen-18-monetize-writing.yaml

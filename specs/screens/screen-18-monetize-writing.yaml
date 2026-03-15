@@ -1,0 +1,292 @@
+version: "2.0"
+
+screen:
+  name: 수익화 로켓 - 글작성&대기
+  route: /monetize?tab=writing
+  layout: sidebar-main
+  auth: true
+  tab_group: monetize
+  tab_index: 4
+
+data_requirements:
+  - resource: pipeline_counts
+    needs: [pending, writing, reviewing, auto_published, review_queue, published]
+    trigger: page_load
+  - resource: review_queue_posts
+    needs: [id, keyword, keyword_grade, blog_name, scheduled_date, total_score, review_reason, content_preview]
+    trigger: page_load
+  - resource: quality_score_report
+    needs: [post_id, seo_score, quality_score, revenue_score, total_score, score_breakdown, review_reason, content_preview]
+    trigger: post_row_click
+  - resource: active_writing_posts
+    needs: [id, keyword, blog_name, writing_stage, progress_percent, started_at]
+    trigger: page_load
+
+components:
+  - id: monetize_tab_nav
+    type: tab_navigation
+    position: top
+    function: 수익화 로켓 4탭 네비게이션 (글작성&대기 활성)
+    tabs:
+      - label: 수익대시보드
+        route: /monetize?tab=dashboard
+      - label: 키워드탐색기
+        route: /monetize?tab=keywords
+      - label: 스케줄러
+        route: /monetize?tab=scheduler
+      - label: 글작성&대기
+        route: /monetize?tab=writing
+        active: true
+
+  - id: pipeline_status_board
+    type: kanban_status_bar
+    position: main-top
+    function: 파이프라인 현황 Kanban 형태 상태 바
+    data_source:
+      resource: pipeline_counts
+    columns:
+      - key: pending
+        label: 대기 중
+        icon: Clock
+        color: gray
+      - key: writing
+        label: AI 작성 중
+        icon: Bot
+        color: purple
+      - key: reviewing
+        label: 검수 중
+        icon: Search
+        color: blue
+      - key: auto_published
+        label: 자동 발행
+        icon: CheckCircle
+        color: green
+      - key: review_queue
+        label: 보류 검토
+        icon: AlertCircle
+        color: red
+        highlight: true
+    events:
+      - on: review_queue_click
+        do: scroll_to_review_queue_list
+
+  - id: writing_progress_section
+    type: section
+    position: main-middle
+    visible_when: active_writing_count > 0
+    label: AI 작성 중
+    sub_components:
+      - id: writing_progress_cards
+        type: card_list
+        data_source:
+          resource: active_writing_posts
+        card_fields:
+          - key: keyword
+            style: bold
+          - key: blog_name
+            style: small_gray
+          - key: writing_stage
+            label: 단계
+            type: stage_badge
+            stages: [Intent분류, 클러스터생성, PASONA작성, SEO최적화, 검수중]
+          - key: progress_percent
+            type: progress_bar
+            color: purple
+          - key: started_at
+            label: 시작
+            format: relative_time
+        poll_interval: 10s
+
+  - id: review_queue_section
+    type: split_panel
+    position: main-bottom
+    split: 1/2_1/2
+    label: 보류 글 검토
+    highlight_when: review_queue_count > 0
+
+  - id: review_queue_list
+    type: list
+    position: left-1/2
+    function: 45점 미만 보류 글 목록
+    data_source:
+      resource: review_queue_posts
+    list_item_fields:
+      - key: keyword
+        style: bold
+      - key: keyword_grade
+        type: grade_badge
+      - key: blog_name
+        style: small_gray
+      - key: total_score
+        label: 점수
+        type: score_display
+        threshold: 45
+        style: red_when_below
+      - key: review_reason
+        style: small_red
+        truncate: 40chars
+      - key: scheduled_date
+        format: date
+    selectable: true
+    on_select: load_quality_report
+
+  - id: quality_score_report
+    type: detail_panel
+    position: right-1/2
+    function: 선택된 글의 3단계 검수 점수 상세 리포트
+    data_source:
+      resource: quality_score_report
+    sub_components:
+      - id: total_score_display
+        type: score_gauge
+        value_key: total_score
+        max: 50
+        threshold: 45
+        label: 총점
+        color_scale:
+          below_45: red
+          above_45: green
+
+      - id: score_breakdown_cards
+        type: score_breakdown
+        cards:
+          - key: seo_score
+            label: SEO 점수
+            max: 20
+            icon: Search
+            details_expandable: true
+          - key: quality_score
+            label: 품질 점수
+            max: 15
+            icon: FileText
+            details_expandable: true
+          - key: revenue_score
+            label: 수익화 점수
+            max: 15
+            icon: DollarSign
+            details_expandable: true
+
+      - id: review_reason_card
+        type: info_card
+        style: warning
+        label: 보류 사유
+        value_key: review_reason
+        visible_when: total_score < 45
+
+      - id: content_preview
+        type: text_preview
+        label: 글 미리보기
+        value_key: content_preview
+        max_lines: 10
+        expandable: true
+
+      - id: post_action_buttons
+        type: button_group
+        position: bottom
+        buttons:
+          - id: approve_btn
+            label: 발행 승인
+            style: primary_green
+            icon: CheckCircle
+            on_click: POST /api/monetize/writing/approve/{post_id}
+            confirm_message: "이 글을 발행하시겠습니까?"
+          - id: edit_btn
+            label: 에디터에서 수정
+            style: secondary
+            icon: Edit
+            on_click: navigate_to_editor
+          - id: reject_btn
+            label: 거절 (키워드 반환)
+            style: danger_outline
+            icon: X
+            on_click: POST /api/monetize/writing/reject/{post_id}
+            confirm_message: "거절하면 키워드가 탐색 풀로 반환됩니다. 계속하시겠습니까?"
+
+connections:
+  navigations:
+    - from: monetize_tab_nav
+      to: /monetize?tab=dashboard
+      condition: 수익대시보드 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=keywords
+      condition: 키워드탐색기 탭 클릭
+    - from: monetize_tab_nav
+      to: /monetize?tab=scheduler
+      condition: 스케줄러 탭 클릭
+    - from: edit_btn
+      to: /editor/{post_id}
+      condition: 에디터에서 수정 클릭
+
+  api_calls:
+    - trigger: page_load
+      endpoint: GET /api/monetize/writing/pipeline
+    - trigger: page_load
+      endpoint: GET /api/monetize/writing/review-queue
+    - trigger: list_item_select
+      endpoint: GET /api/monetize/writing/report/{post_id}
+    - trigger: approve_btn_confirm
+      endpoint: POST /api/monetize/writing/approve/{post_id}
+      on_success: remove_from_list + update_pipeline_count + toast("발행 완료")
+    - trigger: reject_btn_confirm
+      endpoint: POST /api/monetize/writing/reject/{post_id}
+      on_success: remove_from_list + update_pipeline_count + toast("키워드가 탐색 풀로 반환되었습니다")
+    - trigger: auto_poll
+      endpoint: GET /api/monetize/writing/pipeline
+      interval: 10s
+      condition: writing_count > 0
+
+empty_states:
+  - component: review_queue_list
+    condition: 보류 글 없음
+    message: "검토 대기 중인 글이 없습니다"
+    icon: CheckCircle
+    style: success
+  - component: writing_progress_cards
+    condition: AI 작성 중인 글 없음
+    message: "현재 AI가 작성 중인 글이 없습니다"
+
+error_states:
+  - type: approve_failure
+    display: toast_error
+    message: "발행 처리에 실패했습니다. 다시 시도해 주세요."
+  - type: ai_writing_failed
+    display: error_badge_on_card
+    message: "AI 작성 실패 - 수동 작성 필요"
+    action: edit_btn 표시
+
+tests:
+  - name: 보류 글 목록 로드
+    when: 글작성&대기 탭 접속
+    then:
+      - 파이프라인 현황 상태 바 표시
+      - 보류 글 목록 표시 (총점 < 45)
+      - AI 작성 중인 카드 표시 (있을 경우)
+
+  - name: 검수 리포트 조회
+    when: 보류 글 목록에서 항목 클릭
+    then:
+      - GET /api/monetize/writing/report/{id} 호출
+      - 총점 게이지 표시
+      - SEO/품질/수익화 점수 분할 표시
+      - 보류 사유 표시
+
+  - name: 발행 승인
+    when: 발행 승인 버튼 클릭 후 확인
+    then:
+      - POST /api/monetize/writing/approve/{id} 호출
+      - 목록에서 해당 항목 제거
+      - 파이프라인 카운트 업데이트
+      - 성공 토스트 표시
+
+  - name: 거절 처리
+    when: 거절 버튼 클릭 후 확인
+    then:
+      - POST /api/monetize/writing/reject/{id} 호출
+      - 해당 키워드 탐색 풀 반환 상태로 변경
+      - 목록에서 제거 + 토스트
+
+  - name: AI 작성 실시간 업데이트
+    when: writing_count > 0인 상태로 10초 경과
+    then:
+      - GET /api/monetize/writing/pipeline 자동 재호출
+      - 진행률 바 업데이트
