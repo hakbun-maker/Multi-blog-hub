@@ -261,8 +261,8 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         {/* 좌측 사이드바 */}
         {cfg.layout.preset === 'left_sidebar' && (
           <aside className="w-64 flex-shrink-0 py-10 space-y-4">
-            {cfg.ads.sidebar.enabled && cfg.ads.sidebar.code && (
-              <AdSlotRenderer code={cfg.ads.sidebar.code} />
+            {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
+              <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
             )}
           </aside>
         )}
@@ -313,8 +313,8 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         {/* 우측 사이드바 */}
         {cfg.layout.preset === 'right_sidebar' && (
           <aside className="w-64 flex-shrink-0 py-10 space-y-4">
-            {cfg.ads.sidebar.enabled && cfg.ads.sidebar.code && (
-              <AdSlotRenderer code={cfg.ads.sidebar.code} />
+            {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
+              <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
             )}
           </aside>
         )}

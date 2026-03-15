@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2 } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2, Eye, Code, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,7 +38,8 @@ export interface LayoutConfig {
     top_banner: AdSlot
     below_title: AdSlot
     in_article: AdSlot
-    sidebar: AdSlot
+    left_sidebar_ad: AdSlot
+    right_sidebar_ad: AdSlot
     footer_ad: AdSlot
   }
   footer: {
@@ -85,7 +86,8 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
     top_banner: { enabled: false, code: '' },
     below_title: { enabled: false, code: '' },
     in_article: { enabled: false, code: '' },
-    sidebar: { enabled: false, code: '' },
+    left_sidebar_ad: { enabled: false, code: '' },
+    right_sidebar_ad: { enabled: false, code: '' },
     footer_ad: { enabled: false, code: '' },
   },
   footer: {
@@ -237,28 +239,81 @@ const SNS_TYPES = [
   { value: 'blog', label: '블로그' },
 ]
 
-// ─── 광고 슬롯 이름 ───
+// ─── 광고 슬롯 정의 ───
 
-const AD_SLOTS: { key: keyof LayoutConfig['ads']; label: string; desc: string }[] = [
+const AD_SLOTS: { key: keyof Omit<LayoutConfig['ads'], 'adsense_pub_id'>; label: string; desc: string }[] = [
   { key: 'top_banner', label: '상단 배너', desc: '페이지 상단에 표시' },
-  { key: 'below_title', label: '제목 아래', desc: '글 제목 바로 아래' },
-  { key: 'in_article', label: '본문 중간', desc: '본문 중간에 삽입' },
-  { key: 'sidebar', label: '사이드바', desc: '사이드바 영역에 표시' },
+  { key: 'below_title', label: '제목 아래', desc: '글 제목 바로 아래 (글 상세 페이지)' },
+  { key: 'in_article', label: '본문 중간', desc: '본문 중간에 자동 삽입' },
+  { key: 'left_sidebar_ad', label: '좌측 사이드바', desc: '좌측 사이드바 레이아웃 선택 시 표시' },
+  { key: 'right_sidebar_ad', label: '우측 사이드바', desc: '우측 사이드바 레이아웃 선택 시 표시' },
   { key: 'footer_ad', label: '하단', desc: '페이지 하단에 표시' },
 ]
+
+// ─── JSON 편집 모달 ───
+
+function JsonModal({ config, onApply, onClose }: {
+  config: LayoutConfig
+  onApply: (cfg: LayoutConfig) => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState(() => JSON.stringify(config, null, 2))
+  const [parseError, setParseError] = useState('')
+
+  const handleApply = () => {
+    try {
+      const parsed = JSON.parse(text) as LayoutConfig
+      onApply(parsed)
+      onClose()
+    } catch {
+      setParseError('JSON 형식이 올바르지 않습니다.')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col mx-4">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-800">레이아웃 설정 JSON</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden p-4">
+          <textarea
+            value={text}
+            onChange={e => { setText(e.target.value); setParseError('') }}
+            className="w-full h-full min-h-[400px] text-xs font-mono border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            spellCheck={false}
+          />
+          {parseError && (
+            <p className="text-xs text-red-600 mt-1">{parseError}</p>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
+          <p className="text-xs text-gray-400 flex-1 self-center">JSON을 수정하고 &quot;적용&quot;을 눌러 반영하세요.</p>
+          <Button variant="outline" size="sm" onClick={onClose}>취소</Button>
+          <Button size="sm" onClick={handleApply}>적용</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── 메인 컴포넌트 ───
 
 interface LayoutTabProps {
   blogId: string
+  blogSlug?: string
   initialConfig: Partial<LayoutConfig> | null | undefined
   onSuccess: (msg: string) => void
 }
 
-export default function LayoutTab({ blogId, initialConfig, onSuccess }: LayoutTabProps) {
+export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }: LayoutTabProps) {
   const [config, setConfig] = useState<LayoutConfig>(() => mergeConfig(initialConfig))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showJsonModal, setShowJsonModal] = useState(false)
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
@@ -394,6 +449,28 @@ export default function LayoutTab({ blogId, initialConfig, onSuccess }: LayoutTa
         </div>
       )}
 
+      {/* 상단 액션 버튼 */}
+      <div className="flex gap-2 justify-end">
+        {blogSlug && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/blog/${blogSlug}`, '_blank')}
+          >
+            <Eye className="w-4 h-4 mr-1.5" />미리보기
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setShowJsonModal(true)}
+        >
+          <Code className="w-4 h-4 mr-1.5" />JSON 편집
+        </Button>
+      </div>
+
       {/* ═══ 1. 헤더 설정 ═══ */}
       <Section title="헤더 설정" defaultOpen>
         {/* 로고 타입 */}
@@ -516,6 +593,11 @@ export default function LayoutTab({ blogId, initialConfig, onSuccess }: LayoutTa
               </button>
             ))}
           </div>
+          {(config.layout.preset === 'left_sidebar' || config.layout.preset === 'right_sidebar') && (
+            <p className="text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-md">
+              사이드바 광고는 아래 &quot;광고 배치&quot; 섹션에서 설정하세요.
+            </p>
+          )}
         </div>
 
         {/* 최대 너비 */}
@@ -600,16 +682,23 @@ export default function LayoutTab({ blogId, initialConfig, onSuccess }: LayoutTa
 
         {/* 광고 슬롯 */}
         {AD_SLOTS.map(slot => {
-          if (slot.key === 'adsense_pub_id') return null
           const adSlot = config.ads[slot.key]
           if (typeof adSlot !== 'object' || adSlot === null) return null
           const typedSlot = adSlot as AdSlot
+          const isSidebar = slot.key === 'left_sidebar_ad' || slot.key === 'right_sidebar_ad'
+          const sidebarInactive =
+            (slot.key === 'left_sidebar_ad' && config.layout.preset !== 'left_sidebar') ||
+            (slot.key === 'right_sidebar_ad' && config.layout.preset !== 'right_sidebar')
+
           return (
-            <div key={slot.key} className="p-3 bg-gray-50 rounded-lg space-y-2">
+            <div key={slot.key} className={`p-3 rounded-lg space-y-2 ${isSidebar && sidebarInactive ? 'bg-gray-50 opacity-60' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-sm font-medium text-gray-700">{slot.label}</span>
                   <span className="text-xs text-gray-400 ml-2">{slot.desc}</span>
+                  {isSidebar && sidebarInactive && (
+                    <span className="ml-2 text-xs text-amber-600">(현재 레이아웃 미사용)</span>
+                  )}
                 </div>
                 <Toggle checked={typedSlot.enabled} onChange={v => updateAdSlot(slot.key, { enabled: v })} />
               </div>
@@ -803,6 +892,15 @@ export default function LayoutTab({ blogId, initialConfig, onSuccess }: LayoutTa
           <><Save className="w-4 h-4 mr-1.5" />레이아웃 저장</>
         )}
       </Button>
+
+      {/* JSON 편집 모달 */}
+      {showJsonModal && (
+        <JsonModal
+          config={config}
+          onApply={setConfig}
+          onClose={() => setShowJsonModal(false)}
+        />
+      )}
     </div>
   )
 }

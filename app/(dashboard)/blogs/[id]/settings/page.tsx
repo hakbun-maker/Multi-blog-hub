@@ -8,17 +8,15 @@ import { useCategories } from '@/hooks/useCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
 import LayoutTab from '@/components/blogs/LayoutTab'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 
-type SettingsTab = 'basic' | 'categories' | 'ai' | 'ads' | 'layout'
+type SettingsTab = 'basic' | 'categories' | 'ai' | 'layout'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'basic', label: '기본정보' },
   { id: 'categories', label: '카테고리' },
   { id: 'ai', label: 'AI 캐릭터' },
-  { id: 'ads', label: '광고' },
   { id: 'layout', label: '레이아웃' },
 ]
 
@@ -842,24 +840,9 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         </div>
       )}
 
-      {/* ═══ AdsTab ═══ */}
-      {activeTab === 'ads' && (
-        <Card className="shadow-none border border-gray-200">
-          <CardContent className="p-6 text-center text-gray-400">
-            <p className="font-medium text-gray-600 mb-1">광고 관리</p>
-            <p className="text-sm">레이아웃 탭의 &quot;광고 배치&quot; 섹션에서 설정할 수 있습니다.</p>
-            <p className="text-xs mt-2">
-              <button onClick={() => setActiveTab('layout')} className="text-blue-600 hover:underline">
-                레이아웃 탭으로 이동 &rarr;
-              </button>
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* ═══ LayoutTab ═══ */}
       {activeTab === 'layout' && (
-        <LayoutTab blogId={params.id} initialConfig={layoutConfig} onSuccess={showSuccess} />
+        <LayoutTab blogId={params.id} blogSlug={slug} initialConfig={layoutConfig} onSuccess={showSuccess} />
       )}
 
     </div>
