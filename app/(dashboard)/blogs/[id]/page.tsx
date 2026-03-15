@@ -8,14 +8,12 @@ import { Settings, PenSquare, Globe, ArrowLeft, ExternalLink } from 'lucide-reac
 import { Button } from '@/components/ui/button'
 import { PostsTab } from '@/components/blogs/PostsTab'
 import { StatsTab } from '@/components/blogs/StatsTab'
-import { MemoTab } from '@/components/blogs/MemoTab'
 
-type Tab = 'posts' | 'stats' | 'snippets'
+type Tab = 'posts' | 'stats'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'posts', label: '발행글' },
   { id: 'stats', label: '통계' },
-  { id: 'snippets', label: '스니펫' },
 ]
 
 const BLOG_COLORS = [
@@ -152,7 +150,6 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
       <div>
         {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} categories={categories} />}
         {tab === 'stats' && <StatsTab posts={posts} />}
-        {tab === 'snippets' && <MemoTab />}
       </div>
     </div>
   )
