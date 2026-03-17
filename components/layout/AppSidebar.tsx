@@ -8,7 +8,6 @@ import {
   BookOpen,
   PenSquare,
   BarChart2,
-  Megaphone,
   Search,
   Settings,
   ChevronLeft,
@@ -36,7 +35,6 @@ const NAV_MONETIZE = [
 ]
 
 const NAV_BOTTOM = [
-  { href: '/ads',      label: '광고 관리', icon: Megaphone },
   { href: '/settings', label: '설정',     icon: Settings },
 ]
 

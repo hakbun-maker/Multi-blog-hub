@@ -68,14 +68,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // 인증이 필요한 경로: /dashboard, /blogs, /editor, /scheduler, /stats, /ads, /keywords, /settings
+  // 인증이 필요한 경로: /dashboard, /blogs, /editor, /scheduler, /stats, /keywords, /settings
   const protectedPaths = [
     '/dashboard',
     '/blogs',
     '/editor',
     '/scheduler',
     '/stats',
-    '/ads',
     '/keywords',
     '/settings',
   ]

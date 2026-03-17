@@ -375,8 +375,8 @@ export default function BlogsPage() {
               ))}
             </div>
           ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="border border-gray-200 rounded-lg overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">블로그명</th>

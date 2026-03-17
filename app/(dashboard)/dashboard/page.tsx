@@ -26,9 +26,9 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* 헤더 + QuickActionButtons */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
             <Link href="/editor/new"><PenSquare className="w-4 h-4 mr-1.5" />글 작성</Link>
           </Button>
