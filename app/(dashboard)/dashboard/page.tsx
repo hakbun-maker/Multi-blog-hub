@@ -164,7 +164,7 @@ export default async function DashboardPage() {
                 const blog = blogs?.find(b => b.id === post.blog_id)
                 const color = blog?.color ?? '#3b82f6'
                 return (
-                  <Link key={post.id} href={`/editor/${post.id}`}>
+                  <Link key={post.id} href={`/blog/${blog?.slug}/${post.slug}`} target="_blank">
                     <div className="flex items-start gap-2 p-3 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 transition-all cursor-pointer">
                       <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: color }} />
                       <div className="flex-1 min-w-0">
