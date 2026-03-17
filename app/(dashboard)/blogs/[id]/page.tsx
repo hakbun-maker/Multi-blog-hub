@@ -72,22 +72,22 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6">
       {/* BlogHeader */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          <Button asChild variant="ghost" size="sm" className="mt-0.5 h-8 w-8 p-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Button asChild variant="ghost" size="sm" className="mt-0.5 h-8 w-8 p-0 flex-shrink-0">
             <Link href="/blogs"><ArrowLeft className="w-4 h-4" /></Link>
           </Button>
-          <div>
-            <div className="flex items-center gap-2.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="w-3.5 h-3.5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: color }} />
-              <h1 className="text-2xl font-bold text-gray-900">{blog.name}</h1>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              <h1 className="text-2xl font-bold text-gray-900 break-words">{blog.name}</h1>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                 {blog.is_active ? '활성' : '비활성'}
               </span>
             </div>
             <div className="flex items-center gap-1.5 mt-1 ml-6">
               <Globe className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-sm text-gray-400">{blog.subdomain ?? blog.custom_domain ?? blog.slug}</span>
+              <span className="text-sm text-gray-400 break-all">{blog.subdomain ?? blog.custom_domain ?? blog.slug}</span>
             </div>
             {blog.description && (
               <p className="text-sm text-gray-500 mt-1 ml-6">{blog.description}</p>
@@ -99,7 +99,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
             <a href={publicUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="w-4 h-4 mr-1.5" />공개 페이지

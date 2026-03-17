@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Globe, Plus, Settings, Search, Pencil } from 'lucide-react'
+import { Globe, Plus, Settings, Search, Pencil, ExternalLink } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +51,7 @@ type Post = {
   id: string
   blog_id: string
   title: string
+  slug?: string
   status: string
   view_count: number | null
   published_at: string | null
@@ -381,9 +382,9 @@ export default function BlogsPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">블로그명</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">유형</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">제목</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 min-w-[200px]">제목</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">상태</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">키워드</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap max-w-[80px]">키워드</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">조회수</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">발행일</th>
                     <th className="px-4 py-3 font-medium text-gray-600 whitespace-nowrap">편집</th>
@@ -419,8 +420,16 @@ export default function BlogsPage() {
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 max-w-xs">
-                            <span className="text-gray-900 line-clamp-1">{post.title}</span>
+                          <td className="px-4 py-3 min-w-[200px]">
+                            {post.status === 'published' && blog?.slug && post.slug ? (
+                              <Link href={`/blog/${blog.slug}/${post.slug}`} target="_blank"
+                                className="text-gray-900 line-clamp-1 hover:text-blue-600 hover:underline inline-flex items-center gap-1">
+                                {post.title}
+                                <ExternalLink className="w-3 h-3 flex-shrink-0 text-gray-400" />
+                              </Link>
+                            ) : (
+                              <span className="text-gray-900 line-clamp-1">{post.title}</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {post.status === 'published' ? (
@@ -429,8 +438,8 @@ export default function BlogsPage() {
                               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">임시저장</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-gray-500 text-xs">{post.keyword ?? '-'}</span>
+                          <td className="px-4 py-3 whitespace-nowrap max-w-[80px]">
+                            <span className="text-gray-500 text-xs truncate block">{post.keyword ?? '-'}</span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right">
                             <span className="text-gray-600">{post.view_count ?? 0}</span>
