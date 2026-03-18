@@ -53,7 +53,16 @@ CREATE TABLE IF NOT EXISTS public.user_plans (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 5. users 테이블에 plan_id 추가
+-- 5. 시드 데이터: plans (FK 의존성 해결을 위해 먼저 삽입)
+INSERT INTO public.plans (id, name, display_name, monthly_price, annual_price, max_blogs, position, sort_order) VALUES
+  ('lite',   'Lite',   '무료',    0,       0,         3,   '일단 써봐',       0),
+  ('basic',  'Basic',  'Basic',   9900,    108900,    10,  '제대로 쓰자',     1),
+  ('pro',    'Pro',    'Pro',     49000,   539000,    10,  '수익화 준비하자',  2),
+  ('growth', 'Growth', 'Growth',  99000,   1089000,   30,  '자동으로 돈 벌자', 3),
+  ('scale',  'Scale',  'Scale',   199000,  2189000,   100, '사업으로 굴리자',  4)
+ON CONFLICT (id) DO NOTHING;
+
+-- 6. users 테이블에 plan_id 추가 (plans 시드 후)
 ALTER TABLE public.users
 ADD COLUMN IF NOT EXISTS plan_id TEXT REFERENCES public.plans(id) DEFAULT 'lite';
 
@@ -87,17 +96,6 @@ CREATE INDEX IF NOT EXISTS idx_plan_features_plan_id ON public.plan_features(pla
 CREATE INDEX IF NOT EXISTS idx_plan_features_feature_key ON public.plan_features(feature_key);
 CREATE INDEX IF NOT EXISTS idx_user_plans_user_id ON public.user_plans(user_id);
 CREATE INDEX IF NOT EXISTS idx_discount_policies_active ON public.discount_policies(is_active, start_at, end_at);
-
--- ============================================================
--- 시드 데이터: plans
--- ============================================================
-INSERT INTO public.plans (id, name, display_name, monthly_price, annual_price, max_blogs, position, sort_order) VALUES
-  ('lite',   'Lite',   '무료',    0,       0,         3,   '일단 써봐',       0),
-  ('basic',  'Basic',  'Basic',   9900,    108900,    10,  '제대로 쓰자',     1),
-  ('pro',    'Pro',    'Pro',     49000,   539000,    10,  '수익화 준비하자',  2),
-  ('growth', 'Growth', 'Growth',  99000,   1089000,   30,  '자동으로 돈 벌자', 3),
-  ('scale',  'Scale',  'Scale',   199000,  2189000,   100, '사업으로 굴리자',  4)
-ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- 시드 데이터: plan_features
