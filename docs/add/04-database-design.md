@@ -387,9 +387,38 @@ ALTER TABLE blogs ADD CONSTRAINT blogs_grade_check
 
 ---
 
+## 5-1. 요금제(Plan Tier) 테이블 (구현 완료)
+
+> `supabase/migrations/020_plans_and_pricing.sql`
+
+### plans 테이블
+- id(PK, varchar): lite/basic/pro/growth/scale
+- display_name, monthly_price, annual_price, max_blogs, position, is_active, sort_order
+
+### plan_features 테이블
+- plan_id(FK) + feature_key + enabled(TEXT: true/false/readonly/unlimited/숫자)
+- UNIQUE(plan_id, feature_key)
+- Feature Keys 14개: general_writing, writing_limit_monthly, full_editor, revenue_dashboard, keyword_explorer, scheduler, auto_writing_pipeline, auto_publish, coupang_affiliate, sns_auto_deploy, multilingual, revenue_guide_panel, team_accounts, priority_support
+
+### user_plans 테이블
+- user_id(FK) + plan_id(FK) + billing_cycle(monthly/annual) + started_at + expires_at
+
+### discount_policies 테이블
+- discount_type(rate/amount), discount_value, target_plan(FK), target_billing, start_at, end_at, stackable, is_active
+
+### users 테이블 확장
+- plan_id(FK, DEFAULT 'lite') — 비정규화 빠른 조회
+
+### RLS: plans/plan_features 인증 읽기, user_plans 본인만, discount_policies 활성 읽기
+
+---
+
 ## 6. 마이그레이션 순서
 
 ```
+-- Phase 0 (요금제 시스템 — 구현 완료)
+0.  plans, plan_features, discount_policies, user_plans + 시드 데이터 + users.plan_id + handle_new_user() 트리거
+
 -- Phase 1~2 (코어 파이프라인)
 1.  ALTER TABLE blogs (grade, daily_quota, primary_ad_category, blog_type, language)
 2.  CREATE TABLE keywords

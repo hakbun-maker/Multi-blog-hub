@@ -96,6 +96,47 @@ lib/monetize/
 │   └── monetize-store.ts         ← Zustand 스토어
 └── types/
     └── monetize.types.ts         ← TypeScript 타입 정의
+
+## 요금제(Plan Tier) 시스템 구조 (구현 완료)
+
+lib/plan/
+├── constants.ts              ← PLAN_ORDER, FEATURE_LABELS, SIDEBAR_FEATURE_MAP, UPSELL_TRIGGERS
+└── server.ts                 ← getUserPlanContext(), isFeatureEnabled(), canCreateBlog(), canCreatePost()
+
+types/plan.ts                 ← PlanId, FeatureKey, UserPlanContext 등
+
+hooks/
+├── usePlan.ts                ← 클라이언트 플랜 훅 (hasFeature, isAtLeast, canCreateBlog)
+└── useUpsell.ts              ← 업셀 트리거 감지 (checkBlogLimit, checkPostLimit)
+
+components/plan/
+├── PlanContext.tsx            ← React Context Provider (usePlanContext)
+├── UpgradeModal.tsx           ← 업그레이드 안내 모달
+├── FeatureGate.tsx            ← 기능 잠금 래퍼 (overlay/replace 모드)
+└── PlanSettingsTab.tsx        ← 설정 > 요금제 탭
+
+app/api/plans/route.ts         ← GET: 전체 플랜 조회
+app/api/user/plan/route.ts     ← GET: 내 플랜, PATCH: 플랜 변경
+```
+
+### FeatureGate 패턴 (프론트엔드 기능 잠금)
+
+```tsx
+// 페이지를 FeatureGate로 래핑하면 플랜 미달 시 잠금 오버레이 표시
+<FeatureGate featureKey="keyword_explorer" minPlan="pro" featureName="키워드 탐색기">
+  <KeywordsPageContent />
+</FeatureGate>
+```
+
+### 백엔드 API 제한 패턴
+
+```typescript
+// API route에서 dynamic import로 플랜 체크
+const { getUserPlanContext, isFeatureEnabled } = await import('@/lib/plan/server')
+const planCtx = await getUserPlanContext()
+if (planCtx && !isFeatureEnabled(planCtx, 'scheduler')) {
+  return NextResponse.json({ error: '...', code: 'PLAN_FEATURE_LOCKED' }, { status: 403 })
+}
 ```
 
 ---

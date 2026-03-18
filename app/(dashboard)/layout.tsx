@@ -1,6 +1,7 @@
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { SidebarProvider } from '@/components/layout/SidebarContext'
+import { PlanProvider } from '@/components/plan/PlanContext'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({
@@ -13,18 +14,20 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-gray-50">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <AppHeader
-            userEmail={user?.email}
-            userName={user?.user_metadata?.name}
-          />
-          <main className="flex-1 p-6 pb-20 md:pb-6 overflow-auto">
-            {children}
-          </main>
+      <PlanProvider>
+        <div className="flex min-h-screen bg-gray-50">
+          <AppSidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <AppHeader
+              userEmail={user?.email}
+              userName={user?.user_metadata?.name}
+            />
+            <main className="flex-1 p-6 pb-20 md:pb-6 overflow-auto">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      </PlanProvider>
     </SidebarProvider>
   )
 }

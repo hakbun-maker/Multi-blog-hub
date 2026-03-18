@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard } from 'lucide-react'
 import { MemoTab } from '@/components/blogs/MemoTab'
+import { PlanSettingsTab } from '@/components/plan/PlanSettingsTab'
+import { usePlanContext } from '@/components/plan/PlanContext'
 
 interface AIKey {
   id: string
@@ -46,6 +48,7 @@ const ALL_PROVIDERS = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS]
 function SettingsPageInner() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') ?? 'account')
+  const { planId, refetch: refetchPlan } = usePlanContext()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [aiKeys, setAIKeys] = useState<AIKey[]>([])
   const [loading, setLoading] = useState(true)
@@ -191,6 +194,9 @@ function SettingsPageInner() {
             </TabsTrigger>
             <TabsTrigger value="snippets" className="flex items-center gap-1.5">
               <Scissors className="h-3.5 w-3.5" /> 스니펫 관리
+            </TabsTrigger>
+            <TabsTrigger value="plan" className="flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" /> 요금제
             </TabsTrigger>
           </TabsList>
 
@@ -443,6 +449,9 @@ function SettingsPageInner() {
           {/* 스니펫 관리 탭 */}
           <TabsContent value="snippets" className="mt-6">
             <MemoTab />
+          </TabsContent>
+          <TabsContent value="plan" className="mt-6">
+            <PlanSettingsTab currentPlanId={planId} onPlanChange={refetchPlan} />
           </TabsContent>
         </Tabs>
       )}

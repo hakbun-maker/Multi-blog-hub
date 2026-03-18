@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   BookOpen,
@@ -17,9 +17,14 @@ import {
   CalendarClock,
   Rocket,
   TrendingUp,
+  Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSidebar } from '@/components/layout/SidebarContext'
+import { usePlanContext } from '@/components/plan/PlanContext'
+import { UpgradeModal } from '@/components/plan/UpgradeModal'
+import { SIDEBAR_FEATURE_MAP, PLAN_LABELS } from '@/lib/plan/constants'
+import type { PlanId } from '@/types/plan'
 
 const NAV_MAIN = [
   { href: '/dashboard',  label: '대시보드',   icon: LayoutDashboard },
@@ -38,15 +43,41 @@ const NAV_BOTTOM = [
   { href: '/settings', label: '설정',     icon: Settings },
 ]
 
-function NavLink({ href, label, icon: Icon, collapsed, indent = false }: {
+function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = false, onLockedClick }: {
   href: string
   label: string
   icon: React.ElementType
   collapsed: boolean
   indent?: boolean
+  locked?: boolean
+  onLockedClick?: () => void
 }) {
   const pathname = usePathname()
   const isActive = pathname === href || pathname.startsWith(href + '/')
+
+  if (locked) {
+    return (
+      <button
+        onClick={onLockedClick}
+        title={collapsed ? `${label} (잠금)` : undefined}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full',
+          collapsed && 'justify-center px-0',
+          indent && !collapsed && 'pl-8',
+          'text-gray-400 opacity-50 hover:opacity-70 cursor-pointer'
+        )}
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {!collapsed && (
+          <>
+            <span className="flex-1 text-left">{label}</span>
+            <Lock className="w-3.5 h-3.5 text-gray-300" />
+          </>
+        )}
+      </button>
+    )
+  }
+
   return (
     <Link
       href={href}
@@ -68,11 +99,27 @@ function NavLink({ href, label, icon: Icon, collapsed, indent = false }: {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { collapsed, toggle } = useSidebar()
+  const { hasFeature, planId } = usePlanContext()
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; minPlan: PlanId; featureName: string }>({ open: false, minPlan: 'pro', featureName: '' })
+
   const isMonetizeActive = NAV_MONETIZE.some(
     item => pathname === item.href || pathname.startsWith(item.href + '/')
   )
   const [monetizeOpen, setMonetizeOpen] = useState(isMonetizeActive)
+
+  const getLockedState = (href: string) => {
+    const mapping = SIDEBAR_FEATURE_MAP[href]
+    if (!mapping) return false
+    return !hasFeature(mapping.featureKey)
+  }
+
+  const handleLockedClick = (href: string, label: string) => {
+    const mapping = SIDEBAR_FEATURE_MAP[href]
+    if (!mapping) return
+    setUpgradeModal({ open: true, minPlan: mapping.minPlan, featureName: label })
+  }
 
   return (
     <>
@@ -100,17 +147,21 @@ export function AppSidebar() {
           {/* 수익화 로켓 그룹 */}
           <div className="mt-2">
             {collapsed ? (
-              // 접힌 상태: 서브 아이템 아이콘만 표시
               <>
                 <div className="flex items-center justify-center py-1.5">
                   <Rocket className="w-4 h-4 text-orange-400" />
                 </div>
                 {NAV_MONETIZE.map(item => (
-                  <NavLink key={item.href} {...item} collapsed={collapsed} />
+                  <NavLink
+                    key={item.href}
+                    {...item}
+                    collapsed={collapsed}
+                    locked={getLockedState(item.href)}
+                    onLockedClick={() => handleLockedClick(item.href, item.label)}
+                  />
                 ))}
               </>
             ) : (
-              // 펼친 상태: 그룹 헤더 + 서브 아이템
               <>
                 <button
                   onClick={() => setMonetizeOpen(prev => !prev)}
@@ -133,7 +184,14 @@ export function AppSidebar() {
                 {monetizeOpen && (
                   <div className="mt-1 space-y-0.5">
                     {NAV_MONETIZE.map(item => (
-                      <NavLink key={item.href} {...item} collapsed={collapsed} indent />
+                      <NavLink
+                        key={item.href}
+                        {...item}
+                        collapsed={collapsed}
+                        indent
+                        locked={getLockedState(item.href)}
+                        onLockedClick={() => handleLockedClick(item.href, item.label)}
+                      />
                     ))}
                   </div>
                 )}
@@ -164,14 +222,23 @@ export function AppSidebar() {
           { href: '/keywords', label: '수익화', icon: Rocket },
         ].map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
-          return (
+          const locked = getLockedState(href)
+          return locked ? (
+            <button
+              key={href}
+              onClick={() => handleLockedClick(href, label)}
+              className="flex-1 flex flex-col items-center py-2 gap-0.5 text-xs font-medium text-gray-300"
+            >
+              <Icon className="w-5 h-5" />
+              <span>{label}</span>
+            </button>
+          ) : (
             <Link
               key={href}
               href={href}
               className={cn(
                 'flex-1 flex flex-col items-center py-2 gap-0.5 text-xs font-medium transition-colors',
                 isActive ? 'text-orange-500' : 'text-gray-500',
-                href === '/keywords' && isActive ? 'text-orange-500' : ''
               )}
             >
               <Icon className="w-5 h-5" />
@@ -180,6 +247,15 @@ export function AppSidebar() {
           )
         })}
       </nav>
+
+      <UpgradeModal
+        open={upgradeModal.open}
+        onOpenChange={open => setUpgradeModal(prev => ({ ...prev, open }))}
+        currentPlan={planId}
+        targetPlan={upgradeModal.minPlan}
+        message={`이 기능은 ${PLAN_LABELS[upgradeModal.minPlan]} 플랜부터 사용할 수 있어요.`}
+        featureName={upgradeModal.featureName}
+      />
     </>
   )
 }

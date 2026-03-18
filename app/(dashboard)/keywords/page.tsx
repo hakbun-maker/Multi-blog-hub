@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { FeatureGate } from '@/components/plan/FeatureGate'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -82,6 +83,7 @@ export default function KeywordsPage() {
   ]
 
   return (
+    <FeatureGate featureKey="keyword_explorer" minPlan="pro" featureName="키워드 탐색기">
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">키워드 탐색기</h1>
@@ -235,5 +237,6 @@ export default function KeywordsPage() {
         </div>
       </div>
     </div>
+    </FeatureGate>
   )
 }

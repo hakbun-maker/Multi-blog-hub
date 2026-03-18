@@ -31,6 +31,16 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
+  // 플랜 월간 글쓰기 제한 체크
+  const { getUserPlanContext, canCreatePost } = await import('@/lib/plan/server')
+  const planCtx = await getUserPlanContext()
+  if (planCtx) {
+    const check = canCreatePost(planCtx)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.message, code: 'PLAN_LIMIT_POSTS' }, { status: 403 })
+    }
+  }
+
   const body = await request.json()
   const { blogId, title, htmlContent, status, tags, seoMeta, categoryId } = body
 

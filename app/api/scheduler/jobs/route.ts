@@ -34,6 +34,13 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
+  // 플랜 기능 체크
+  const { getUserPlanContext, isFeatureEnabled } = await import('@/lib/plan/server')
+  const planCtx = await getUserPlanContext()
+  if (planCtx && !isFeatureEnabled(planCtx, 'scheduler')) {
+    return NextResponse.json({ error: '스케줄러는 Pro 이상 플랜에서 사용 가능합니다.', code: 'PLAN_FEATURE_LOCKED' }, { status: 403 })
+  }
+
   const body = await request.json()
   const { name, blogIds, frequency, runHour, runMinute, postsPerRun, imageCount } = body
 

@@ -443,6 +443,42 @@ GET /api/blogs/[id]/affiliate-stats
 | MonetizeTabNav | 4탭 네비게이션 | 최상단 고정 |
 | LoadingRocket | 로딩 스피너 (로켓 테마) | 전체 |
 | BlogSettingsTabNav | 블로그 설정 4탭 (기능 4/6/7) | 블로그 설정 페이지 |
+| **FeatureGate** | **기능 잠금 래퍼 (overlay/replace 모드)** | **플랜 미달 페이지** |
+| **UpgradeModal** | **업그레이드 안내 다이얼로그** | **잠금 기능 클릭 시** |
+| **PlanSettingsTab** | **설정 > 요금제 탭 (5개 플랜 비교 + 선택)** | **설정 페이지** |
+
+---
+
+## 화면 8: 설정 — 요금제 탭 (구현 완료)
+
+- **ID**: screen-08
+- **경로**: /settings?tab=plan
+- **기능**: 5단계 요금제 비교 + 선택 + 변경
+
+### 컴포넌트 목록
+
+| 컴포넌트 | 역할 | 위치 |
+|---------|------|------|
+| PlanSettingsTab | 요금제 탭 전체 | 메인 |
+| PlanCard (×5) | 플랜별 카드 (이름, 가격, 블로그 한도, 기능 목록) | 카드 그리드 |
+| BillingToggle | 월간/연간 토글 | 상단 가운데 |
+
+### 상태 변수
+```typescript
+interface PlanSettingsState {
+  plans: PlanData[]           // /api/plans에서 fetch
+  currentPlanId: PlanId       // 현재 사용자 플랜
+  annual: boolean             // 월간/연간 토글
+  changing: string | null     // 변경 중인 플랜 ID
+}
+```
+
+### API 엔드포인트
+```
+GET /api/plans → 전체 플랜 + 기능 + 할인 정책
+GET /api/user/plan → 내 플랜 컨텍스트
+PATCH /api/user/plan → { planId, billingCycle } → 플랜 변경
+```
 
 ---
 
@@ -451,6 +487,8 @@ GET /api/blogs/[id]/affiliate-stats
 ```
 app/
 └── (dashboard)/
+    ├── settings/
+    │   └── page.tsx          ← 설정 탭 (요금제 탭 포함)
     ├── monetize/
     │   ├── page.tsx          ← 메인 (탭 라우팅)
     │   ├── layout.tsx        ← MonetizeTabNav 포함

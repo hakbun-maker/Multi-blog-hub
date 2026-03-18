@@ -6,6 +6,13 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
+  // 플랜 기능 체크
+  const { getUserPlanContext, isFeatureEnabled } = await import('@/lib/plan/server')
+  const planCtx = await getUserPlanContext()
+  if (planCtx && !isFeatureEnabled(planCtx, 'keyword_explorer')) {
+    return NextResponse.json({ error: '키워드 탐색기는 Pro 이상 플랜에서 사용 가능합니다.', code: 'PLAN_FEATURE_LOCKED' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')
   if (!q) return NextResponse.json({ error: '검색어를 입력하세요.' }, { status: 400 })

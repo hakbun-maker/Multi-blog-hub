@@ -6,6 +6,8 @@ import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useUpsell } from '@/hooks/useUpsell'
+import { UpgradeModal } from '@/components/plan/UpgradeModal'
 
 const COLORS = [
   '#3b82f6','#8b5cf6','#10b981','#f59e0b',
@@ -16,6 +18,7 @@ type DomainType = 'subdomain' | 'custom'
 
 export function BlogCreateForm() {
   const router = useRouter()
+  const { activeUpsell, checkBlogLimit, dismissUpsell } = useUpsell()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
@@ -56,6 +59,8 @@ export function BlogCreateForm() {
     if (res.ok) {
       router.push(`/blogs/${data.data.id}`)
       router.refresh()
+    } else if (data.code === 'PLAN_LIMIT_BLOGS') {
+      checkBlogLimit()
     } else {
       setError(data.error || '블로그 생성에 실패했습니다.')
     }
@@ -265,6 +270,14 @@ export function BlogCreateForm() {
         </Button>
         <Button type="button" variant="outline" onClick={() => router.back()}>취소</Button>
       </div>
+
+      <UpgradeModal
+        open={!!activeUpsell}
+        onOpenChange={(open) => { if (!open) dismissUpsell() }}
+        currentPlan={activeUpsell?.currentPlan ?? 'lite'}
+        targetPlan={activeUpsell?.targetPlan ?? 'basic'}
+        message={activeUpsell?.message ?? ''}
+      />
     </form>
   )
 }

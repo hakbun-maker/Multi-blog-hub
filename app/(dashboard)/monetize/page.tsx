@@ -1,8 +1,12 @@
+'use client'
+
 import { Rocket } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { FeatureGate } from '@/components/plan/FeatureGate'
 
 export default function MonetizePage() {
   return (
+    <FeatureGate featureKey="revenue_dashboard" minPlan="pro" featureName="수익화 글 작성">
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">수익화 글 작성</h1>
@@ -16,5 +20,6 @@ export default function MonetizePage() {
         </CardContent>
       </Card>
     </div>
+    </FeatureGate>
   )
 }
