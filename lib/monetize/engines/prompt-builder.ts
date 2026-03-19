@@ -1,4 +1,4 @@
-import type { IntentType, PasonaWeights, Grade, BlogLanguage } from '@/types/monetize'
+import type { IntentType, Grade, BlogLanguage } from '@/types/monetize'
 import { PASONA_WEIGHTS } from '../constants'
 
 export interface WritingContext {

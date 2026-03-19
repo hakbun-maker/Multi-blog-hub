@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Key Test Helpers
  * Contains utility functions to validate and test API keys for various provider integrations

@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Grade, KeywordType, IntentType, RevenueScore } from '@/types/monetize'
-import { calculateRevenueScore, assignGrade } from '../utils'
-import { GRADE_THRESHOLDS } from '../constants'
+import { calculateRevenueScore } from '../utils'
 
 export interface KeywordApiData {
   keyword: string

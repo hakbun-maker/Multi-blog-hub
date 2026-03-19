@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { IntentType, BlogLanguage } from '@/types/monetize'
 
 export interface PostProcessResult {

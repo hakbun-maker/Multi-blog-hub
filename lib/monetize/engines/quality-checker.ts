@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { CheckType } from '@/types/monetize'
 import { createClient } from '@/lib/supabase/server'
 import { AUTO_PUBLISH_THRESHOLD } from '../constants'

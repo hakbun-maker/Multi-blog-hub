@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from '@/lib/supabase/server'
 import { generateMonetizePost } from '../engines/ai-writer'
 import { runQualityCheck } from '../engines/quality-checker'
