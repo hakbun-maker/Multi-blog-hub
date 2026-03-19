@@ -12,6 +12,15 @@ const BLOG_COLORS = [
   '#ef4444','#06b6d4','#84cc16','#f97316',
 ]
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  'ko': '한국어',
+  'en': 'English',
+  'ja': '日本語',
+  'de': 'Deutsch',
+  'pt_br': 'Português',
+  'es': 'Español',
+}
+
 const BLOG_TYPE_LABELS: Record<string, string> = {
   'legal': '법률',
   'finance': '금융/재테크',
@@ -45,6 +54,7 @@ type Blog = {
   custom_domain?: string
   slug?: string
   blog_type?: string
+  language?: string
 }
 
 type Post = {
@@ -257,6 +267,11 @@ export default function BlogsPage() {
                           <h3 className="font-semibold text-gray-900">{blog.name}</h3>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {blog.language && blog.language !== 'ko' && LANGUAGE_LABELS[blog.language] && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+                              {LANGUAGE_LABELS[blog.language]}
+                            </span>
+                          )}
                           {blog.blog_type && BLOG_TYPE_LABELS[blog.blog_type] && (
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
                               {BLOG_TYPE_LABELS[blog.blog_type]}
@@ -382,6 +397,7 @@ export default function BlogsPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">블로그명</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">유형</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">언어</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 min-w-[200px]">제목</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">상태</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap max-w-[80px]">키워드</th>
@@ -393,7 +409,7 @@ export default function BlogsPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredPosts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={9} className="px-4 py-12 text-center text-gray-400 text-sm">
                         검색 결과가 없습니다
                       </td>
                     </tr>
@@ -418,6 +434,15 @@ export default function BlogsPage() {
                               </span>
                             ) : (
                               <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {blog?.language && blog.language !== 'ko' && LANGUAGE_LABELS[blog.language] ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                                {LANGUAGE_LABELS[blog.language]}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">한국어</span>
                             )}
                           </td>
                           <td className="px-4 py-3 min-w-[200px]">

@@ -1,0 +1,504 @@
+# 수익화 로켓 추가개발 보완 TASKS (tasks_2.md)
+
+> 생성일: 2026-03-19 | 기반: 갭 분석 (기획 vs 실제 구현)
+> 선행 완료: Phase PT(요금제), Phase PC(동의서 컴포넌트), P0(DB+엔진), P1(백엔드 API)
+> 범위: 프론트엔드 UI 연결 + 미완성 기능 보완
+> 원칙: 백엔드 API는 96% 실구현 → **프론트엔드 연결이 핵심**
+
+---
+
+## 전체 현황
+
+| Phase | 설명 | 태스크 | 복잡도 | 상태 |
+|-------|------|--------|--------|------|
+| **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ⬜ |
+| **P2** | Blog Settings 3탭 추가 | 8 | M | ⬜ |
+| **P3** | Editor 검수 워크플로우 | 5 | M-L | ⬜ |
+| **P4** | API Keys 탭 확장 | 4 | M | ⬜ |
+| **P5** | Consent 연동 | 5 | S-M | ⬜ |
+| **P6** | SNS Platform Publishing (Future) | 4 | L | ⬜ |
+| **합계** | | **30** | | |
+
+---
+
+## 갭 분석 요약 (왜 이 태스크들이 필요한가)
+
+| # | 갭 | 현재 상태 | 목표 상태 |
+|---|---|----------|----------|
+| 1 | 블로그 설정 탭 부족 | 4탭 (basic/categories/ai/layout) | 7탭 (+language/sns/monetize) |
+| 2 | 에디터 검수 워크플로우 | ?from=review 미감지 | 사이드패널 + 검수리포트 + 재검수 |
+| 3 | API 키 관리 범위 | AI 4종만 표시 | 9종 + 카테고리별 발급 가이드 |
+| 4 | 블로그 카드 언어 표시 | language 컬럼 있으나 UI 미표시 | 비한국어 블로그에 언어 배지 |
+| 5 | 동의서 강제 적용 | 컴포넌트만 존재 | 기능별 ConsentGate 래핑 |
+| 6 | SNS 실제 발행 | DB 기록만, OAuth 미구현 | 실 플랫폼 발행 (Future) |
+
+---
+
+## Phase 1: Quick Wins
+
+> 독립적, 각 30분 이내 완료 가능. 병렬 실행 가능.
+
+### [ ] T2-01: 블로그 카드에 언어 배지 추가
+
+- **설명**: `GET /api/blogs` 응답에 `language` 필드 포함됨 (DB 기본값 'ko'). 비한국어 블로그에 언어 배지 표시.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/page.tsx`
+- **작업**:
+  - [ ] `Blog` 타입에 `language?: string` 추가
+  - [ ] `LANGUAGE_LABELS` 상수 추가: `{ ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', pt_br: 'Português', es: 'Español' }`
+  - [ ] 블로그 카드 배지 영역에 조건부 언어 배지 렌더링 (`language && language !== 'ko'` 일 때만)
+  - [ ] 블로그 글 관리 테이블에도 언어 컬럼 추가
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-02: RevenueGuidePanel 대시보드 연결
+
+- **설명**: `RevenueGuidePanel` 컴포넌트 및 `POST /api/monetize/revenue-guide` API 모두 존재. 대시보드 페이지에 미연결.
+- **수정 파일**:
+  - `app/(dashboard)/monetize/page.tsx`
+- **작업**:
+  - [ ] `RevenueGuidePanel` import 추가
+  - [ ] `FeatureGate featureKey="revenue_dashboard" minPlan="pro"` 래핑
+  - [ ] `BlogGradeTable` 아래에 배치 (접힌 상태 기본)
+  - [ ] `/api/blogs`에서 blogCount, language, blog_type 파생하여 props 전달
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-03: 설정 탭명 변경 "AI API 키" → "API 키 관리"
+
+- **설명**: screen-09 기획에 따라 탭명 변경. 단순 문자열 교체.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx`
+- **작업**:
+  - [ ] `TabsTrigger value="ai-keys"` 라벨을 `API 키 관리`로 변경
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-04: 설정에 "동의 관리" 탭 플레이스홀더 추가
+
+- **설명**: PC-T8 기획에 따라 설정 페이지에 동의 관리 탭 슬롯 추가. Phase 5에서 실 컴포넌트로 교체.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx`
+- **작업**:
+  - [ ] `TabsTrigger value="consent"` + `Shield` 아이콘 + "동의 관리" 라벨 추가
+  - [ ] `TabsContent value="consent"` 플레이스홀더 텍스트 추가
+- **의존**: 없음
+- **복잡도**: S
+
+---
+
+## Phase 2: Blog Settings 3탭 추가
+
+> 블로그 설정 페이지에 language, sns, monetize 탭 추가.
+> 백엔드 API 모두 실구현 완료: GET/PUT /api/blogs/[id]/settings/language, sns, affiliate
+> 기존 컴포넌트 재사용: SNSSettingsPanel, AffiliateSettingsPanel
+
+### [ ] T2-05: SettingsTab 타입 확장 (4→7탭)
+
+- **설명**: 탭 타입과 네비게이션을 7개로 확장.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+- **작업**:
+  - [ ] `SettingsTab` 타입: `'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'sns' | 'monetize'`
+  - [ ] `TABS` 배열에 3개 추가: `{ id: 'language', label: '언어/지역' }`, `{ id: 'sns', label: 'SNS' }`, `{ id: 'monetize', label: '수익화 연동' }`
+  - [ ] `FeatureGate`, `usePlan` import 추가
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-06: LanguageSelector 컴포넌트
+
+- **설명**: 6개 언어 선택 UI. ko 이외 언어는 FeatureGate(multilingual, Growth+) 보호.
+- **신규 파일**:
+  - `components/blogs/settings/LanguageSelector.tsx`
+- **작업**:
+  - [ ] Props: `{ blogId, language, onLanguageChange }`
+  - [ ] 6개 언어 옵션 카드/라디오 렌더링
+  - [ ] ko: 항상 활성 / 비ko: 잠금 아이콘 + FeatureGate
+  - [ ] BlogLanguage 타입 참조: `'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'`
+- **의존**: T2-05
+- **복잡도**: M
+
+### [ ] T2-07: DataSourcePreview 컴포넌트
+
+- **설명**: 선택 언어의 데이터소스 매핑 읽기전용 표시. DB 미저장, 런타임 계산.
+- **신규 파일**:
+  - `components/blogs/settings/DataSourcePreview.tsx`
+- **작업**:
+  - [ ] Props: `{ language }`
+  - [ ] `getDataSourceConfig(language)` 함수: 언어별 primary/secondary/trend/affiliate/timezone 매핑
+  - [ ] 정보 카드 UI (라벨-값 쌍)
+- **데이터 매핑**:
+
+| 언어 | 키워드 1순위 | 트렌드 | 제휴 기본값 | 발행 시간 |
+|------|------------|-------|-----------|----------|
+| ko | 네이버 광고 API | 네이버 DataLab | 쿠팡파트너스 | KST 06:00 |
+| en | Google KWP (US) | Google Trends | Amazon US | PST 09:00 |
+| ja | Google KWP (JP) | Google Trends | Amazon JP | JST 07:00 |
+| de | Google KWP (DE) | Google Trends | Amazon DE | CET 07:00 |
+| pt_br | Google KWP (BR) | Google Trends | Amazon BR | BRT 08:00 |
+| es | Google KWP (ES) | Google Trends | Amazon ES | CET 08:00 |
+
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-08: 언어 탭 연결 (settings page)
+
+- **설명**: 블로그 설정 페이지에 언어 탭 콘텐츠 연결. API: `GET/PUT /api/blogs/[id]/settings/language`
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+- **작업**:
+  - [ ] `language`, `writeStyle` 상태 추가
+  - [ ] `useEffect`에서 language 설정 fetch
+  - [ ] `activeTab === 'language'` 블록: LanguageSelector + DataSourcePreview + writeStyle textarea + 저장 버튼
+  - [ ] 저장 핸들러: `PUT /api/blogs/[id]/settings/language` with `{ language, writeStyle }`
+  - [ ] 비ko 언어에 FeatureGate(multilingual, growth) 래핑
+- **의존**: T2-05, T2-06, T2-07
+- **복잡도**: M
+
+### [ ] T2-09: SNS 탭 연결 (기존 컴포넌트 활용)
+
+- **설명**: 기존 `SNSSettingsPanel` 컴포넌트를 블로그 설정 SNS 탭에 연결.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+- **작업**:
+  - [ ] `SNSSettingsPanel` import
+  - [ ] `activeTab === 'sns'` 블록에 FeatureGate + SNSSettingsPanel 렌더링
+  - [ ] SNSSettingsPanel 내부에서 이미 API 호출 처리
+- **의존**: T2-05
+- **복잡도**: S
+
+### [ ] T2-10: 수익화 연동 탭 연결 (기존 컴포넌트 활용)
+
+- **설명**: 기존 `AffiliateSettingsPanel` 컴포넌트를 블로그 설정 수익화 탭에 연결.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+- **작업**:
+  - [ ] `AffiliateSettingsPanel` import
+  - [ ] `activeTab === 'monetize'` 블록에 FeatureGate + AffiliateSettingsPanel 렌더링
+- **의존**: T2-05
+- **복잡도**: S
+
+### [ ] T2-11: ApiKeyStatusBadge 링크 연결
+
+- **설명**: SNS/Affiliate 설정 패널의 "준비 중" 버튼을 `/settings?tab=ai-keys`로 링크 변경.
+- **수정 파일**:
+  - `components/monetize/sns/SNSSettingsPanel.tsx` — "연결하기" toast → 설정 링크
+  - `components/monetize/affiliate/AffiliateSettingsPanel.tsx` — disabled 버튼 → 설정 링크
+- **작업**:
+  - [ ] SNSSettingsPanel.handleConnect: `toast.info` → `router.push('/settings?tab=ai-keys')` 또는 Link
+  - [ ] AffiliateSettingsPanel: disabled 버튼 → `<Link href="/settings?tab=ai-keys">설정 > API 키 관리에서 등록</Link>`
+- **의존**: T2-09, T2-10
+- **복잡도**: S
+
+### [ ] T2-12: 블로그 설정 URL ?tab= 쿼리파라미터 지원
+
+- **설명**: `/blogs/[id]/settings?tab=language` 등으로 직접 탭 이동 가능하게.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+- **작업**:
+  - [ ] `useSearchParams` import
+  - [ ] `activeTab` 초기값을 searchParams에서 파생
+  - [ ] `Suspense` 래핑 (Next.js useSearchParams 요구사항)
+- **의존**: T2-05
+- **복잡도**: S
+
+---
+
+## Phase 3: Editor 검수 워크플로우
+
+> `/editor/[id]?from=review` 진입 시 수익화 검수 사이드패널 표시.
+> 기존 컴포넌트 존재: MonetizeEditorHeader, MonetizeEditorSidebar, MonetizeEditorActions
+> 백엔드 API 존재: /api/writing/edit-context/[id], re-score, ai-improve
+
+### [ ] T2-13: ?from=review 감지 + edit-context fetch
+
+- **설명**: 에디터 페이지에서 `?from=review` 파라미터 감지 후 수익화 컨텍스트 로드.
+- **수정 파일**:
+  - `app/(dashboard)/editor/[id]/page.tsx`
+- **작업**:
+  - [ ] `useSearchParams` import + Suspense 래핑
+  - [ ] `isReviewMode` 상태 추가 (`from === 'review'` 감지)
+  - [ ] `editContext` 상태 추가 (keyword, grade, intent, blog, score 등)
+  - [ ] `isReviewMode` 일 때 `GET /api/writing/edit-context/${id}` fetch
+  - [ ] editContext.content를 에디터 초기값으로 설정
+- **의존**: 없음
+- **복잡도**: M
+
+### [ ] T2-14: MonetizeEditorHeader 조건부 렌더링
+
+- **설명**: 검수 모드 진입 시 에디터 상단에 키워드/등급/인텐트/블로그명 표시.
+- **수정 파일**:
+  - `app/(dashboard)/editor/[id]/page.tsx`
+- **작업**:
+  - [ ] `MonetizeEditorHeader` import
+  - [ ] `isReviewMode && editContext` 조건으로 제목 입력 위에 렌더링
+- **의존**: T2-13
+- **복잡도**: S
+
+### [ ] T2-15: MonetizeEditorSidebar 그리드 레이아웃
+
+- **설명**: 검수 모드 시 에디터를 2/3 + 1/3 그리드로 변경. 사이드패널에 검수 점수, AI 개선, SEO 체크리스트 표시.
+- **수정 파일**:
+  - `app/(dashboard)/editor/[id]/page.tsx`
+- **작업**:
+  - [ ] `MonetizeEditorSidebar` import
+  - [ ] 레이아웃 조건 분기: `isReviewMode ? 'grid grid-cols-3 gap-6' : ''`
+  - [ ] 에디터 영역: `col-span-2` / 사이드패널: `col-span-1`
+  - [ ] MonetizeEditorSidebar는 내부에 FeatureGate 포함 (이중 래핑 불필요)
+- **의존**: T2-13
+- **복잡도**: M
+
+### [ ] T2-16: MonetizeEditorActions 렌더링
+
+- **설명**: 검수 모드 시 저장/재검수/승인/거절 액션 버튼 추가.
+- **수정 파일**:
+  - `app/(dashboard)/editor/[id]/page.tsx`
+- **작업**:
+  - [ ] `MonetizeEditorActions` import
+  - [ ] 사이드패널 하단에 렌더링 (postId, content, score props)
+  - [ ] 이미 내부적으로 draft/re-score/approve/reject API 호출
+- **의존**: T2-15
+- **복잡도**: S
+
+### [ ] T2-17: AI 개선 이벤트 리스너 연결
+
+- **설명**: `AIImproveSuggestion`이 `CustomEvent('ai-improve-content')` 발생시킴. 에디터가 이를 수신하여 콘텐츠 갱신.
+- **수정 파일**:
+  - `app/(dashboard)/editor/[id]/page.tsx`
+- **작업**:
+  - [ ] `useEffect`에서 `ai-improve-content` 이벤트 리스너 등록
+  - [ ] 이벤트 수신 시 `setHtmlContent(e.detail.content)`
+  - [ ] `isReviewMode` 일 때만 리스너 활성화
+- **의존**: T2-15
+- **복잡도**: S
+
+---
+
+## Phase 4: API Keys 탭 확장
+
+> 현재 AI 4종만 표시. keyword(naver_ad, naver_search, google_kwp) + monetize(coupang, amazon) 추가.
+> 백엔드 ai_api_keys 테이블은 이미 9개 provider 지원.
+
+### [ ] T2-18: ApiGuideAccordion 컴포넌트
+
+- **설명**: 카테고리별 접히는 API 발급 가이드. 하드코딩 콘텐츠.
+- **신규 파일**:
+  - `components/settings/ApiGuideAccordion.tsx`
+- **작업**:
+  - [ ] Props: `{ category: 'ai' | 'image' | 'keyword' | 'monetize' }`
+  - [ ] 카테고리별 가이드 데이터:
+    - **AI**: Claude ($0.03~0.05/글), OpenAI ($0.02~0.04/글), Gemini ($0.005~0.01/글, 무료 티어)
+    - **Image**: Imagen 3 ($0.04/장, $300 무료 크레딧)
+    - **Keyword**: 네이버 광고(무료, 일 100,000회), 네이버 검색(무료, 일 25,000회), Google KWP(무료, 승인 2~4주)
+    - **Monetize**: 쿠팡파트너스(구매금액 3%), Amazon Associates(카테고리별 1~10%)
+  - [ ] `<details>/<summary>` 또는 아코디언 UI (기본 접힘)
+  - [ ] 각 가이드: 발급처 링크 + 단계 + 비용 + 주의사항
+- **의존**: 없음
+- **복잡도**: M
+
+### [ ] T2-19: Provider 정의 확장
+
+- **설명**: 현재 TEXT_PROVIDERS(3) + IMAGE_PROVIDERS(1)에 KEYWORD_PROVIDERS(3) + MONETIZE_PROVIDERS(2) 추가.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx`
+- **작업**:
+  - [ ] `KEYWORD_PROVIDERS` 상수 추가: naver_ad(Key+Secret), naver_search(ID+Secret), google_kwp
+  - [ ] `MONETIZE_PROVIDERS` 상수 추가: coupang(파트너스 ID), amazon(Associates Tag)
+  - [ ] `AIKey` 인터페이스 provider 유니온 확장 (9개)
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-20: API 키 탭 4카테고리 섹션 재구성
+
+- **설명**: 단일 리스트 → 4개 카테고리 섹션으로 재구성. 각 섹션에 ApiGuideAccordion 추가.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx` (ai-keys TabsContent 교체)
+- **작업**:
+  - [ ] 4개 Card 블록: AI 글쓰기 / 이미지 생성 / 키워드 탐색 / 수익화 연동
+  - [ ] 각 섹션: 등록된 키 목록 + 미등록 provider "등록" 버튼 + ApiGuideAccordion
+  - [ ] 등록 폼에 `apiSecret` 필드 지원 (naver_ad, naver_search용)
+  - [ ] 기존 키 행 UI 패턴 유지 (마스킹 + 활성 토글 + 테스트 + 삭제)
+- **의존**: T2-18, T2-19
+- **복잡도**: M
+
+### [ ] T2-21: Provider 카테고리 매핑 유틸리티
+
+- **설명**: provider → category 매핑 헬퍼.
+- **신규 파일**:
+  - `lib/api-keys/categories.ts`
+- **작업**:
+  - [ ] `PROVIDER_CATEGORIES` 상수: `{ ai: ['claude','openai','gemini'], image: ['imagen'], keyword: ['naver_ad','naver_search','google_kwp'], monetize: ['coupang','amazon'] }`
+  - [ ] `CATEGORY_LABELS` 상수: 아이콘 + 라벨
+  - [ ] `getProviderCategory(provider)` 함수
+- **의존**: 없음
+- **복잡도**: S
+
+---
+
+## Phase 5: Consent 연동
+
+> 동의서 컴포넌트(ConsentGate, ConsentInlinePanel, ConsentPreActionModal) 모두 구현 완료.
+> 실제 기능 트리거 포인트에 ConsentGate를 래핑하는 작업.
+
+### [ ] T2-22: API 키 등록 → ConsentGate(api_key_storage)
+
+- **설명**: API 키 등록 폼을 `ConsentGate(api_key_storage, inline_panel)`로 래핑.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx`
+- **작업**:
+  - [ ] `ConsentGate` import
+  - [ ] API 키 등록 폼 Card를 ConsentGate로 래핑
+  - [ ] 미동의 시 ConsentInlinePanel 표시 → 동의 후 폼 노출
+- **의존**: T2-20
+- **복잡도**: S
+
+### [ ] T2-23: 로켓 활성화 → ConsentGate(automation)
+
+- **설명**: 수익화 로켓 활성화 트리거에 자동화 동의 모달 적용.
+- **수정 파일**:
+  - `components/monetize/dashboard/RocketStatusCard.tsx`
+- **작업**:
+  - [ ] 로켓 활성화 버튼/토글을 `ConsentGate(automation, modal)`로 래핑
+- **의존**: 없음
+- **복잡도**: S
+
+### [ ] T2-24: SNS OAuth → ConsentGate(sns_oauth_{platform})
+
+- **설명**: 각 SNS 플랫폼 연결 버튼에 플랫폼별 동의 모달 적용.
+- **수정 파일**:
+  - `components/monetize/sns/SNSSettingsPanel.tsx`
+- **작업**:
+  - [ ] 플랫폼별 consent_type 매핑: instagram→sns_oauth_instagram, twitter→sns_oauth_twitter, threads→sns_oauth_threads
+  - [ ] 각 "연결하기" 버튼을 `ConsentGate(sns_oauth_{platform}, modal)`로 래핑
+- **의존**: T2-09
+- **복잡도**: S
+
+### [ ] T2-25: 제휴마케팅 → ConsentGate(affiliate_marketing)
+
+- **설명**: 제휴마케팅 자동삽입 토글에 동의 패널 적용.
+- **수정 파일**:
+  - `components/monetize/affiliate/AffiliateSettingsPanel.tsx`
+- **작업**:
+  - [ ] 자동삽입 섹션을 `ConsentGate(affiliate_marketing, inline_panel)`로 래핑
+- **의존**: T2-10
+- **복잡도**: S
+
+### [ ] T2-26: ConsentManagementSection 빌드
+
+- **설명**: 설정 > 동의 관리 탭에 동의 현황 + 철회 기능 구현. T2-04 플레이스홀더를 교체.
+- **신규 파일**:
+  - `components/settings/ConsentManagementSection.tsx`
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx` (consent 탭 플레이스홀더 교체)
+- **작업**:
+  - [ ] `GET /api/consents` fetch → 동의 현황 리스트
+  - [ ] 각 consent_type: 라벨 + 동의일 + 버전 + 상태 표시
+  - [ ] 필수(tos, privacy): "필수" 배지, 철회 불가
+  - [ ] 선택: "철회" 버튼 + 확인 다이얼로그 (연쇄 처리 경고)
+  - [ ] 철회: `POST /api/consents/[type]/revoke`
+  - [ ] 기존 Card/CardContent 패턴 활용
+- **의존**: T2-04
+- **복잡도**: M
+
+---
+
+## Phase 6: SNS Platform Publishing (Future)
+
+> SNS publish API는 DB 기록 완료, 실제 플랫폼 발행 코드가 주석 처리 상태.
+> OAuth 앱 등록이 선행 필요 (Meta Developer, X Developer).
+> 별도 스프린트로 진행 권장.
+
+### [ ] T2-27: OAuth 콜백 라우트 (Instagram/Twitter/Threads)
+
+- **설명**: 각 플랫폼 OAuth 2.0 code exchange 핸들러.
+- **신규 파일**:
+  - `app/api/oauth/instagram/callback/route.ts`
+  - `app/api/oauth/twitter/callback/route.ts`
+  - `app/api/oauth/threads/callback/route.ts`
+- **작업**:
+  - [ ] OAuth code → access token 교환
+  - [ ] 암호화 후 blog_settings에 저장
+  - [ ] 블로그 설정 SNS 탭으로 리디렉트
+- **선행 조건**: Meta Developer App, X Developer App 등록 완료
+- **의존**: T2-24
+- **복잡도**: L
+
+### [ ] T2-28: 플랫폼 발행 함수 구현
+
+- **설명**: 주석 처리된 SNS publish 코드를 실구현으로 교체.
+- **수정 파일**:
+  - `app/api/monetize/sns/publish/route.ts` (주석 해제 + 구현)
+- **신규 파일**:
+  - `lib/sns/publishers/instagram.ts`
+  - `lib/sns/publishers/twitter.ts`
+  - `lib/sns/publishers/threads.ts`
+- **작업**:
+  - [ ] 각 publisher: access token 복호화 → 플랫폼 API 호출 → platform_post_id 반환
+  - [ ] Instagram: Graph API `/me/media` + `/me/media_publish`
+  - [ ] Twitter: `POST https://api.twitter.com/2/tweets`
+  - [ ] Threads: Meta Threads API
+  - [ ] sns_posts 레코드 status 업데이트
+- **의존**: T2-27
+- **복잡도**: L
+
+### [ ] T2-29: SNSSettingsPanel → 실제 OAuth 리디렉트
+
+- **설명**: "연결하기" 버튼 클릭 시 실제 OAuth 인증 URL로 리디렉트.
+- **수정 파일**:
+  - `components/monetize/sns/SNSSettingsPanel.tsx`
+- **작업**:
+  - [ ] `handleConnect` → OAuth authorization URL 리디렉트
+  - [ ] 연결 상태 표시 (green indicator when token exists)
+  - [ ] 환경변수: `META_APP_ID`, `X_CLIENT_ID` 등
+- **의존**: T2-27
+- **복잡도**: M
+
+### [ ] T2-30: SNS 연결 테스트 기능
+
+- **설명**: 저장된 access token이 유효한지 확인하는 테스트 버튼.
+- **신규 파일**:
+  - `app/api/blogs/[id]/settings/sns/test/[platform]/route.ts`
+- **수정 파일**:
+  - `components/monetize/sns/SNSSettingsPanel.tsx`
+- **작업**:
+  - [ ] API: token 복호화 → 경량 API 호출 (프로필 조회) → 성공/실패 반환
+  - [ ] UI: 각 플랫폼 옆 "테스트" 버튼 + 결과 배지
+- **의존**: T2-27
+- **복잡도**: M
+
+---
+
+## 실행 순서 권장
+
+```
+1일차: Phase 1 전체 (T2-01~04 병렬) + Phase 2 시작 (T2-05 탭 확장)
+2일차: Phase 2 계속 (T2-06~12) + Phase 4 독립 준비 (T2-18, T2-19, T2-21)
+3일차: Phase 3 (T2-13~17 에디터 검수) + Phase 4 마무리 (T2-20)
+4일차: Phase 5 (T2-22~26 동의서 연동)
+이후:  Phase 6 (T2-27~30 SNS OAuth — 플랫폼 앱 등록 후)
+```
+
+---
+
+## 핵심 아키텍처 원칙
+
+1. **기존 컴포넌트 재사용**: SNSSettingsPanel, AffiliateSettingsPanel, MonetizeEditorSidebar 등 이미 존재하는 컴포넌트를 import하여 연결만 하면 됨
+2. **이중 FeatureGate 방지**: 컴포넌트 내부에 이미 FeatureGate가 있으면 외부에 중복 래핑하지 않음
+3. **ConsentGate 래퍼 패턴**: ConsentGate는 blocking이 아닌 graceful degradation — 미동의 시 동의 UI 표시, 동의 후 children 렌더링
+4. **탭 확장 패턴**: 새 탭 콘텐츠는 별도 컴포넌트로 분리하여 import — 설정 페이지 비대화 방지
+
+---
+
+## 검증 체크리스트
+
+- [ ] `npm run build` 빌드 성공
+- [ ] `npx tsc --noEmit` 타입 에러 없음
+- [ ] Phase 1: `/blogs` → 비ko 블로그에 언어 배지 표시
+- [ ] Phase 1: `/monetize` → RevenueGuidePanel 접힌 상태로 표시
+- [ ] Phase 2: `/blogs/[id]/settings?tab=language` → 6개 언어 선택 + 데이터소스 미리보기
+- [ ] Phase 2: `/blogs/[id]/settings?tab=sns` → SNS 설정 패널 표시
+- [ ] Phase 2: `/blogs/[id]/settings?tab=monetize` → 제휴마케팅 설정 표시
+- [ ] Phase 3: `/editor/[id]?from=review` → 2/3+1/3 레이아웃 + 검수 사이드패널
+- [ ] Phase 4: `/settings?tab=ai-keys` → 4카테고리 + 9 provider + 발급 가이드
+- [ ] Phase 5: API 키 등록 시 동의 패널 표시
+- [ ] Phase 5: `/settings?tab=consent` → 동의 현황 + 철회 기능

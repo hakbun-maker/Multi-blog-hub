@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield } from 'lucide-react'
 import { MemoTab } from '@/components/blogs/MemoTab'
 import { PlanSettingsTab } from '@/components/plan/PlanSettingsTab'
 import { usePlanContext } from '@/components/plan/PlanContext'
@@ -187,13 +187,16 @@ function SettingsPageInner() {
               <User className="h-3.5 w-3.5" /> 계정
             </TabsTrigger>
             <TabsTrigger value="ai-keys" className="flex items-center gap-1.5">
-              <Key className="h-3.5 w-3.5" /> AI API 키
+              <Key className="h-3.5 w-3.5" /> API 키 관리
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-1.5">
               <Bell className="h-3.5 w-3.5" /> 알림
             </TabsTrigger>
             <TabsTrigger value="snippets" className="flex items-center gap-1.5">
               <Scissors className="h-3.5 w-3.5" /> 스니펫 관리
+            </TabsTrigger>
+            <TabsTrigger value="consent" className="flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5" /> 동의 관리
             </TabsTrigger>
             <TabsTrigger value="plan" className="flex items-center gap-1.5">
               <CreditCard className="h-3.5 w-3.5" /> 요금제
@@ -450,6 +453,26 @@ function SettingsPageInner() {
           <TabsContent value="snippets" className="mt-6">
             <MemoTab />
           </TabsContent>
+          {/* 동의 관리 탭 */}
+          <TabsContent value="consent" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4" /> 동의 관리
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Shield className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    서비스 이용약관, 개인정보 처리방침 등 동의 현황을 확인하고 관리할 수 있습니다.
+                  </p>
+                  <Badge variant="secondary" className="mt-3">준비 중</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="plan" className="mt-6">
             <PlanSettingsTab currentPlanId={planId} onPlanChange={refetchPlan} />
           </TabsContent>

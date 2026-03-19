@@ -1,12 +1,37 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { FeatureGate } from '@/components/plan/FeatureGate'
 import { RocketStatusCard } from '@/components/monetize/dashboard/RocketStatusCard'
 import { RevenueSummaryCard } from '@/components/monetize/dashboard/RevenueSummaryCard'
 import { BlogGradeTable } from '@/components/monetize/dashboard/BlogGradeTable'
 import { RevenueLineChart } from '@/components/monetize/dashboard/RevenueLineChart'
+import { RevenueGuidePanel } from '@/components/monetize/dashboard/RevenueGuidePanel'
+
+type BlogLanguage = 'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'
 
 export default function MonetizePage() {
+  const [blogInfo, setBlogInfo] = useState<{ count: number; language: BlogLanguage; primaryCategory: string }>({
+    count: 0, language: 'ko', primaryCategory: 'lifestyle',
+  })
+
+  useEffect(() => {
+    async function fetchBlogs() {
+      try {
+        const res = await fetch('/api/blogs')
+        const json = await res.json()
+        const blogs = json.data ?? []
+        const primary = blogs[0]
+        setBlogInfo({
+          count: blogs.length,
+          language: primary?.language ?? 'ko',
+          primaryCategory: primary?.blog_type ?? 'lifestyle',
+        })
+      } catch { /* ignore */ }
+    }
+    fetchBlogs()
+  }, [])
+
   return (
     <FeatureGate featureKey="revenue_dashboard" minPlan="pro" featureName="수익화 대시보드">
       <div className="space-y-6">
@@ -20,6 +45,11 @@ export default function MonetizePage() {
         </div>
         <RevenueLineChart />
         <BlogGradeTable />
+        <RevenueGuidePanel
+          blogCount={blogInfo.count}
+          language={blogInfo.language}
+          primaryCategory={blogInfo.primaryCategory}
+        />
       </div>
     </FeatureGate>
   )

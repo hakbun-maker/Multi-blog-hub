@@ -44,3 +44,7 @@ claude-labs-v*/
 
 .vercel
 .env*.local
+
+# Dropbox conflict copies
+*충돌된 사본*
+*(conflicted copy*

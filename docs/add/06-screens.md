@@ -1,7 +1,30 @@
 # 수익화 로켓 화면 목록
 
-> 작성일: 2026-03-15 | 버전: 1.0.0
+> 작성일: 2026-03-15 | 버전: 1.1.0 (2026-03-19 보완)
 > /screen-spec 입력 파일
+
+### 구현 상태 범례
+
+| 상태 | 의미 |
+|------|------|
+| ✅ 완료 | 백엔드 API + 프론트엔드 UI 모두 구현 |
+| 🔶 부분 | 백엔드 API 구현됨, 프론트엔드 일부 미연결 |
+| ❌ 미구현 | 프론트엔드 UI 미구현 (탭/페이지 자체 없음) |
+
+### 화면별 구현 현황 요약
+
+| 화면 | ID | 상태 | 보완 태스크 |
+|------|-----|------|-----------|
+| 수익대시보드 | screen-01 | 🔶 부분 | T2-02 (RevenueGuidePanel 미연결) |
+| 키워드탐색기 | screen-02 | ✅ 완료 | — |
+| 스케줄러 | screen-03 | ✅ 완료 | — |
+| 글작성&대기 | screen-04 | ✅ 완료 | — |
+| 수익화 글 수정 에디터 | screen-04-1 | ❌ 미구현 | T2-13~17 |
+| 블로그 설정 — 언어/지역 | screen-05 | ❌ 미구현 | T2-05~08 |
+| 블로그 설정 — SNS | screen-06 | ❌ 미구현 | T2-05,09,11 |
+| 블로그 설정 — 수익화 연동 | screen-07 | ❌ 미구현 | T2-05,10,11 |
+| 설정 — 요금제 | screen-08 | ✅ 완료 | — |
+| 설정 — API 키 관리 | screen-09 | 🔶 부분 | T2-03,18~21 |
 
 ---
 
@@ -22,11 +45,23 @@
 
 ---
 
-## 화면 1: 수익대시보드
+## 화면 1: 수익대시보드 — 🔶 부분 구현
 
 - **ID**: screen-01
 - **경로**: /monetize?tab=dashboard
 - **기능**: 수익화 로켓 파이프라인 현황 모니터링, 수익 분석
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| RocketStatusCard | ✅ | 구현 완료, 렌더링 중 |
+| RevenueSummaryCard | ✅ | 구현 완료, 렌더링 중 |
+| RevenueLineChart | ✅ | 구현 완료, 렌더링 중 |
+| BlogGradeTable | ✅ | 구현 완료, 렌더링 중 |
+| MultiDimensionChart | ✅ | 구현 완료, 렌더링 중 |
+| **RevenueGuidePanel** | **❌** | **컴포넌트+API 존재하나 page.tsx에 미연결 → T2-02** |
+| 백엔드 API | ✅ | `/api/monetize/dashboard`, `/api/monetize/analytics`, `/api/monetize/revenue-guide` 모두 실구현 |
 
 ### 컴포넌트 목록
 
@@ -110,11 +145,18 @@ POST /api/monetize/revenue-guide
 
 ---
 
-## 화면 2: 키워드탐색기
+## 화면 2: 키워드탐색기 — ✅ 완료
 
 - **ID**: screen-02
 - **경로**: /monetize?tab=keywords
 - **기능**: 3가지 유형의 키워드 탐색 + Revenue Score 확인 + 달력 등록
+
+### 구현 상태
+
+| 항목 | 상태 |
+|------|------|
+| 프론트엔드 UI | ✅ 전체 구현 |
+| 백엔드 API (gold/events/seasonal/register) | ✅ 전체 실구현 |
 
 ### 컴포넌트 목록
 
@@ -180,11 +222,18 @@ POST /api/keywords/register
 
 ---
 
-## 화면 3: 스케줄러
+## 화면 3: 스케줄러 — ✅ 완료
 
 - **ID**: screen-03
 - **경로**: /monetize?tab=scheduler
 - **기능**: 키워드 달력 확인/수정, 배분 엔진 실행, 스케줄 확정
+
+### 구현 상태
+
+| 항목 | 상태 |
+|------|------|
+| 프론트엔드 UI | ✅ 전체 구현 |
+| 백엔드 API (calendar/reassign/distribute/confirm) | ✅ 전체 실구현 |
 
 ### 컴포넌트 목록
 
@@ -246,11 +295,19 @@ POST /api/scheduler/confirm
 
 ---
 
-## 화면 4: 글작성&대기
+## 화면 4: 글작성&대기 — ✅ 완료
 
 - **ID**: screen-04
 - **경로**: /monetize?tab=writing
 - **기능**: AI 글쓰기 현황 모니터링, 보류 글 검토 및 승인
+
+### 구현 상태
+
+| 항목 | 상태 |
+|------|------|
+| 프론트엔드 UI (PipelineStatusBoard, ReviewQueueList 등) | ✅ 전체 구현 |
+| 백엔드 API (pipeline/review-queue/report/approve/reject) | ✅ 전체 실구현 |
+| "수정" 클릭 → `/editor/[post-id]?from=review` 이동 | ✅ 라우팅 구현 (대상 화면 4-1은 미구현) |
 
 ### 컴포넌트 목록
 
@@ -367,12 +424,29 @@ POST /api/writing/reject/[post-id]
 
 ---
 
-## 화면 4-1: 수익화 글 수정 에디터
+## 화면 4-1: 수익화 글 수정 에디터 — ❌ 미구현
 
 - **ID**: screen-04-1
 - **경로**: `/editor/[post-id]?from=review`
 - **기능**: 보류(review_queue) 글 검수 리포트 확인 + 수정 + 재검수 요청
 - **진입 조건**: 화면 4 (글작성&대기) ReviewQueueList에서 "수정" 클릭 시 진입
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| 기존 PostEditor (범용) | ✅ | `/editor/[id]`는 범용 에디터로 동작 중 |
+| `?from=review` 파라미터 감지 | ❌ | searchParams 미읽음 → T2-13 |
+| edit-context API fetch | ❌ | 검수 컨텍스트 미로드 → T2-13 |
+| MonetizeEditorHeader | ❌ | 컴포넌트 존재하나 에디터에 미연결 → T2-14 |
+| 2/3+1/3 그리드 레이아웃 | ❌ | 사이드패널 없는 단일 컬럼 → T2-15 |
+| QualityScoreSidebar | ❌ | 컴포넌트 존재하나 미연결 → T2-15 |
+| AIImproveSuggestion | ❌ | 컴포넌트 존재하나 미연결 → T2-15 |
+| SEOChecklist | ❌ | 컴포넌트 존재하나 미연결 → T2-15 |
+| MonetizeEditorActions | ❌ | 컴포넌트 존재하나 미연결 → T2-16 |
+| AI 개선 이벤트 리스너 | ❌ | CustomEvent 미수신 → T2-17 |
+| 백엔드 API (edit-context/re-score/ai-improve) | ✅ | 모두 실구현 완료 |
+| **보완 태스크** | | **T2-13 ~ T2-17 (Phase 3)** |
 
 ### 플랜 권한 게이팅
 
@@ -538,11 +612,25 @@ POST /api/writing/ai-improve/[post-id]
 
 ---
 
-## 화면 5: 블로그 설정 — 언어/지역 탭 (기능 4)
+## 화면 5: 블로그 설정 — 언어/지역 탭 (기능 4) — ❌ 미구현
 
 - **ID**: screen-05
 - **경로**: /blogs/[id]/settings?tab=language
 - **기능**: 블로그별 작성 언어 설정
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| 블로그 설정 페이지 자체 | ✅ | 4탭(basic/categories/ai/layout) 동작 중 |
+| language 탭 존재 여부 | ❌ | SettingsTab 타입에 language 없음 → T2-05 |
+| LanguageSelector 컴포넌트 | ❌ | 미생성 → T2-06 |
+| DataSourcePreview 컴포넌트 | ❌ | 미생성 → T2-07 |
+| 언어 탭 API 연결 | ❌ | 미연결 → T2-08 |
+| ?tab=language URL 지원 | ❌ | searchParams 미사용 → T2-12 |
+| 백엔드 API (GET/PUT language) | ✅ | 실구현 완료 |
+| DB language 컬럼 | ✅ | blogs 테이블에 language TEXT DEFAULT 'ko' |
+| **보완 태스크** | | **T2-05~08, T2-12 (Phase 2)** |
 
 ### 플랜 권한 게이팅
 
@@ -610,11 +698,23 @@ PUT /api/blogs/[id]/settings/language
 
 ---
 
-## 화면 6: 블로그 설정 — SNS 자동화 탭 (기능 6)
+## 화면 6: 블로그 설정 — SNS 자동화 탭 (기능 6) — ❌ 미구현
 
 - **ID**: screen-06
 - **경로**: /blogs/[id]/settings?tab=sns
 - **기능**: SNS 플랫폼 연결, 포맷 프롬프트 설정, 이미지 생성 설정
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| sns 탭 존재 여부 | ❌ | SettingsTab 타입에 sns 없음 → T2-05 |
+| SNSSettingsPanel 컴포넌트 | ✅ | `components/monetize/sns/SNSSettingsPanel.tsx` 존재 |
+| 탭 연결 | ❌ | 블로그 설정 페이지에 미연결 → T2-09 |
+| ApiKeyStatusBadge → 설정 링크 | ❌ | "준비 중" toast만 표시 → T2-11 |
+| 백엔드 API (GET/PUT sns) | ✅ | 실구현 완료 |
+| SNS OAuth 실연동 | ❌ | 미구현, Future → T2-27~30 (Phase 6) |
+| **보완 태스크** | | **T2-05, T2-09, T2-11 (Phase 2) + T2-24 (Phase 5) + Phase 6** |
 
 ### 컴포넌트 목록
 
@@ -650,11 +750,22 @@ POST /api/blogs/[id]/settings/sns/test/[platform]
 
 ---
 
-## 화면 7: 블로그 설정 — 수익화 연동 탭 (기능 7)
+## 화면 7: 블로그 설정 — 수익화 연동 탭 (기능 7) — ❌ 미구현
 
 - **ID**: screen-07
 - **경로**: /blogs/[id]/settings?tab=monetize
 - **기능**: 쿠팡파트너스 / Amazon Associates 자동 삽입 설정, 제휴 통계
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| monetize 탭 존재 여부 | ❌ | SettingsTab 타입에 monetize 없음 → T2-05 |
+| AffiliateSettingsPanel 컴포넌트 | ✅ | `components/monetize/affiliate/AffiliateSettingsPanel.tsx` 존재 |
+| 탭 연결 | ❌ | 블로그 설정 페이지에 미연결 → T2-10 |
+| ApiKeyStatusBadge → 설정 링크 | ❌ | disabled 버튼만 표시 → T2-11 |
+| 백엔드 API (GET/PUT affiliate, affiliate-stats) | ✅ | 실구현 완료 |
+| **보완 태스크** | | **T2-05, T2-10, T2-11 (Phase 2) + T2-25 (Phase 5)** |
 
 ### 컴포넌트 목록
 
@@ -683,32 +794,40 @@ GET /api/blogs/[id]/affiliate-stats
 
 ## 공통 컴포넌트
 
-| 컴포넌트 | 역할 | 재사용 위치 |
-|---------|------|------------|
-| GradeBadge | S/A/B/C/D 등급 배지 | 전체 |
-| StatusBadge | 상태 태그 (대기/완료/보류) | 전체 |
-| RevenueAmount | 금액 포맷팅 표시 | 대시보드, 리포트 |
-| MonetizeTabNav | 4탭 네비게이션 | 최상단 고정 |
-| LoadingRocket | 로딩 스피너 (로켓 테마) | 전체 |
-| BlogSettingsTabNav | 블로그 설정 4탭 (기능 4/6/7) | 블로그 설정 페이지 |
-| **FeatureGate** | **기능 잠금 래퍼 (overlay/replace 모드)** | **플랜 미달 페이지** |
-| **UpgradeModal** | **업그레이드 안내 다이얼로그** | **잠금 기능 클릭 시** |
-| **PlanSettingsTab** | **설정 > 요금제 탭 (5개 플랜 비교 + 선택)** | **설정 페이지** |
-| **ApiKeyStatusBadge** | **특정 API 키 등록 상태 표시 (✅등록/❌미등록 + 이동 링크)** | **screen-06, screen-07 (쿠팡+Amazon)** |
-| **ApiGuideAccordion** | **접히는 API 발급 가이드 (단계별 설명 + 발급처 링크 + 비용)** | **screen-09 (API 키 관리)** |
-| **ConsentGate** | **동의 여부 확인 래퍼 — 미동의 시 동의 모달/패널 표시 후 콜백 실행** | **API 키 등록, 수익화 로켓, SNS/AdSense/블로그 연동, 제휴마케팅** |
-| **ConsentCheckbox** | **회원가입 시 약관 동의 체크박스 그룹 (전체동의 토글 + 개별 체크 + 전문보기)** | **회원가입 페이지** |
-| **ConsentReAgreementModal** | **약관 개정 시 재동의 모달 (변경 요약 + 전문보기 + 동의 버튼)** | **로그인 후 진입 시** |
-| **ConsentInlinePanel** | **기능 사용 시점 인라인 동의 패널 (요약 + 아코디언 전문 + 동의 버튼)** | **API 키 등록, 제휴마케팅 설정** |
-| **ConsentManagementSection** | **설정 > 동의 관리 — 동의 현황 + 개별 철회 버튼** | **설정 페이지** |
+| 컴포넌트 | 역할 | 재사용 위치 | 구현 |
+|---------|------|------------|------|
+| GradeBadge | S/A/B/C/D 등급 배지 | 전체 | ✅ |
+| StatusBadge | 상태 태그 (대기/완료/보류) | 전체 | ✅ |
+| RevenueAmount | 금액 포맷팅 표시 | 대시보드, 리포트 | ✅ |
+| MonetizeTabNav | 4탭 네비게이션 | 최상단 고정 | ✅ |
+| LoadingRocket | 로딩 스피너 (로켓 테마) | 전체 | ✅ |
+| BlogSettingsTabNav | 블로그 설정 7탭 (기본4+언어/SNS/수익화) | 블로그 설정 페이지 | 🔶 4탭만 (T2-05) |
+| **FeatureGate** | **기능 잠금 래퍼 (overlay/replace 모드)** | **플랜 미달 페이지** | ✅ |
+| **UpgradeModal** | **업그레이드 안내 다이얼로그** | **잠금 기능 클릭 시** | ✅ |
+| **PlanSettingsTab** | **설정 > 요금제 탭 (5개 플랜 비교 + 선택)** | **설정 페이지** | ✅ |
+| **ApiKeyStatusBadge** | **특정 API 키 등록 상태 표시 (✅등록/❌미등록 + 이동 링크)** | **screen-06, screen-07** | ❌ (T2-11) |
+| **ApiGuideAccordion** | **접히는 API 발급 가이드 (단계별 설명 + 발급처 링크 + 비용)** | **screen-09 (API 키 관리)** | ❌ (T2-18) |
+| **ConsentGate** | **동의 여부 확인 래퍼 — 미동의 시 동의 모달/패널 표시 후 콜백 실행** | **API 키 등록, 수익화 로켓, SNS, 제휴** | ✅ 컴포넌트 존재, 🔶 적용은 미완 (Phase 5) |
+| **ConsentCheckbox** | **회원가입 시 약관 동의 체크박스 그룹** | **회원가입 페이지** | ✅ |
+| **ConsentReAgreementModal** | **약관 개정 시 재동의 모달** | **로그인 후 진입 시** | ✅ |
+| **ConsentInlinePanel** | **기능 사용 시점 인라인 동의 패널** | **API 키 등록, 제휴마케팅 설정** | ✅ 컴포넌트 존재, 🔶 적용은 미완 (Phase 5) |
+| **ConsentManagementSection** | **설정 > 동의 관리 — 동의 현황 + 개별 철회 버튼** | **설정 페이지** | ❌ (T2-26) |
 
 ---
 
-## 화면 8: 설정 — 요금제 탭 (구현 완료)
+## 화면 8: 설정 — 요금제 탭 — ✅ 완료
 
 - **ID**: screen-08
 - **경로**: /settings?tab=plan
 - **기능**: 5단계 요금제 비교 + 선택 + 변경
+
+### 구현 상태
+
+| 항목 | 상태 |
+|------|------|
+| 프론트엔드 UI (PlanCard, BillingToggle 등) | ✅ 전체 구현 |
+| 백엔드 API (plans, user/plan) | ✅ 전체 실구현 |
+| PlanUpgradeConsentStep (묶음 동의) | ✅ 구현 완료 |
 
 ### 컴포넌트 목록
 
@@ -747,12 +866,26 @@ PATCH /api/user/plan → { planId, billingCycle } → 플랜 변경
 
 ---
 
-## 화면 9: 설정 — API 키 관리 탭 (기존 ai-keys 탭 확장)
+## 화면 9: 설정 — API 키 관리 탭 (기존 ai-keys 탭 확장) — 🔶 부분 구현
 
 - **ID**: screen-09
 - **경로**: /settings?tab=api-keys
 - **기능**: 블로거가 사용할 **모든 외부 API 키를 한 곳에서** 등록·관리 + 접히는 발급 가이드
 - **기존**: `/settings?tab=ai-keys` (AI 키 4종만) → 확장하여 키워드·쿠팡까지 통합
+
+### 구현 상태
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| AI 4종 키 등록/관리 (claude, openai, gemini, imagen) | ✅ | 기존 ai-keys 탭으로 동작 중 |
+| 탭명 "AI API 키" → "API 키 관리" 변경 | ❌ | 기존 라벨 유지 중 → T2-03 |
+| 4카테고리 섹션 분리 (AI/Image/Keyword/Monetize) | ❌ | 단일 리스트 → T2-20 |
+| 키워드 Provider 3종 (naver_ad, naver_search, google_kwp) | ❌ | 미표시 → T2-19 |
+| 수익화 Provider 2종 (coupang, amazon) | ❌ | 미표시 → T2-19 |
+| ApiGuideAccordion (발급 가이드) | ❌ | 미생성 → T2-18 |
+| 키 테스트 엔드포인트 | ✅ | 기존 AI 키 테스트 동작 중 (확장 필요) |
+| 백엔드 ai_api_keys 테이블 | ✅ | 9개 provider 모두 지원 (CHECK 제약 확장 완료) |
+| **보완 태스크** | | **T2-03, T2-18~21 (Phase 1+4) + T2-22 (Phase 5)** |
 
 ### 레이아웃 구조
 
@@ -935,34 +1068,40 @@ ALTER TABLE ai_api_keys ADD COLUMN encrypted_secret TEXT;
 
 ---
 
-## 라우팅 구조
+## 라우팅 구조 (구현 상태 반영)
 
 ```
 app/
 └── (dashboard)/
     ├── settings/
-    │   └── page.tsx          ← 설정 탭 (API 키 관리 + 요금제 탭 포함)
+    │   └── page.tsx          ← 설정 탭 (5탭: 계정/AI키/알림/스니펫/요금제)
+    │                            🔶 "AI API 키" → "API 키 관리" 변경 필요 (T2-03)
+    │                            ❌ "동의 관리" 탭 추가 필요 (T2-04, T2-26)
     ├── monetize/
-    │   ├── page.tsx          ← 메인 (탭 라우팅)
-    │   ├── layout.tsx        ← MonetizeTabNav 포함
-    │   └── components/
-    │       ├── dashboard/    ← 수익대시보드 컴포넌트
-    │       │   └── RevenueGuidePanel.tsx  ← 기능 5
-    │       ├── keywords/     ← 키워드탐색기 컴포넌트
-    │       ├── scheduler/    ← 스케줄러 컴포넌트
-    │       └── writing/      ← 글작성&대기 컴포넌트
+    │   ├── page.tsx          ← 메인 (탭 라우팅) ✅
+    │   │                        🔶 RevenueGuidePanel 미연결 (T2-02)
+    │   ├── layout.tsx        ← MonetizeTabNav 포함 ✅
+    │   └── components/       ← 수익대시보드/키워드/스케줄러/글작성 ✅
+    ├── editor/
+    │   └── [id]/
+    │       └── page.tsx      ← 범용 에디터 ✅
+    │                            ❌ ?from=review 검수 워크플로우 미구현 (T2-13~17)
     └── blogs/
+        ├── page.tsx          ← 블로그 목록 ✅
+        │                        ❌ 언어 배지 미표시 (T2-01)
         └── [id]/
             └── settings/
-                ├── page.tsx          ← 설정 탭 라우팅
-                └── components/
-                    ├── BlogSettingsTabNav.tsx
-                    ├── language/     ← 기능 4: 언어/지역 탭
-                    ├── sns/          ← 기능 6: SNS 자동화 탭
-                    │   ├── PlatformToggleGroup.tsx
-                    │   ├── SNSFormatPromptInput.tsx
-                    │   └── ImageGenToggle.tsx
-                    └── monetize/     ← 기능 7: 수익화 연동 탭
-                        ├── CoupangPartnerInput.tsx
-                        └── AffiliateAutoInsertToggle.tsx
+                └── page.tsx  ← 블로그 설정 (4탭: basic/categories/ai/layout)
+                                 ❌ +language/sns/monetize 3탭 추가 필요 (T2-05~12)
+
+components/
+├── monetize/
+│   ├── editor/               ← MonetizeEditorHeader/Sidebar/Actions ✅ 컴포넌트 존재
+│   │                            ❌ 에디터 페이지에 미연결 (T2-14~16)
+│   ├── sns/SNSSettingsPanel.tsx       ← ✅ 존재, ❌ 블로그설정에 미연결 (T2-09)
+│   └── affiliate/AffiliateSettingsPanel.tsx ← ✅ 존재, ❌ 블로그설정에 미연결 (T2-10)
+├── consent/                  ← 6개 동의서 컴포넌트 ✅ 전체 구현
+│                                🔶 기능별 ConsentGate 래핑 미적용 (Phase 5)
+└── settings/
+    └── ApiGuideAccordion.tsx ← ❌ 미생성 (T2-18)
 ```
