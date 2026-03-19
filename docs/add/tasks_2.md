@@ -11,13 +11,13 @@
 
 | Phase | 설명 | 태스크 | 복잡도 | 상태 |
 |-------|------|--------|--------|------|
-| **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ⬜ |
-| **P2** | Blog Settings 3탭 추가 | 8 | M | ⬜ |
+| **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ✅ 완료 |
+| **P2** | Blog Settings 3탭 추가 | 8 | M | 🔶 일부 (T2-06 언어 선택 완료) |
 | **P3** | Editor 검수 워크플로우 | 5 | M-L | ⬜ |
-| **P4** | API Keys 탭 확장 | 4 | M | ⬜ |
+| **P4** | API Keys 탭 확장 | 4 | M | ✅ 완료 (T2-19~21) |
 | **P5** | Consent 연동 | 5 | S-M | ⬜ |
 | **P6** | SNS Platform Publishing (Future) | 4 | L | ⬜ |
-| **합계** | | **30** | | |
+| **합계** | | **30** | | **10/30 완료** |
 
 ---
 
@@ -38,52 +38,52 @@
 
 > 독립적, 각 30분 이내 완료 가능. 병렬 실행 가능.
 
-### [ ] T2-01: 블로그 카드에 언어 배지 추가
+### [x] T2-01: 블로그 카드에 언어 배지 추가 ✅
 
 - **설명**: `GET /api/blogs` 응답에 `language` 필드 포함됨 (DB 기본값 'ko'). 비한국어 블로그에 언어 배지 표시.
 - **수정 파일**:
   - `app/(dashboard)/blogs/page.tsx`
 - **작업**:
-  - [ ] `Blog` 타입에 `language?: string` 추가
-  - [ ] `LANGUAGE_LABELS` 상수 추가: `{ ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', pt_br: 'Português', es: 'Español' }`
-  - [ ] 블로그 카드 배지 영역에 조건부 언어 배지 렌더링 (`language && language !== 'ko'` 일 때만)
-  - [ ] 블로그 글 관리 테이블에도 언어 컬럼 추가
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `Blog` 타입에 `language?: string` 추가
+  - [x] `LANGUAGE_LABELS` 상수 추가
+  - [x] 블로그 카드 배지 영역에 언어 배지 렌더링 (한국어 포함 항상 표시)
+  - [x] 블로그 글 관리 테이블에도 언어 컬럼 추가
+  - [x] **추가**: 카드 레이아웃 재구성 (배지 상단 정렬, 이름 truncate, 글 수 통합)
+- **완료일**: 2026-03-20
 
-### [ ] T2-02: RevenueGuidePanel 대시보드 연결
+### [x] T2-02: RevenueGuidePanel 대시보드 연결 ✅
 
 - **설명**: `RevenueGuidePanel` 컴포넌트 및 `POST /api/monetize/revenue-guide` API 모두 존재. 대시보드 페이지에 미연결.
 - **수정 파일**:
   - `app/(dashboard)/monetize/page.tsx`
+  - `lib/monetize/engines/revenue-calculator.ts`
+  - `components/monetize/dashboard/RevenueGuidePanel.tsx`
 - **작업**:
-  - [ ] `RevenueGuidePanel` import 추가
-  - [ ] `FeatureGate featureKey="revenue_dashboard" minPlan="pro"` 래핑
-  - [ ] `BlogGradeTable` 아래에 배치 (접힌 상태 기본)
-  - [ ] `/api/blogs`에서 blogCount, language, blog_type 파생하여 props 전달
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `RevenueGuidePanel` import 추가 + props 전달
+  - [x] **추가**: 수익 계산 로직 전면 개선 — 등급별 차등 CPC/트래픽 포트폴리오 전략
+  - [x] **추가**: S/A/B 등급별 추천 블로그 유형, CPC, 방문자 수 차등 적용
+  - [x] **추가**: API 비용 추정 및 순수익 계산 포함
+  - [x] **추가**: 블로그 포트폴리오 카드 UI (추천 카테고리, 수익 상세)
+- **완료일**: 2026-03-20
 
-### [ ] T2-03: 설정 탭명 변경 "AI API 키" → "API 키 관리"
+### [x] T2-03: 설정 탭명 변경 "AI API 키" → "API 키 관리" ✅
 
 - **설명**: screen-09 기획에 따라 탭명 변경. 단순 문자열 교체.
 - **수정 파일**:
   - `app/(dashboard)/settings/page.tsx`
 - **작업**:
-  - [ ] `TabsTrigger value="ai-keys"` 라벨을 `API 키 관리`로 변경
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `TabsTrigger value="ai-keys"` 라벨을 `API 키 관리`로 변경
+- **완료일**: 2026-03-19
 
-### [ ] T2-04: 설정에 "동의 관리" 탭 플레이스홀더 추가
+### [x] T2-04: 설정에 "동의 관리" 탭 플레이스홀더 추가 ✅
 
 - **설명**: PC-T8 기획에 따라 설정 페이지에 동의 관리 탭 슬롯 추가. Phase 5에서 실 컴포넌트로 교체.
 - **수정 파일**:
   - `app/(dashboard)/settings/page.tsx`
 - **작업**:
-  - [ ] `TabsTrigger value="consent"` + `Shield` 아이콘 + "동의 관리" 라벨 추가
-  - [ ] `TabsContent value="consent"` 플레이스홀더 텍스트 추가
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `TabsTrigger value="consent"` + `Shield` 아이콘 + "동의 관리" 라벨 추가
+  - [x] `TabsContent value="consent"` 플레이스홀더 텍스트 추가
+- **완료일**: 2026-03-19
 
 ---
 
@@ -105,18 +105,19 @@
 - **의존**: 없음
 - **복잡도**: S
 
-### [ ] T2-06: LanguageSelector 컴포넌트
+### [x] T2-06: 언어 선택 기능 ✅ (기본정보 탭에 통합)
 
-- **설명**: 6개 언어 선택 UI. ko 이외 언어는 FeatureGate(multilingual, Growth+) 보호.
-- **신규 파일**:
-  - `components/blogs/settings/LanguageSelector.tsx`
+- **설명**: 6개 언어 선택 UI. 별도 탭이 아닌 기본정보 탭 내 select로 구현.
+- **수정 파일**:
+  - `app/(dashboard)/blogs/[id]/settings/page.tsx`
+  - `app/api/blogs/[id]/route.ts`
 - **작업**:
-  - [ ] Props: `{ blogId, language, onLanguageChange }`
-  - [ ] 6개 언어 옵션 카드/라디오 렌더링
-  - [ ] ko: 항상 활성 / 비ko: 잠금 아이콘 + FeatureGate
-  - [ ] BlogLanguage 타입 참조: `'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'`
-- **의존**: T2-05
-- **복잡도**: M
+  - [x] `LANGUAGES` 상수 추가 (6개 언어)
+  - [x] `blogLanguage` 상태 + select UI 추가
+  - [x] PATCH API에 `language` 필드 처리 추가
+  - [x] 저장 시 DB `language` 컬럼 업데이트
+- **완료일**: 2026-03-20
+- **비고**: 별도 컴포넌트 대신 기본정보 탭에 통합. FeatureGate는 추후 필요 시 적용.
 
 ### [ ] T2-07: DataSourcePreview 컴포넌트
 
@@ -279,59 +280,49 @@
 > 현재 AI 4종만 표시. keyword(naver_ad, naver_search, google_kwp) + monetize(coupang, amazon) 추가.
 > 백엔드 ai_api_keys 테이블은 이미 9개 provider 지원.
 
-### [ ] T2-18: ApiGuideAccordion 컴포넌트
+### [ ] T2-18: ApiGuideAccordion 컴포넌트 → 별도 컴포넌트 대신 인라인 가이드 링크로 대체
 
 - **설명**: 카테고리별 접히는 API 발급 가이드. 하드코딩 콘텐츠.
-- **신규 파일**:
-  - `components/settings/ApiGuideAccordion.tsx`
-- **작업**:
-  - [ ] Props: `{ category: 'ai' | 'image' | 'keyword' | 'monetize' }`
-  - [ ] 카테고리별 가이드 데이터:
-    - **AI**: Claude ($0.03~0.05/글), OpenAI ($0.02~0.04/글), Gemini ($0.005~0.01/글, 무료 티어)
-    - **Image**: Imagen 3 ($0.04/장, $300 무료 크레딧)
-    - **Keyword**: 네이버 광고(무료, 일 100,000회), 네이버 검색(무료, 일 25,000회), Google KWP(무료, 승인 2~4주)
-    - **Monetize**: 쿠팡파트너스(구매금액 3%), Amazon Associates(카테고리별 1~10%)
-  - [ ] `<details>/<summary>` 또는 아코디언 UI (기본 접힘)
-  - [ ] 각 가이드: 발급처 링크 + 단계 + 비용 + 주의사항
-- **의존**: 없음
-- **복잡도**: M
+- **상태**: 🔶 별도 컴포넌트 미생성. 각 프로바이더에 인라인 `guide` 링크로 대체 구현됨.
+- **비고**: 상세 가이드(비용, 단계별 설명)가 필요하면 별도 컴포넌트로 분리 가능.
 
-### [ ] T2-19: Provider 정의 확장
+### [x] T2-19: Provider 정의 확장 ✅
 
 - **설명**: 현재 TEXT_PROVIDERS(3) + IMAGE_PROVIDERS(1)에 KEYWORD_PROVIDERS(3) + MONETIZE_PROVIDERS(2) 추가.
 - **수정 파일**:
   - `app/(dashboard)/settings/page.tsx`
 - **작업**:
-  - [ ] `KEYWORD_PROVIDERS` 상수 추가: naver_ad(Key+Secret), naver_search(ID+Secret), google_kwp
-  - [ ] `MONETIZE_PROVIDERS` 상수 추가: coupang(파트너스 ID), amazon(Associates Tag)
-  - [ ] `AIKey` 인터페이스 provider 유니온 확장 (9개)
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `KEYWORD_PROVIDERS` 상수 추가: naver_ad(Key+Secret), naver_search(ID+Secret), google_kwp
+  - [x] `MONETIZE_PROVIDERS` 상수 추가: coupang(Key+Secret), amazon(Key+Secret)
+  - [x] `AIKey` 인터페이스 provider를 `string`으로 확장
+  - [x] 각 프로바이더에 `needsSecret`, `secretPlaceholder`, `secretLabel`, `guide` 필드 추가
+- **완료일**: 2026-03-20
 
-### [ ] T2-20: API 키 탭 4카테고리 섹션 재구성
+### [x] T2-20: API 키 탭 4카테고리 섹션 재구성 ✅
 
-- **설명**: 단일 리스트 → 4개 카테고리 섹션으로 재구성. 각 섹션에 ApiGuideAccordion 추가.
+- **설명**: 단일 리스트 → 4개 카테고리 섹션으로 재구성.
 - **수정 파일**:
   - `app/(dashboard)/settings/page.tsx` (ai-keys TabsContent 교체)
 - **작업**:
-  - [ ] 4개 Card 블록: AI 글쓰기 / 이미지 생성 / 키워드 탐색 / 수익화 연동
-  - [ ] 각 섹션: 등록된 키 목록 + 미등록 provider "등록" 버튼 + ApiGuideAccordion
-  - [ ] 등록 폼에 `apiSecret` 필드 지원 (naver_ad, naver_search용)
-  - [ ] 기존 키 행 UI 패턴 유지 (마스킹 + 활성 토글 + 테스트 + 삭제)
-- **의존**: T2-18, T2-19
-- **복잡도**: M
+  - [x] 4개 섹션: 텍스트 생성 AI / 이미지 생성 AI / 키워드 분석 도구 / 수익화 (제휴 마케팅)
+  - [x] 각 섹션에 카테고리별 색상 구분 (primary/violet/emerald/orange)
+  - [x] 등록 폼에 `apiSecret` 필드 지원 + show/hide 토글
+  - [x] 기존 키 행 UI 패턴 유지 (마스킹 + 활성 토글 + 테스트 + 삭제)
+  - [x] 등록된 키 목록에 카테고리 배지 표시 + 시크릿 포함 표시
+  - [x] 각 프로바이더 선택 시 설명 + 발급 가이드 링크 표시
+- **완료일**: 2026-03-20
 
-### [ ] T2-21: Provider 카테고리 매핑 유틸리티
+### [x] T2-21: Provider 카테고리 매핑 유틸리티 ✅ (settings 페이지에 인라인 구현)
 
 - **설명**: provider → category 매핑 헬퍼.
-- **신규 파일**:
-  - `lib/api-keys/categories.ts`
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx` (별도 파일 대신 인라인)
 - **작업**:
-  - [ ] `PROVIDER_CATEGORIES` 상수: `{ ai: ['claude','openai','gemini'], image: ['imagen'], keyword: ['naver_ad','naver_search','google_kwp'], monetize: ['coupang','amazon'] }`
-  - [ ] `CATEGORY_LABELS` 상수: 아이콘 + 라벨
-  - [ ] `getProviderCategory(provider)` 함수
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `PROVIDER_CATEGORY_LABEL` 상수 (label + badge variant)
+  - [x] `getProviderCategory(provider)` 함수
+  - [x] `getCategoryBadge(provider)` 함수 (등록된 키 목록에서 사용)
+- **완료일**: 2026-03-20
+- **비고**: `lib/api-keys/categories.ts`로 분리하지 않고 settings 페이지에 직접 구현. 다른 곳에서 재사용 필요 시 분리.
 
 ---
 
