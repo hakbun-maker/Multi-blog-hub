@@ -258,39 +258,39 @@ export default function BlogsPage() {
               {blogs.map((blog, i) => {
                 const color = blog.color ?? BLOG_COLORS[i % BLOG_COLORS.length]
                 const counts = postCountByBlog[blog.id] ?? { total: 0, published: 0 }
+                const langLabel = LANGUAGE_LABELS[blog.language ?? 'ko'] ?? '한국어'
                 return (
                   <Card key={blog.id} className="shadow-none border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all h-full">
                     <CardContent className="p-5 h-full flex flex-col">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                          <h3 className="font-semibold text-gray-900">{blog.name}</h3>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {blog.language && blog.language !== 'ko' && LANGUAGE_LABELS[blog.language] && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
-                              {LANGUAGE_LABELS[blog.language]}
-                            </span>
-                          )}
-                          {blog.blog_type && BLOG_TYPE_LABELS[blog.blog_type] && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
-                              {BLOG_TYPE_LABELS[blog.blog_type]}
-                            </span>
-                          )}
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                            {blog.is_active ? '활성' : '비활성'}
+                      {/* 1행: 배지 (오른쪽 정렬) */}
+                      <div className="flex flex-wrap items-center gap-1.5 justify-end mb-2">
+                        {blog.blog_type && BLOG_TYPE_LABELS[blog.blog_type] && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                            {BLOG_TYPE_LABELS[blog.blog_type]}
                           </span>
-                        </div>
+                        )}
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+                          {langLabel}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blog.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {blog.is_active ? '활성' : '비활성'}
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-400 mb-3">{blog.subdomain ?? blog.custom_domain ?? blog.slug}</p>
+                      {/* 2행: 블로그명 */}
+                      <div className="flex items-center gap-2.5 mb-1">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <h3 className="font-semibold text-gray-900 truncate">{blog.name}</h3>
+                      </div>
+                      {/* 3행: 도메인/슬러그 */}
+                      <p className="text-xs text-gray-400 mb-2 truncate">{blog.custom_domain ?? blog.subdomain ?? blog.slug}</p>
+                      {/* 4행: 설명 */}
                       {blog.description && (
-                        <p className="text-sm text-gray-500 mb-3 line-clamp-2">{blog.description}</p>
+                        <p className="text-sm text-gray-500 mb-2 line-clamp-2">{blog.description}</p>
                       )}
                       <div className="flex-1" />
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
-                        <span>발행 {counts.published}개</span>
-                        <span>전체 {counts.total}개</span>
-                      </div>
+                      {/* 5행: 글 수 */}
+                      <p className="text-xs text-gray-500 mb-3">전체 글 {counts.total}개</p>
+                      {/* 6행: 버튼 */}
                       <div className="flex gap-2">
                         <Button asChild size="sm" className="flex-1">
                           <Link href={`/blogs/${blog.id}`}>확인</Link>
