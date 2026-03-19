@@ -24,7 +24,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { name, description, customDomain, aiCharacterConfig, aiProvider, isActive, color, url, defaultCategoryId, blogType, layoutConfig } = body
+  const { name, description, customDomain, aiCharacterConfig, aiProvider, isActive, color, url, defaultCategoryId, blogType, language, layoutConfig } = body
 
   // 도메인 변경 시 Vercel에 자동 등록/삭제
   if (customDomain !== undefined) {
@@ -66,6 +66,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(url !== undefined && { url }),
       ...(defaultCategoryId !== undefined && { default_category_id: defaultCategoryId }),
       ...(blogType !== undefined && { blog_type: blogType }),
+      ...(language !== undefined && { language }),
       ...(layoutConfig !== undefined && { layout_config: layoutConfig }),
     })
     .eq('id', params.id)

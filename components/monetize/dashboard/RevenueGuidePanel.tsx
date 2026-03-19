@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Grade, BlogLanguage } from '@/types/monetize'
+import type { BlogLanguage } from '@/types/monetize'
 import type { RevenueGuideResult } from '@/lib/monetize/engines/revenue-calculator'
 import { ChevronDown, Download, TrendingUp } from 'lucide-react'
 
@@ -9,6 +9,14 @@ interface RevenuGuidePanelProps {
   blogCount: number
   language: BlogLanguage
   primaryCategory: string
+}
+
+const GRADE_COLORS = {
+  S: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+  A: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-800' },
+  B: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', badge: 'bg-green-100 text-green-800' },
+  C: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', badge: 'bg-gray-100 text-gray-800' },
+  D: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-500', badge: 'bg-gray-100 text-gray-600' },
 }
 
 export function RevenueGuidePanel({
@@ -60,32 +68,41 @@ export function RevenueGuidePanel({
   const handleDownloadMD = () => {
     if (!result) return
 
+    const portfolioMD = result.portfolio
+      ?.map(
+        p =>
+          `#### ${p.grade}등급 블로그 × ${p.count}개
+- **추천 카테고리**: ${p.recommendedTypes.join(', ')}
+- **게시물당 수익**: ₩${p.revenuePerPost.toLocaleString()} (CPC ₩${p.avgCpc.toLocaleString()}, 월 방문자 ${p.monthlyVisitorsPerPost.toLocaleString()}명/게시물)
+- **일일 발행**: 블로그당 ${p.postsPerBlogPerDay}편
+- **월 수익 기여**: ₩${p.monthlyRevenue.toLocaleString()}
+- ${p.description}`
+      )
+      .join('\n\n') ?? ''
+
     const md = `# 수익 목표 달성 가이드
 
 ## 목표 월수익: ₩${result.targetAmount.toLocaleString()}
 
 ### 핵심 지표
-- **게시물당 예상 수익**: ₩${result.estimatedRevenuePerPost.toLocaleString()}
-- **필요한 월간 게시물 수**: ${result.requiredPostsPerMonth}편
-- **일일 게시물 수**: ${result.requiredPostsPerDay}편
+- **총 블로그 수**: ${result.blogComposition.reduce((s, b) => s + b.count, 0)}개
+- **일일 총 발행량**: ${result.requiredPostsPerDay}편
 - **목표 달성 예상 기간**: ${result.estimatedTimeToGoal}
 
-### 블로그 구성 (권장)
-${result.blogComposition
-  .map(
-    b =>
-      `- **${b.grade}등급**: ${b.count}개 블로그 (${b.percentage}%)`
-  )
-  .join('\n')}
+### 수익 구조
+- **예상 월 총수익**: ₩${result.totalMonthlyRevenue?.toLocaleString() ?? '-'}
+- **예상 월 API 비용**: ₩${result.monthlyCostEstimate?.toLocaleString() ?? '-'}
+- **예상 월 순수익**: ₩${result.netRevenue?.toLocaleString() ?? '-'}
 
-### 일일 발행 계획
-${result.dailyPublishPlan.map(p => `- **${p.grade}등급**: 하루 ${p.postsPerDay}편`).join('\n')}
+### 블로그 포트폴리오 전략
+
+${portfolioMD}
 
 ### 전략 팁
 ${result.tips.map(tip => `- ${tip}`).join('\n')}
 
 ---
-*이 가이드는 보수적인 추정치를 기반으로 합니다. 실제 결과는 콘텐츠 품질, SEO 최적화, 마케팅에 따라 달라질 수 있습니다.*
+*이 가이드는 6개월 숙성 기준의 추정치입니다. 게시물 품질, SEO 최적화, 카테고리 경쟁도에 따라 달라질 수 있습니다.*
 `
 
     const blob = new Blob([md], { type: 'text/markdown' })
@@ -140,25 +157,25 @@ ${result.tips.map(tip => `- ${tip}`).join('\n')}
 
           {/* Results Section */}
           {result && (
-            <div className="space-y-4 pt-4 border-t">
-              {/* Key Metrics */}
+            <div className="space-y-5 pt-4 border-t">
+              {/* 핵심 요약 메트릭 */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-gray-600">게시물당 수익</p>
+                  <p className="text-xs text-gray-600">총 블로그</p>
                   <p className="text-sm font-bold text-blue-700">
-                    ₩{result.estimatedRevenuePerPost.toLocaleString()}
+                    {result.blogComposition.reduce((s, b) => s + b.count, 0)}개
                   </p>
                 </div>
                 <div className="p-3 bg-green-50 rounded-lg">
-                  <p className="text-xs text-gray-600">월간 게시물</p>
+                  <p className="text-xs text-gray-600">일일 발행</p>
                   <p className="text-sm font-bold text-green-700">
-                    {result.requiredPostsPerMonth}편
+                    {result.requiredPostsPerDay}편
                   </p>
                 </div>
                 <div className="p-3 bg-purple-50 rounded-lg">
-                  <p className="text-xs text-gray-600">일일 발행</p>
+                  <p className="text-xs text-gray-600">예상 순수익</p>
                   <p className="text-sm font-bold text-purple-700">
-                    {result.requiredPostsPerDay}편
+                    ₩{(result.netRevenue ?? 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="p-3 bg-orange-50 rounded-lg">
@@ -169,29 +186,86 @@ ${result.tips.map(tip => `- ${tip}`).join('\n')}
                 </div>
               </div>
 
-              {/* Blog Composition */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">
-                  권장 블로그 구성
-                </h4>
-                <div className="space-y-1">
-                  {result.blogComposition.map(b => (
-                    <div
-                      key={b.grade}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="text-gray-600">
-                        <strong>{b.grade}등급</strong> ({b.percentage}%)
-                      </span>
-                      <span className="font-bold text-gray-900">
-                        {b.count}개
-                      </span>
-                    </div>
-                  ))}
+              {/* 수익 구조 요약 */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+                <h4 className="text-sm font-medium text-gray-900">수익 구조</h4>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-xs text-gray-500">예상 총수익</p>
+                    <p className="text-sm font-bold text-gray-900">₩{(result.totalMonthlyRevenue ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">API 비용</p>
+                    <p className="text-sm font-bold text-red-600">-₩{(result.monthlyCostEstimate ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">순수익</p>
+                    <p className="text-sm font-bold text-green-700">₩{(result.netRevenue ?? 0).toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Daily Plan */}
+              {/* 블로그 포트폴리오 전략 */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">
+                  블로그 포트폴리오 전략
+                </h4>
+                <div className="space-y-3">
+                  {result.portfolio?.map(p => {
+                    const colors = GRADE_COLORS[p.grade] ?? GRADE_COLORS.C
+                    return (
+                      <div
+                        key={p.grade}
+                        className={`rounded-lg border p-3 space-y-2 ${colors.bg} ${colors.border}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${colors.badge}`}>
+                              {p.grade}등급
+                            </span>
+                            <span className="text-sm font-medium text-gray-800">
+                              × {p.count}개 블로그
+                            </span>
+                          </div>
+                          <span className={`text-sm font-bold ${colors.text}`}>
+                            ₩{p.monthlyRevenue.toLocaleString()}/월
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-600">{p.description}</p>
+
+                        <div className="flex flex-wrap gap-1">
+                          {p.recommendedTypes.map(t => (
+                            <span
+                              key={t}
+                              className="px-2 py-0.5 bg-white/60 rounded text-xs text-gray-700 border border-gray-200"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                          <div>
+                            <span className="text-gray-500">평균 CPC</span>
+                            <p className="font-medium text-gray-800">₩{p.avgCpc.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">게시물당 수익</span>
+                            <p className="font-medium text-gray-800">₩{p.revenuePerPost.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">일 발행량</span>
+                            <p className="font-medium text-gray-800">{p.postsPerBlogPerDay}편/블로그</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 일일 발행 계획 */}
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">
                   일일 발행 계획
@@ -202,27 +276,33 @@ ${result.tips.map(tip => `- ${tip}`).join('\n')}
                       key={p.grade}
                       className="flex items-center justify-between text-sm"
                     >
-                      <span className="text-gray-600">{p.grade}등급 블로그</span>
+                      <span className="text-gray-600">{p.grade}등급 블로그 합계</span>
                       <span className="font-bold text-gray-900">
                         하루 {p.postsPerDay}편
                       </span>
                     </div>
                   ))}
+                  <div className="flex items-center justify-between text-sm pt-1 border-t border-gray-200">
+                    <span className="text-gray-900 font-medium">전체 합계</span>
+                    <span className="font-bold text-blue-700">
+                      하루 {result.requiredPostsPerDay}편
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Tips */}
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">
-                  전략 팁
+                  운영 전략
                 </h4>
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {result.tips.map((tip, i) => (
                     <li
                       key={i}
                       className="text-xs text-gray-600 flex gap-2"
                     >
-                      <span className="text-blue-500 flex-shrink-0">•</span>
+                      <span className="text-blue-500 flex-shrink-0 mt-0.5">•</span>
                       <span>{tip}</span>
                     </li>
                   ))}

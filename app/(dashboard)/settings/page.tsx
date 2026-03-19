@@ -17,10 +17,11 @@ import { usePlanContext } from '@/components/plan/PlanContext'
 
 interface AIKey {
   id: string
-  provider: 'claude' | 'openai' | 'gemini' | 'imagen'
+  provider: string
   masked_key: string
   is_active: boolean
   created_at: string
+  has_secret?: boolean
 }
 
 interface UserProfile {
@@ -28,22 +29,102 @@ interface UserProfile {
   name: string | null
 }
 
-const TEXT_PROVIDERS = [
-  { value: 'claude', label: 'Claude (Anthropic)', placeholder: 'sk-ant-api...' },
-  { value: 'openai', label: 'OpenAI (GPT)', placeholder: 'sk-...' },
-  { value: 'gemini', label: 'Google Gemini', placeholder: 'AIza...' },
+interface ProviderDef {
+  value: string
+  label: string
+  placeholder: string
+  note?: string
+  needsSecret?: boolean
+  secretPlaceholder?: string
+  secretLabel?: string
+  guide?: string
+}
+
+const TEXT_PROVIDERS: ProviderDef[] = [
+  { value: 'claude', label: 'Claude (Anthropic)', placeholder: 'sk-ant-api...', guide: 'https://console.anthropic.com/settings/keys' },
+  { value: 'openai', label: 'OpenAI (GPT)', placeholder: 'sk-...', guide: 'https://platform.openai.com/api-keys' },
+  { value: 'gemini', label: 'Google Gemini', placeholder: 'AIza...', guide: 'https://aistudio.google.com/app/apikey' },
 ]
 
-const IMAGE_PROVIDERS = [
+const IMAGE_PROVIDERS: ProviderDef[] = [
   {
     value: 'imagen',
     label: 'Google Imagen 3',
     placeholder: 'AIza...',
     note: 'Google AI Studio API Key (Gemini 키와 동일한 형식). Imagen 3 모델로 이미지를 자동 생성합니다.',
+    guide: 'https://aistudio.google.com/app/apikey',
   },
 ]
 
-const ALL_PROVIDERS = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS]
+const KEYWORD_PROVIDERS: ProviderDef[] = [
+  {
+    value: 'naver_ad',
+    label: '네이버 광고 API',
+    placeholder: 'API 키 입력',
+    needsSecret: true,
+    secretPlaceholder: '시크릿 키 입력',
+    secretLabel: 'API Secret',
+    note: '네이버 검색광고 키워드 도구에 사용됩니다. 검색량, 경쟁도, CPC 데이터를 조회합니다.',
+    guide: 'https://manage.searchad.naver.com',
+  },
+  {
+    value: 'naver_search',
+    label: '네이버 검색 API',
+    placeholder: 'Client ID',
+    needsSecret: true,
+    secretPlaceholder: 'Client Secret',
+    secretLabel: 'Client Secret',
+    note: '네이버 검색 트렌드 및 연관 키워드 분석에 사용됩니다.',
+    guide: 'https://developers.naver.com/apps',
+  },
+  {
+    value: 'google_kwp',
+    label: 'Google Keyword Planner',
+    placeholder: 'Developer Token',
+    note: 'Google Ads 키워드 플래너 데이터에 사용됩니다. 글로벌 검색량 분석에 필수.',
+    guide: 'https://ads.google.com/aw/apicenter',
+  },
+]
+
+const MONETIZE_PROVIDERS: ProviderDef[] = [
+  {
+    value: 'coupang',
+    label: '쿠팡파트너스',
+    placeholder: 'Access Key',
+    needsSecret: true,
+    secretPlaceholder: 'Secret Key',
+    secretLabel: 'Secret Key',
+    note: '쿠팡 상품 링크를 자동 삽입하여 제휴 수익을 창출합니다.',
+    guide: 'https://partners.coupang.com',
+  },
+  {
+    value: 'amazon',
+    label: 'Amazon Associates',
+    placeholder: 'Access Key',
+    needsSecret: true,
+    secretPlaceholder: 'Secret Key',
+    secretLabel: 'Secret Key',
+    note: '아마존 상품 링크를 통한 해외 제휴 수익에 사용됩니다.',
+    guide: 'https://affiliate-program.amazon.com',
+  },
+]
+
+const ALL_PROVIDERS: ProviderDef[] = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS, ...KEYWORD_PROVIDERS, ...MONETIZE_PROVIDERS]
+
+const PROVIDER_CATEGORY_LABEL: Record<string, { label: string; badge: string }> = {
+  text: { label: '텍스트 생성', badge: 'default' },
+  image: { label: '이미지 생성', badge: 'outline' },
+  keyword: { label: '키워드 분석', badge: 'secondary' },
+  monetize: { label: '수익화', badge: 'destructive' },
+}
+
+function getProviderCategory(provider: string): string {
+  if (TEXT_PROVIDERS.some(p => p.value === provider)) return 'text'
+  if (IMAGE_PROVIDERS.some(p => p.value === provider)) return 'image'
+  if (KEYWORD_PROVIDERS.some(p => p.value === provider)) return 'keyword'
+  if (MONETIZE_PROVIDERS.some(p => p.value === provider)) return 'monetize'
+  return 'text'
+}
 
 function SettingsPageInner() {
   const searchParams = useSearchParams()
@@ -60,7 +141,9 @@ function SettingsPageInner() {
   // AI 키 폼
   const [selectedProvider, setSelectedProvider] = useState<string>('claude')
   const [newKey, setNewKey] = useState('')
+  const [newSecret, setNewSecret] = useState('')
   const [showKey, setShowKey] = useState(false)
+  const [showSecret, setShowSecret] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [addingKey, setAddingKey] = useState(false)
@@ -102,18 +185,26 @@ function SettingsPageInner() {
 
   async function addKey() {
     if (!newKey.trim()) return
+    const providerDef = ALL_PROVIDERS.find(p => p.value === selectedProvider)
+    if (providerDef?.needsSecret && !newSecret.trim()) {
+      setAddResult({ ok: false, message: `${providerDef.secretLabel ?? 'Secret'}을 입력해주세요.` })
+      return
+    }
     setAddingKey(true)
     setAddResult(null)
     try {
+      const body: Record<string, string> = { provider: selectedProvider, apiKey: newKey.trim() }
+      if (newSecret.trim()) body.apiSecret = newSecret.trim()
       const res = await fetch('/api/ai-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: selectedProvider, apiKey: newKey.trim() }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (res.ok) {
         setNewKey('')
-        setAddResult({ ok: true, message: `${ALL_PROVIDERS.find(p => p.value === selectedProvider)?.label} 키가 성공적으로 등록되었습니다.` })
+        setNewSecret('')
+        setAddResult({ ok: true, message: `${providerDef?.label ?? selectedProvider} 키가 성공적으로 등록되었습니다.` })
         fetchAll()
       } else {
         setAddResult({ ok: false, message: json.error ?? '등록에 실패했습니다.' })
@@ -167,8 +258,10 @@ function SettingsPageInner() {
     return ALL_PROVIDERS.find(pr => pr.value === p)?.label ?? p
   }
 
-  function isImageProvider(p: string) {
-    return IMAGE_PROVIDERS.some(pr => pr.value === p)
+  function getCategoryBadge(p: string) {
+    const cat = getProviderCategory(p)
+    const info = PROVIDER_CATEGORY_LABEL[cat]
+    return info ?? PROVIDER_CATEGORY_LABEL.text
   }
 
   return (
@@ -248,12 +341,12 @@ function SettingsPageInner() {
             </Card>
           </TabsContent>
 
-          {/* AI API 키 탭 */}
+          {/* API 키 관리 탭 */}
           <TabsContent value="ai-keys" className="mt-6 space-y-4">
             {/* 등록된 키 목록 */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">등록된 AI API 키</CardTitle>
+                <CardTitle className="text-base">등록된 API 키</CardTitle>
               </CardHeader>
               <CardContent>
                 {aiKeys.length === 0 ? (
@@ -262,6 +355,7 @@ function SettingsPageInner() {
                   <div className="space-y-3">
                     {aiKeys.map(key => {
                       const result = testResults[key.id]
+                      const catInfo = getCategoryBadge(key.provider)
                       return (
                         <div key={key.id} className={`p-3 border rounded-lg ${!key.is_active ? 'opacity-60' : ''}`}>
                           <div className="flex items-center justify-between">
@@ -269,9 +363,12 @@ function SettingsPageInner() {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-medium">{providerLabel(key.provider)}</span>
-                                  <Badge variant={isImageProvider(key.provider) ? 'outline' : 'default'}>
-                                    {isImageProvider(key.provider) ? '이미지 생성' : '텍스트 생성'}
+                                  <Badge variant={catInfo.badge as 'default' | 'outline' | 'secondary' | 'destructive'}>
+                                    {catInfo.label}
                                   </Badge>
+                                  {key.has_secret && (
+                                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">시크릿 포함</span>
+                                  )}
                                 </div>
                                 <p className="text-xs text-muted-foreground font-mono mt-0.5">{key.masked_key}</p>
                               </div>
@@ -319,12 +416,13 @@ function SettingsPageInner() {
               </CardContent>
             </Card>
 
-            {/* 새 키 추가 */}
+            {/* 새 키 추가 — 4카테고리 */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">API 키 추가</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 텍스트 생성 AI */}
                 <div className="space-y-2">
                   <Label>텍스트 생성 AI</Label>
                   <div className="flex gap-2 flex-wrap">
@@ -333,7 +431,7 @@ function SettingsPageInner() {
                       return (
                         <button
                           key={p.value}
-                          onClick={() => setSelectedProvider(p.value)}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
                           className={`relative px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-primary text-primary-foreground border-primary'
@@ -348,14 +446,18 @@ function SettingsPageInner() {
                       )
                     })}
                   </div>
-                  <Label className="mt-2 block">이미지 생성 AI</Label>
+                </div>
+
+                {/* 이미지 생성 AI */}
+                <div className="space-y-2">
+                  <Label>이미지 생성 AI</Label>
                   <div className="flex gap-2 flex-wrap">
                     {IMAGE_PROVIDERS.map(p => {
                       const registered = aiKeys.some(k => k.provider === p.value)
                       return (
                         <button
                           key={p.value}
-                          onClick={() => setSelectedProvider(p.value)}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
                           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-violet-600 text-white border-violet-600'
@@ -370,34 +472,128 @@ function SettingsPageInner() {
                       )
                     })}
                   </div>
-                  {isImageProvider(selectedProvider) && (
-                    <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 mt-1">
-                      {IMAGE_PROVIDERS.find(p => p.value === selectedProvider)?.note}
-                    </div>
-                  )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>API 키</Label>
-                  <div className="relative">
-                    <Input
-                      type={showKey ? 'text' : 'password'}
-                      placeholder={ALL_PROVIDERS.find(p => p.value === selectedProvider)?.placeholder}
-                      value={newKey}
-                      onChange={e => setNewKey(e.target.value)}
-                      className="pr-10 font-mono text-sm"
-                    />
-                    <button
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowKey(s => !s)}
-                    >
-                      {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                {/* 키워드 분석 도구 */}
+                <div className="space-y-2">
+                  <Label>키워드 분석 도구</Label>
+                  <p className="text-xs text-muted-foreground">검색량, 경쟁도, CPC 데이터를 분석하여 고수익 키워드를 발굴합니다.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {KEYWORD_PROVIDERS.map(p => {
+                      const registered = aiKeys.some(k => k.provider === p.value)
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedProvider === p.value
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          {p.label}
+                          {registered && (
+                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    키는 AES-256-GCM으로 암호화되어 안전하게 저장됩니다.
-                  </p>
                 </div>
+
+                {/* 수익화 제휴 */}
+                <div className="space-y-2">
+                  <Label>수익화 (제휴 마케팅)</Label>
+                  <p className="text-xs text-muted-foreground">블로그 글에 제휴 상품 링크를 자동 삽입하여 추가 수익을 창출합니다.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {MONETIZE_PROVIDERS.map(p => {
+                      const registered = aiKeys.some(k => k.provider === p.value)
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedProvider === p.value
+                              ? 'bg-orange-600 text-white border-orange-600'
+                              : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          {p.label}
+                          {registered && (
+                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* 선택된 프로바이더 정보 */}
+                {(() => {
+                  const providerDef = ALL_PROVIDERS.find(p => p.value === selectedProvider)
+                  if (!providerDef) return null
+                  return (
+                    <div className="space-y-3">
+                      {providerDef.note && (
+                        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                          {providerDef.note}
+                          {providerDef.guide && (
+                            <a href={providerDef.guide} target="_blank" rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline ml-1">
+                              발급 가이드 →
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <Label>API 키</Label>
+                        <div className="relative">
+                          <Input
+                            type={showKey ? 'text' : 'password'}
+                            placeholder={providerDef.placeholder}
+                            value={newKey}
+                            onChange={e => setNewKey(e.target.value)}
+                            className="pr-10 font-mono text-sm"
+                          />
+                          <button
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowKey(s => !s)}
+                          >
+                            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {providerDef.needsSecret && (
+                        <div className="space-y-1.5">
+                          <Label>{providerDef.secretLabel ?? 'API Secret'}</Label>
+                          <div className="relative">
+                            <Input
+                              type={showSecret ? 'text' : 'password'}
+                              placeholder={providerDef.secretPlaceholder ?? 'Secret 입력'}
+                              value={newSecret}
+                              onChange={e => setNewSecret(e.target.value)}
+                              className="pr-10 font-mono text-sm"
+                            />
+                            <button
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowSecret(s => !s)}
+                            >
+                              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        키는 AES-256-GCM으로 암호화되어 안전하게 저장됩니다.
+                      </p>
+                    </div>
+                  )
+                })()}
 
                 <Button onClick={addKey} disabled={addingKey || !newKey.trim()}>
                   {addingKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}

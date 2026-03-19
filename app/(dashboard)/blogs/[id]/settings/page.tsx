@@ -20,6 +20,15 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'layout', label: '레이아웃' },
 ]
 
+const LANGUAGES = [
+  { value: 'ko', label: '한국어' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'pt_br', label: 'Português (BR)' },
+  { value: 'es', label: 'Español' },
+]
+
 const COLORS = [
   '#3b82f6','#8b5cf6','#10b981','#f59e0b',
   '#ef4444','#06b6d4','#84cc16','#f97316',
@@ -283,6 +292,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [color, setColor] = useState(COLORS[0])
   const [isActive, setIsActive] = useState(true)
   const [blogType, setBlogType] = useState('')
+  const [blogLanguage, setBlogLanguage] = useState('ko')
   const [slug, setSlug] = useState('')
 
   // AI 캐릭터 폼 (21개 필드를 단일 객체로 관리)
@@ -319,6 +329,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       setColor(blogData.color ?? COLORS[0])
       setIsActive(blogData.is_active ?? true)
       setBlogType(blogData.blog_type ?? '')
+      setBlogLanguage(blogData.language ?? 'ko')
       setSlug(blogData.slug ?? '')
       setAiProvider(blogData.ai_provider ?? 'gemini')
 
@@ -352,7 +363,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive, blogType: blogType || null }),
+      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive, blogType: blogType || null, language: blogLanguage }),
     })
     setSaving(false)
     if (res.ok) showSuccess('기본정보가 저장되었습니다.')
@@ -518,6 +529,19 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
               ))}
             </select>
             <p className="text-xs text-gray-400">Google YMYL 기준 블로그 유형입니다. AI 캐릭터 생성 및 글 작성 시 유형에 맞는 전문성과 톤을 반영합니다.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>블로그 언어</Label>
+            <select
+              value={blogLanguage}
+              onChange={e => setBlogLanguage(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {LANGUAGES.map(l => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400">블로그 콘텐츠의 주 언어입니다. AI 글 생성 시 해당 언어로 작성됩니다.</p>
           </div>
           <DomainSettingSection customDomain={customDomain} setCustomDomain={setCustomDomain} />
           <div className="space-y-2">
