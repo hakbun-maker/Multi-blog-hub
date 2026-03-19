@@ -22,7 +22,7 @@
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth (기존 활용)
 - **Scheduler**: Supabase pg_cron (자동 발행 트리거)
-- **AI Writing**: Claude API (claude-opus-4-6 / claude-sonnet-4-6)
+- **AI Writing**: Claude / GPT-4o / Gemini (사용자 API 키 선택 연결)
 - **Cache**: Supabase Edge Functions (API 응답 캐싱)
 
 ### 외부 API (키워드 탐색기)
@@ -44,8 +44,7 @@
 | Instagram Graph API | Reels/Feed 자동 발행 | Meta Developer App 필요 |
 | Twitter API v2 | X(Twitter) 자동 포스팅 | Elevated Access 필요 |
 | Threads API (Meta Graph) | Threads 자동 발행 | Meta Developer App 공유 |
-| DALL-E 3 (OpenAI) | SNS용 이미지 생성 (선택) | 토글 ON 시만 호출 |
-| Ideogram API | SNS용 이미지 생성 대안 (선택) | 토글 ON 시만 호출 |
+| Google Imagen 3 | SNS용 이미지 생성 (iPhone 16 Warm Real Photo) | 토글 ON 시만 호출, 사용자 API 키 |
 | 쿠팡파트너스 API | 상품 검색 + 제휴 링크 생성 | 파트너 ID 설정 필요 |
 
 ### 인프라
@@ -77,12 +76,14 @@
 │  ├── 날짜·시간 차별화 스케줄링                           │
 │  └── 하루 제안 글 수 쿼터 관리                           │
 │         ↓                                               │
-│  AI 글쓰기 엔진                                          │
-│  ├── 키워드 클러스터링 × Intent 분류                     │
-│  ├── PASONA × SEO/AEO/GEO 작성                          │
-│  └── REO 평판 최적화 삽입                                │
+│  AI 글쓰기 엔진 (4-Layer 전략 적용)                       │
+│  ├── L1: PASONA × Intent (글의 뼈대)                     │
+│  ├── L2: SEO + AEO/GEO (발견 최적화 + FAQ 아코디언)     │
+│  └── L3: 문맥광고 (광고 섹션 후처리 삽입)               │
 │         ↓                                               │
-│  검수 엔진 (3단계)                                       │
+│  검수 엔진 (키워드 유형별 분기)                           │
+│  ├── 검수 A(골드/시즌): 발견17+설득18+수익15=50점        │
+│  ├── 검수 B(이벤트): 이벤트35+공통기술15=50점            │
 │  ├── 45점 이상 → 자동 발행                               │
 │  └── 45점 미만 → 대기 큐 (사용자 검토)                  │
 │         ↓                                               │
@@ -122,19 +123,20 @@ interface DistributionEngine {
    ↓
 3. 클러스터 생성 (Seed → 8~12개 관련 키워드)
    ↓
-4. PASONA 구조 × Intent별 가중치 적용
-   ├── AD형: 문제제기(20%) + Offer(30%) + CTA(20%)
-   ├── REVIEW형: 솔직 평가(40%) + 비교(20%)
-   └── INFO형: 정보 구조화(50%) + FAQ(20%)
+4. [L1] PASONA 구조 × Intent별 가중치 적용
+   ├── AD형: 문제제기(20%) + Offer(30%) + CTA(20%), A=Agitation
+   ├── REVIEW형: 솔직 평가(40%) + 비교(20%), A=Affinity
+   └── INFO형: 정보 구조화(50%) + FAQ(20%), A=Affinity
    ↓
-5. SEO/AEO/GEO 요소 삽입
-   ├── SEO: 메타 태그, 내부 링크, 이미지 alt
-   ├── AEO: FAQ 구조화 데이터, 40~60자 답변 블록
-   └── GEO: E-E-A-T 신호, Schema.org 마크업
+5. [L2] SEO + AEO/GEO 발견 최적화
+   ├── SEO: 메타 태그, 내부 링크, 이미지 alt, 키워드 밀도
+   └── AEO: 글 하단 FAQ 아코디언(<details>), 답변 80~120자, JSON-LD Schema
    ↓
-6. 고CPC 섹션 타겟팅 (AdSense section start/end 태그)
+6. [L3] 문맥광고 후처리 (ad_section 태그 So~N 영역 삽입)
    ↓
-7. 3단계 검수 (SEO점수 + 품질점수 + 수익화점수)
+7. 품질 검수 (키워드 유형별 자동 분기)
+   ├── 골드/시즌 → 검수 A: 발견(17) + 설득(18) + 수익(15)
+   └── 이벤트 → 검수 B: 이벤트 고유(35) + 공통 기술(15)
    ↓
 8. 45점 이상: 자동 발행 큐 / 미만: 보류 큐
 ```
@@ -183,7 +185,8 @@ scheduled_posts
 
 post_quality_scores
   └── post_id → scheduled_posts
-  └── seo_score + quality_score + revenue_score
+  └── discovery_score + persuasion_score + conversion_score (검수 A)
+  └── event_score + tech_score (검수 B)
   └── total_score (합산 45점 기준)
 
 revenue_analytics
@@ -197,13 +200,23 @@ revenue_analytics
 ## 4. 보안 요구사항
 
 ### API 키 관리
-- 모든 외부 API 키는 Vercel Environment Variables에 저장
+- **플랫폼 키** (OAuth App 등 무료): `.env.local` (Vercel Environment Variables)에 저장
+- **사용자 키** (AI, 키워드, 이미지 등 유료): `blog_settings` JSONB에 AES-256 암호화 저장
 - 클라이언트 사이드에서 외부 API 직접 호출 금지
 - Next.js API Routes를 통한 서버사이드 호출만 허용
+- 사용자 API 키는 서버에서만 복호화, 클라이언트에는 "연결됨/미연결" 상태만 노출
 
 ### 접근 제어
 - `/monetize` 경로는 인증된 사용자만 접근 (기존 Supabase Auth 활용)
 - RLS(Row Level Security) 정책: user_id 기반 데이터 격리
+
+### 동의서 시스템 (Consent Management)
+- **DB**: `user_consents` + `consent_versions` 테이블 (상세: `docs/동의서/00-동의서-수집구조-가이드.md`)
+- **계층형 동의**: 회원가입 시 필수 2종(tos, privacy) + 기능 사용 시 Just-in-Time 동의 8종
+- **동의 이력 보관**: agreed_at, ip_address, user_agent, method 기록 → 3년 보관 (전자상거래법)
+- **동의 체크 미들웨어**: 기능별 API Route에서 `hasValidConsent(userId, consentType)` 사전 확인
+- **약관 개정 대응**: consent_versions 버전 비교 → 미동의 시 재동의 모달 강제 표시
+- **동의 철회 연쇄 처리**: 철회 시 관련 데이터(API 키, OAuth 토큰 등) 자동 삭제 + 기능 중단
 
 ---
 
@@ -237,11 +250,14 @@ Rate Limit: 1,000 req/day
 데이터: 트렌드 지수 (최근 1년)
 ```
 
-### Claude API (AI 글쓰기)
+### AI 글쓰기 API (사용자 선택)
 ```
-Model: claude-sonnet-4-6 (기본) / claude-opus-4-6 (S등급 키워드)
+지원 공급자: Claude (Anthropic) / GPT (OpenAI) / Gemini (Google)
+기본 모델: claude-sonnet-4-6 / gpt-4o / gemini-2.0-flash
+S등급: claude-opus-4-6 / gpt-4o / gemini-2.0-pro
 Max tokens: 4,096 / 글
 Temperature: 0.7
+인증: 사용자가 설정에서 공급자 선택 + API Key 입력 → blog_settings.ai_settings (암호화)
 ```
 
 ---

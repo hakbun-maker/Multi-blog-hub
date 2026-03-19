@@ -42,7 +42,16 @@
       "Bash(cd /c/Users/user/Dropbox/\"Director Kim\"/\"1. Project\"/blog_hub_project && grep \"ENCRYPTION_KEY\" .env.local | cut -d'=' -f2-)",
       "Bash(grep -r \"google\\\\|oauth\\\\|GOOGLE\\\\|OAuth\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.json\" 2>/dev/null | grep -v node_modules | grep -v \".next\" | head -30)",
       "Bash(grep -r \"NEXT_PUBLIC_APP_URL\" \"C:\\\\Users\\\\user\\\\Dropbox\\\\Director Kim\\\\1. Project\\\\blog_hub_project\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v node_modules | grep -v \".next\")",
-      "WebFetch(domain:dailyfinancial.ruhaworld.co.kr)"
+      "WebFetch(domain:dailyfinancial.ruhaworld.co.kr)",
+      "Bash(ls \"c:/Users/USER/Dropbox/Director Kim/1_project/blog_hub_project/app/\\(dashboard\\)/\")",
+      "Bash(cp:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx vercel:*)",
+      "Bash(cat:*)",
+      "Bash(npx eslint:*)",
+      "Bash(wc -l \"/c/Users/PC_1M/Dropbox/Director Kim/1_project/blog_hub_project/app/\\(dashboard\\)/keywords/page.tsx\")",
+      "Bash(wc -l \"/c/Users/PC_1M/Dropbox/Director Kim/1_project/blog_hub_project/app/\\(dashboard\\)/scheduler/page.tsx\")",
+      "Bash(xargs grep -l \"blog.*settings\\\\|BlogSettings\")"
     ]
   }
 }

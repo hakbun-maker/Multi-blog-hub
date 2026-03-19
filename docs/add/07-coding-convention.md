@@ -75,7 +75,7 @@ lib/monetize/
 ├── engines/
 │   ├── distribution-engine.ts    ← 배분 엔진
 │   ├── keyword-scorer.ts         ← Revenue Score 계산
-│   ├── quality-checker.ts        ← 3단계 검수
+│   ├── quality-checker.ts        ← 검수 A/B 분기 (Strategy 패턴)
 │   ├── ai-writer.ts              ← Claude API 글쓰기
 │   └── language-writer.ts        ← 다국어 글쓰기 (기능 4)
 ├── apis/
@@ -88,9 +88,7 @@ lib/monetize/
 │   │   ├── instagram-api.ts      ← Instagram Graph API (기능 6)
 │   │   ├── twitter-api.ts        ← Twitter API v2 (기능 6)
 │   │   └── threads-api.ts        ← Threads API (기능 6)
-│   ├── image-gen/
-│   │   ├── dalle3-api.ts         ← DALL-E 3 (기능 6)
-│   │   └── ideogram-api.ts       ← Ideogram (기능 6)
+│   ├── imagen-api.ts             ← Google Imagen 3 (기능 6)
 │   └── coupang-api.ts            ← 쿠팡파트너스 API (기능 7)
 ├── store/
 │   └── monetize-store.ts         ← Zustand 스토어
@@ -292,7 +290,7 @@ export type BlogLanguage = 'ko' | 'en' | 'ja'
 
 // 기능 6: SNS
 export type SNSPlatform = 'instagram' | 'twitter' | 'threads'
-export type ImageGenProvider = 'dalle3' | 'ideogram' | 'flux'
+export type ImageGenProvider = 'imagen3'  // Google Imagen 3 (고정)
 export type SNSPostStatus = 'pending' | 'published' | 'failed'
 
 export interface KeywordWithScore {
@@ -403,28 +401,17 @@ chore: pg_cron 자동 발행 스케줄 설정
 ## 10. 환경 변수
 
 ```env
-# .env.local (추가 필요)
+# .env.local (플랫폼 레벨 — 전부 무료)
 
-# 키워드 탐색 (코어)
-NAVER_AD_API_KEY=
-NAVER_AD_API_SECRET=
-NAVER_CLIENT_ID=
-NAVER_CLIENT_SECRET=
-GOOGLE_KWP_API_KEY=
-TICKETLINK_API_KEY=
-ANTHROPIC_API_KEY=  ← AI 글쓰기용 (기존 있을 경우 활용)
-
-# 기능 4 — 다국어 (추가 API 없음, 기존 Google KWP 활용)
-
-# 기능 6 — SNS 자동배포
+# 기능 6 — SNS 자동배포 — OAuth App (무료)
 INSTAGRAM_APP_ID=
 INSTAGRAM_APP_SECRET=
 TWITTER_API_KEY=
 TWITTER_API_SECRET=
-OPENAI_API_KEY=       ← DALL-E 3 이미지 생성 (선택)
-IDEOGRAM_API_KEY=     ← Ideogram 이미지 생성 (선택)
 
-# 기능 7 — 쿠팡파트너스
-# 파트너 ID는 blog_settings 테이블에 사용자별 저장 (환경변수 아님)
-# API 엔드포인트는 쿠팡파트너스 공개 URL 사용
+# ─── 유료 API는 전부 블로거가 UI에서 입력 → DB 암호화 저장 ───
+# AI 글쓰기 (Claude/GPT/Gemini)    → blog_settings.ai_settings
+# 키워드 탐색 (네이버/구글)         → blog_settings.keyword_api_keys
+# 이미지 생성 (Google Imagen 3)     → blog_settings.sns_settings.imageGen.apiKey
+# 쿠팡 파트너 ID                    → blog_settings.coupang_settings
 ```

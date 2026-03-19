@@ -23,6 +23,7 @@ erDiagram
     scheduled_posts ||--o{ affiliate_clicks : "제휴 클릭"
 
     users ||--o{ blogs : "소유"
+    users ||--o{ ai_api_keys : "API 키 (전 카테고리)"
     users ||--o{ keyword_search_history : "탐색 이력"
 
     blogs {
@@ -84,9 +85,12 @@ erDiagram
     post_quality_scores {
         uuid id PK
         uuid post_id FK
-        float seo_score
-        float quality_score
-        float revenue_score
+        string check_type
+        float discovery_score
+        float persuasion_score
+        float conversion_score
+        float event_score
+        float tech_score
         float total_score
         boolean auto_published
         string review_reason
@@ -125,6 +129,8 @@ erDiagram
         uuid id PK
         uuid blog_id FK
         uuid keyword_id FK
+        string intent_type
+        int intent_fit_score
         date assigned_date
         time assigned_time
         string assignment_reason
@@ -144,6 +150,8 @@ erDiagram
     blog_settings {
         uuid id PK
         uuid blog_id FK
+        jsonb ai_settings
+        jsonb keyword_api_keys
         jsonb sns_settings
         jsonb coupang_settings
         jsonb language_settings
@@ -240,23 +248,35 @@ review_queue → published (사용자 승인)
 
 ### post_quality_scores (검수 점수)
 
+> 키워드 유형에 따라 **검수 A**(골드/시즌) 또는 **검수 B**(이벤트) 채점표 적용.
+> 두 체계 모두 50점 만점, 45점 이상 자동 발행.
+
 | 컬럼 | 타입 | 제약 | 설명 |
 |------|------|------|------|
 | id | uuid | PK | 기본키 |
 | post_id | uuid | FK, UNIQUE | scheduled_posts 1:1 |
-| seo_score | float | NOT NULL | SEO 점수 (0~20) |
-| quality_score | float | NOT NULL | 품질 점수 (0~15) |
-| revenue_score | float | NOT NULL | 수익화 점수 (0~15) |
-| total_score | float | GENERATED | seo + quality + revenue |
+| check_type | varchar(10) | NOT NULL | 'standard' (검수 A) / 'event' (검수 B) |
+| discovery_score | float | | 발견 최적화 점수 (0~17) — 검수 A |
+| persuasion_score | float | | 설득 품질 점수 (0~18) — 검수 A |
+| conversion_score | float | | 수익 전환 점수 (0~15) — 검수 A |
+| event_score | float | | 이벤트 고유 점수 (0~35) — 검수 B |
+| tech_score | float | | 공통 기술 점수 (0~15) — 검수 B |
+| total_score | float | GENERATED | check_type별 합산 |
 | auto_published | boolean | DEFAULT false | 자동 발행 여부 |
 | review_reason | text | | 보류 사유 |
 | score_breakdown | jsonb | | 세부 점수 JSON |
 
-**점수 기준 (총 50점 만점, 45점 이상 자동 발행):**
+**검수 A (골드/시즌 키워드, 50점):**
 ```
-SEO 점수 (0~20): 메타태그, 키워드 밀도, 내부링크, 이미지 alt
-품질 점수 (0~15): 글자수(1500자+), PASONA 구조, 가독성
-수익화 점수 (0~15): 고CPC 섹션 타겟팅, Intent 정합성, AEO 구조
+축1 발견 최적화 (0~17): SEO 기본(10) + AI 검색 최적화(7)
+축2 설득 품질   (0~18): PASONA 구조(8) + Intent 정합성(5) + 가독성(5)
+축3 수익 전환   (0~15): 광고 섹션(8) + 전환 유도(7)
+```
+
+**검수 B (이벤트 키워드, 50점):**
+```
+이벤트 고유 (0~35): Intent 목적(8) + PASONA 비중(7) + 필수 요소(7) + 금지 요소(7) + 페르소나 톤(6)
+공통 기술   (0~15): SEO(5) + AI 검색 최적화(5) + 문맥광고(5)
 ```
 
 ---
@@ -383,6 +403,10 @@ ALTER TABLE blogs
 -- 등급 제약 조건
 ALTER TABLE blogs ADD CONSTRAINT blogs_grade_check
   CHECK (grade IN ('S', 'A', 'B', 'C', 'D'));
+
+-- 언어 제약 조건 (6개 언어)
+ALTER TABLE blogs ADD CONSTRAINT blogs_language_check
+  CHECK (language IN ('ko', 'en', 'ja', 'de', 'pt_br', 'es'));
 ```
 
 ---
@@ -442,25 +466,126 @@ ALTER TABLE blogs ADD CONSTRAINT blogs_grade_check
 18. ENABLE ROW LEVEL SECURITY (Phase 3~4 테이블)
 19. CREATE POLICY (Phase 3~4 RLS)
 20. pg_cron 추가 등록 (auto-publish-en, auto-publish-ja, sns-auto-distribute)
+
+-- Phase 5 (동의서 시스템)
+21. CREATE TABLE user_consents
+22. CREATE TABLE consent_versions
+23. CREATE INDEX (동의서 인덱스)
+24. ENABLE ROW LEVEL SECURITY (동의서 테이블)
+25. CREATE POLICY (동의서 RLS)
+26. INSERT consent_versions 초기 데이터 (tos v1.0, privacy v1.0 등)
 ```
 
 ---
 
-## 7. blog_settings JSONB 스키마 상세
+## 9. 동의서 시스템 테이블
+
+> 상세: `docs/동의서/00-동의서-수집구조-가이드.md`
+
+### user_consents (동의 이력)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | uuid | PK | 기본키 |
+| user_id | uuid | FK, NOT NULL | 사용자 |
+| consent_type | varchar(50) | NOT NULL | tos, privacy, api_key_storage, automation, sns_oauth_instagram, sns_oauth_twitter, sns_oauth_threads, affiliate_marketing, adsense_oauth, blog_platform_tistory, blog_platform_wordpress, marketing |
+| consent_version | varchar(10) | NOT NULL | 약관 버전 ('1.0', '1.1' 등) |
+| agreed_at | timestamptz | NOT NULL, DEFAULT NOW() | 동의 시각 |
+| ip_address | inet | | 동의 시점 IP |
+| user_agent | text | | 브라우저 정보 |
+| method | varchar(30) | NOT NULL | signup_checkbox, inline_panel, modal, upgrade_flow |
+| revoked_at | timestamptz | | NULL=유효, 값 있으면 철회 |
+| revoked_reason | text | | 철회 사유 |
+
+**제약조건**: UNIQUE(user_id, consent_type, consent_version)
+
+### consent_versions (약관 버전 관리)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | uuid | PK | 기본키 |
+| consent_type | varchar(50) | NOT NULL | 동의서 유형 |
+| version | varchar(10) | NOT NULL | 버전 |
+| title | text | NOT NULL | 표시 제목 |
+| summary | text | | 개정 요약 |
+| content_url | text | | 전문 URL |
+| effective_date | date | NOT NULL | 시행일 |
+
+**제약조건**: UNIQUE(consent_type, version)
+
+### RLS 정책
+
+```sql
+ALTER TABLE user_consents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY users_own_consents ON user_consents
+  FOR ALL USING (user_id = auth.uid());
+
+-- consent_versions는 모든 인증 사용자 읽기 가능
+ALTER TABLE consent_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY read_consent_versions ON consent_versions
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+```
+
+### 인덱스
+
+```sql
+CREATE INDEX idx_user_consents_user ON user_consents(user_id, consent_type);
+CREATE INDEX idx_user_consents_active ON user_consents(user_id, consent_type)
+  WHERE revoked_at IS NULL;
+```
+
+---
+
+## 7. ai_api_keys 테이블 (확장) — 블로거 API 키 통합 관리
+
+> **모든 블로거 API 키를 user 레벨 한 곳에서 관리** (screen-09: `/settings?tab=api-keys`).
+> blog_settings에는 API 키를 저장하지 않음 — 설정(ON/OFF, 스타일 등)만 저장.
+
+```sql
+-- 기존 ai_api_keys 테이블 확장
+ALTER TABLE ai_api_keys DROP CONSTRAINT IF EXISTS ai_api_keys_provider_check;
+ALTER TABLE ai_api_keys ADD CONSTRAINT ai_api_keys_provider_check
+  CHECK (provider IN (
+    'claude', 'openai', 'gemini',              -- AI 글쓰기
+    'imagen',                                   -- 이미지 생성
+    'naver_ad', 'naver_search', 'google_kwp',   -- 키워드 탐색
+    'coupang', 'amazon'                         -- 수익화
+  ));
+
+-- Key+Secret 쌍 지원 (네이버 광고 API, 네이버 검색 API)
+ALTER TABLE ai_api_keys ADD COLUMN IF NOT EXISTS encrypted_secret TEXT;
+```
+
+| provider | 카테고리 | encrypted_key | encrypted_secret | 비고 |
+|----------|---------|---------------|------------------|------|
+| `claude` | AI 글쓰기 | API Key | — | |
+| `openai` | AI 글쓰기 | API Key | — | |
+| `gemini` | AI 글쓰기 | API Key | — | |
+| `imagen` | 이미지 생성 | API Key | — | Google AI Studio Key |
+| `naver_ad` | 키워드 탐색 | API Key | API Secret | Key+Secret 쌍 |
+| `naver_search` | 키워드 탐색 | Client ID | Client Secret | Key+Secret 쌍 |
+| `google_kwp` | 키워드 탐색 | Developer Token | — | |
+| `coupang` | 수익화 | Partner ID | — | |
+| `amazon` | 수익화 | Associates Tag (Tracking ID) | — | 국가별 별도 가입 (US/JP 등) |
+
+---
+
+## 8. blog_settings JSONB 스키마 상세
+
+> **API 키는 ai_api_keys 테이블에 저장** (user 레벨, 섹션 7 참조).
+> blog_settings에는 블로그별 **설정/구성**만 저장.
 
 ```typescript
 // blog_settings.sns_settings 구조
 interface BlogSNSSettings {
   instagram: {
     enabled: boolean
-    accessToken: string       // 암호화 저장
+    accessToken: string       // OAuth 토큰 (암호화 저장)
     formatPrompt: string      // 사용자 입력 포맷 프롬프트
   }
   twitter: {
     enabled: boolean
-    apiKey: string
-    apiSecret: string
-    accessToken: string
+    accessToken: string       // OAuth 토큰 (암호화 저장)
     formatPrompt: string
   }
   threads: {
@@ -470,21 +595,35 @@ interface BlogSNSSettings {
   }
   imageGen: {
     enabled: boolean
-    provider: 'dalle3' | 'ideogram' | 'flux' | null
-    isLocked: boolean         // 최초 선택 후 true (수동 변경 전까지)
+    provider: 'imagen3'                 // Google Imagen 3 (고정)
+    stylePreset: 'iphone16_warm_photo'  // 기본 프리셋 (고정)
+    // ※ API 키는 ai_api_keys 테이블의 provider='imagen'에서 참조
+    additionalStyleHint: string | null  // 추가 스타일 힌트 (선택)
   }
 }
 
-// blog_settings.coupang_settings 구조
-interface BlogCoupangSettings {
-  partnerId: string           // 쿠팡파트너스 파트너 ID
+// blog_settings.ai_config 구조 (AI 사용 설정 — 키는 ai_api_keys에서 참조)
+interface BlogAIConfig {
+  preferredProvider: 'claude' | 'openai' | 'gemini'  // 이 블로그에서 사용할 AI 공급자
+  model?: string                                       // 선호 모델 (미지정 시 기본값)
+  // 기본 모델: claude → sonnet-4-6, openai → gpt-4o, gemini → gemini-2.0-flash
+  // ※ API 키는 ai_api_keys 테이블의 해당 provider에서 참조
+}
+
+// blog_settings.affiliate_config 구조 (자동 삽입 설정 — 키/태그는 ai_api_keys에서 참조)
+interface BlogAffiliateConfig {
+  affiliateProvider: 'coupang' | 'amazon' | 'both'  // 제휴 플랫폼 선택 (ko→쿠팡 기본, en/ja→Amazon 기본)
   autoInsert: boolean         // PASONA O섹션 자동 삽입 여부
   maxProductsPerPost: number  // 글당 최대 상품 수 (기본값: 3)
+  // ※ 쿠팡파트너스 ID → ai_api_keys provider='coupang'
+  // ※ Amazon Associates Tag → ai_api_keys provider='amazon'
 }
 
 // blog_settings.language_settings 구조
+type BlogLanguage = 'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'
+
 interface BlogLanguageSettings {
-  language: 'ko' | 'en' | 'ja'
+  language: BlogLanguage
   writeStyle: string          // 언어별 글쓰기 스타일 힌트
 }
 ```

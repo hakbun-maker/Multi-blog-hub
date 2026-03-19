@@ -20,7 +20,7 @@
 | 문제 | 현재 상황 | 수익화 로켓 해결 |
 |------|----------|-----------------|
 | 키워드 발굴이 너무 많은 시간 소요 | 매일 수동으로 네이버·구글 검색 | 네이버 API + Google KWP + DataLab 자동 수집 |
-| 일반 SEO만으로는 AI 시대에 한계 | SEO 중심 글쓰기 | SEO + AEO + GEO + REO 통합 자동 글쓰기 |
+| 일반 SEO만으로는 AI 시대에 한계 | SEO 중심 글쓰기 | 4-Layer 전략(PASONA×Intent + SEO+AEO/GEO + 문맥광고 + REO) 자동 글쓰기 |
 | 복수 블로그 배분이 비효율적 | 수동으로 블로그 선택 | Intent × 블로그 등급 × 일일 할당량 기반 자동 배분 |
 | 수익 현황 파악이 어려움 | AdSense 대시보드 개별 확인 | 통합 수익 인텔리전스 대시보드 |
 | 이벤트/계절성 키워드 놓침 | 우연히 발견 | 외부 API 연동 이벤트 키워드 + ANNUAL_EVENTS 자동 탐색 |
@@ -45,18 +45,20 @@
     ↓
 [클러스터링 & Intent 분류]
   씨앗 키워드 → 의도별 클러스터(AD/REVIEW/INFO/CRITIC/COMPARE/TREND)
-  → 배분 엔진: 블로그 등급 × 유형 × 일일 제한 × 날짜/시간 배분
+  → 배분 엔진: BlogGrade × KeywordGrade(1차) + Intent × BlogGrade 적합도(2차) + 쿼터 + 날짜/시간 배분
     ↓
 [키워드 달력 등록 → 사용자 확인/수정/삭제]
     ↓
 [발행일 도래 시 AI 글쓰기]
-  Intent Directive + PASONA 비중 + 페르소나
-  → SEO + AEO + GEO + REO + PASONA 통합 프롬프트
-  → 섹션 타겟팅 태그 자동 삽입 (AdSense CPC 최적화)
+  4-Layer 전략 적용:
+  → L1: PASONA × Intent (글의 뼈대)
+  → L2: SEO + AEO/GEO (발견 최적화 + FAQ 아코디언 + JSON-LD Schema)
+  → L3: 문맥광고 (광고 섹션 태그 자동 삽입, AdSense CPC 최적화)
     ↓
-[3단계 검수]
-  합계 45점↑ → 자동 발행
-  미만 → 사용자 검수 대기열
+[품질 검수 — 키워드 유형별 분기]
+  골드/시즌 → 검수 A (발견17 + 설득18 + 수익15 = 50점)
+  이벤트 → 검수 B (이벤트 고유35 + 공통 기술15 = 50점)
+  합계 45점↑ → 자동 발행 / 미만 → 사용자 검수 대기열
     ↓
 [발행 & 성과 추적 → 피드백 루프]
 ```
@@ -70,8 +72,65 @@
 
 - 누적 실제 수익 + 예상 수익 복합 그래프 (골드 컬러)
 - 블로그별 / 광고별 / 언어별 / 블로그유형별 수익 분석
-- Revenue Score 기반 블로그 등급표 (S/A/B/C/D)
+- Revenue Score + REO(E-E-A-T) 기반 블로그 등급표 (S/A/B/C/D) — REO는 블로그 단위 장기 신뢰
 - 로켓 상태 위젯 (ON/OFF + 오늘 현황)
+
+---
+
+### 기능 1-1: 배분 엔진 — Intent × BlogGrade 매칭 로직 ★
+
+> 상세: `08-strategy-engine-spec.md` 엔진 1, `PRD.md` 4-3 참조
+
+#### Intent Priority Score (IPS)
+
+같은 KeywordGrade라도 Intent에 따라 CPC 잠재력이 다르므로, 배분 우선순위에 Intent 가중치를 적용한다.
+
+| Intent | IPS | CPC 잠재력 | 적합 블로그 등급 |
+|--------|-----|-----------|----------------|
+| AD | 1.0 | 매우 높음 (구매 직전) | S > A |
+| COMPARE | 0.9 | 매우 높음 (비교 후 구매) | S > A |
+| REVIEW | 0.7 | 높음 (구매 판단 참고) | A > S |
+| CRITIC | 0.5 | 중간 (신중한 탐색) | A > B |
+| INFO | 0.4 | 중간, 트래픽 높음 | B > A |
+| TREND | 0.2 | 낮음, 트래픽용 | B > NEW |
+
+배분 우선순위 = KeywordGrade 순위 × IPS
+→ S급+AD(1.0)가 S급+TREND(0.2)보다 먼저 S급 블로그 쿼터를 선점
+
+#### Intent × BlogGrade 적합도 매트릭스
+
+KeywordGrade 매트릭스(1차) 통과 후, Intent 적합도(2차)로 재정렬 + 부적합 제거:
+
+```
+          S급 블로그    A급 블로그    B급 블로그    NEW 블로그
+AD        ★★★ 최적    ★★ 양호      ★ 가능       ✗ 부적합
+COMPARE   ★★★ 최적    ★★ 양호      ★ 가능       ✗ 부적합
+REVIEW    ★★ 양호     ★★★ 최적     ★ 가능       ✗ 부적합
+CRITIC    ★ 가능      ★★★ 최적     ★★ 양호      ✗ 부적합
+INFO      ★ 가능      ★★ 양호      ★★★ 최적     ★ 가능
+TREND     ✗ 부적합    ★ 가능       ★★★ 최적     ★★ 양호
+```
+
+핵심 제약:
+- **S급 블로그에 TREND 배정 금지**: 저CPC 콘텐츠가 카테고리 일관성(consistency_pct)을 훼손
+- **NEW 블로그에 AD/COMPARE/REVIEW/CRITIC 배정 금지**: 신뢰도 부족으로 전환율 낮음
+- **AD/COMPARE는 S급 우선**: 구매 의도 키워드는 고CPC 광고가 안정 배정된 블로그에서 극대화
+- **INFO/TREND는 B/NEW급 최적**: 트래픽 유입형 콘텐츠로 하위 등급 블로그의 session_score 성장 가속
+
+#### Intent × BlogGrade 프롬프트 전략 (24종)
+
+배분 후 AI 글쓰기 시, Intent와 BlogGrade를 교차한 프롬프트 전략을 적용:
+
+```
+S급+AD:      전문가 추천 톤, adKeywords 고밀도, 가격 비교표, CTA 강력
+S급+COMPARE: 데이터 중심 비교, 표/차트, 중립+결론 명확
+A급+REVIEW:  균형 잡힌 리뷰, 일상 경험 중심, 공감 강화
+A급+CRITIC:  우려 정리, 주의점 나열, 대안 간략 제시
+B급+INFO:    쉬운 설명, 초보자 가이드, 검색량 높은 기본 정보
+B급+TREND:   트렌드 요약, 시의성 강조, 빠른 발행 우선
+NEW+INFO:    가장 기초적 설명, 검색 유입 극대화, 실적 씨앗
+NEW+TREND:   최신 트렌드 요약, 낮은 경쟁 롱테일 타겟
+```
 
 ---
 
@@ -138,16 +197,20 @@ so that 데이터 기반으로 전략을 조정할 수 있다.
 
 ## 5. 통합 전략 (docs/add 기반)
 
-| 전략 | 적용 위치 | 출처 |
+| 전략 (Layer) | 적용 위치 | 출처 |
 |------|----------|------|
-| 키워드 클러스터링 × Intent 분류 | 파이프라인 — 클러스터링 단계 | blog_automation_strategy_v2.md |
-| Revenue Score 체계 (S/A/B/C/D) | 키워드 탐색기 + 블로그 등급표 | KEYWORD_STRATEGY.MD |
-| PASONA × SEO/AEO/GEO 글쓰기 | 파이프라인 — 글쓰기 단계 | blog_automation_strategy_v2.md + PASONA_STRATEGY.MD |
-| 섹션 타겟팅 (AdSense CPC 최적화) | 파이프라인 — 글쓰기 단계 | PASONA_STRATEGY.MD |
-| REO (E-E-A-T + GEO 최적화) | 3단계 검수 + 글쓰기 프롬프트 | REO 기반 보고서.md |
-| 이벤트 기반 씨앗 키워드 | 키워드 탐색기 — 이벤트 모드 | blog_automation_strategy_v2.md |
-| 계절성 키워드 (ANNUAL_EVENTS) | 키워드 탐색기 — 계절성 모드 | KEYWORD_STRATEGY.MD |
-| 복수 블로그 배치 전략 | 배분 엔진 | blog_automation_strategy_v2.md |
+| **L1** PASONA × Intent 가중치 | 파이프라인 — 글쓰기 골격 | 08-strategy-engine-spec.md §전략3 |
+| **L2** SEO (온페이지 최적화) | 파이프라인 — 프롬프트 + 후처리 | 08-strategy-engine-spec.md §전략4 |
+| **L2** AEO/GEO (AI 검색 최적화) | 파이프라인 — FAQ 아코디언 + JSON-LD Schema | 08-strategy-engine-spec.md §전략5 |
+| **L3** 문맥광고 (섹션 타겟팅) | 파이프라인 — 후처리 광고 태그 삽입 | 08-strategy-engine-spec.md §글 구조 표준 |
+| **L4** REO (E-E-A-T 브랜드 신뢰) | 블로그 등급 평가 (월 1회, 글별 X) | 08-strategy-engine-spec.md §전략6 |
+| 키워드 클러스터링 × Intent 분류 | 파이프라인 — 클러스터링 단계 | 08-strategy-engine-spec.md §전략2 |
+| Revenue Score 체계 (S/A/B/C/D) | 키워드 탐색기 + 블로그 등급표 | 08-strategy-engine-spec.md §전략1 |
+| 이벤트 기반 씨앗 키워드 | 키워드 탐색기 — 이벤트 모드 | 08-strategy-engine-spec.md §엔진3 |
+| 계절성 키워드 (ANNUAL_EVENTS) | 키워드 탐색기 — 계절성 모드 | 08-strategy-engine-spec.md §엔진3 |
+| 복수 블로그 배치 전략 | 배분 엔진 | 08-strategy-engine-spec.md §엔진1 |
+| **Intent × BlogGrade 적합도 배분** | **배분 엔진 — 2차 필터** | **08-strategy-engine-spec.md §엔진1 (IPS + 적합도 매트릭스)** |
+| **Intent × BlogGrade 프롬프트 매트릭스** | **AI 글쓰기 — 24종 전략** | **PRD.md 4-5 / 01-prd.md 기능 1-1** |
 | 다국어 발행 (언어별 데이터소스 매핑) | 기능 4 — 다국어 블로그 자동 발행 | 09-neurion-features-spec.md §1 |
 | 수익화 역산 가이드 (목표 → 전략 출력) | 기능 5 — 수익화 가이드 패널 | 09-neurion-features-spec.md §2 |
 | SNS 포맷 자동 변환 (플랫폼별 프롬프트) | 기능 6 — SNS 자동 배포 | 09-neurion-features-spec.md §3 |
@@ -184,12 +247,42 @@ so that 데이터 기반으로 전략을 조정할 수 있다.
 | MVP Phase 4 | SNS 자동 배포 (기능 6) + 쿠팡파트너스 자동 삽입 (기능 7) |
 | MVP Phase 5 | 피드백 루프 자동화 + A/B 글 테스트 |
 
-**필수 외부 API**: 네이버 광고 API, Google Ads API (KWP), 네이버 DataLab API
+**플랫폼 제공 API** (무료, `.env.local`):
+- Meta Developer App — Instagram Graph + Threads API (OAuth App)
+- X Developer App — Twitter API v2 (OAuth App, Free 플랜)
+
+**블로거 제공 API** (사용자 발급, `blog_settings` DB 저장):
+- AI 글쓰기: Claude / GPT-4o / Gemini (택1, 사용자 API 키)
+- 키워드 탐색: 네이버 광고 API, Google Ads API (KWP), 네이버 DataLab API
+- 이미지 생성: Google Imagen 3 (사용자 API 키)
+- 수익화: 쿠팡파트너스 ID, Amazon Associates ID
+
 **선택 외부 API**: 인터파크/멜론티켓 RSS, Google Trends API, 각 스포츠연맹 크롤링
 
-**Neurion 확장 API** (Phase 3~4):
-- Instagram Graph API (SNS 발행)
-- Twitter API v2 (X 발행)
-- Threads API / Meta Graph API (Threads 발행)
-- DALL-E 3 / Ideogram / Flux (이미지 생성, 선택)
-- 쿠팡파트너스 API (제휴 링크 생성)
+---
+
+## 7. 동의서 및 법적 고지 체계
+
+> 상세: `docs/동의서/00-동의서-수집구조-가이드.md` 참조
+
+### 계층형 동의 (Layered Consent) 구조
+
+사용자 이탈 방지와 법적 안전성을 위해, 기능 최초 사용 시점에 필요한 동의만 수집합니다.
+
+| 수집 시점 | 동의서 | consent_type | UI 방식 |
+|----------|--------|-------------|---------|
+| **회원가입** | 서비스 이용약관 | `tos` | 체크박스 (필수) |
+| **회원가입** | 개인정보 처리방침 | `privacy` | 체크박스 (필수) |
+| **API 키 최초 등록** | API 키 위탁 보관 동의 | `api_key_storage` | 인라인 패널 |
+| **수익화 로켓 활성화** | 자동화 처리 동의 | `automation` | 전체 화면 모달 |
+| **SNS 연결** | SNS 연동 동의 (플랫폼별) | `sns_oauth_{platform}` | OAuth 직전 모달 |
+| **제휴마케팅 설정** | 제휴마케팅 고지 및 동의 | `affiliate_marketing` | 인라인 패널 |
+| **AdSense 연결** | AdSense 데이터 연동 동의 | `adsense_oauth` | OAuth 직전 모달 |
+| **블로그 플랫폼 연결** | 블로그 플랫폼 연동 동의 | `blog_platform_{platform}` | OAuth 직전 모달 |
+
+### 동의 이력 관리
+
+- DB: `user_consents` 테이블 (user_id, consent_type, consent_version, agreed_at, ip_address, method)
+- 약관 개정 시: 다음 로그인에서 변경 내용 요약 + 재동의 모달
+- 동의 철회 시: 관련 기능 자동 중단 + 데이터 삭제 (연쇄 처리)
+- 보관: 동의 이력 3년 보관 (전자상거래법)
