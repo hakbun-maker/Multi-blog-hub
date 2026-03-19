@@ -1,0 +1,192 @@
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+// Claude API via direct fetch (no SDK dependency)
+
+type ImprovementType = 'pasona' | 'seo' | 'cta'
+
+interface ImproveRequest {
+  improvementType: ImprovementType
+}
+
+/**
+ * POST /api/writing/ai-improve/[postId]
+ * AI improvement endpoint.
+ * Body: { improvementType: 'pasona' | 'seo' | 'cta' }
+ * Returns improved content section
+ */
+export async function POST(
+  request: Request,
+  { params }: { params: { postId: string } }
+) {
+  const supabase = createClient()
+
+  // Authentication check
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: '인증 필요' }, { status: 401 })
+  }
+
+  const { postId } = params
+
+  try {
+    const body = (await request.json()) as ImproveRequest
+    const { improvementType } = body
+
+    if (!improvementType || !['pasona', 'seo', 'cta'].includes(improvementType)) {
+      return NextResponse.json({ error: 'Invalid improvement type' }, { status: 400 })
+    }
+
+    // Check plan feature access
+    const { data: userPlan } = await supabase
+      .from('user_plans')
+      .select(
+        `
+        user_id,
+        plan_id,
+        plans (
+          id,
+          plan_features!inner(feature_key, enabled)
+        )
+      `
+      )
+      .eq('user_id', user.id)
+      .single()
+
+    if (!userPlan) {
+      return NextResponse.json({ error: 'Plan not found' }, { status: 403 })
+    }
+
+    // Check if feature is enabled for plan
+    const features = userPlan.plans as any
+    const hasFeature = features.plan_features?.some(
+      (f: any) => f.feature_key === 'auto_writing_pipeline' && f.enabled === 'true'
+    )
+
+    if (!hasFeature) {
+      return NextResponse.json(
+        { error: 'Feature not available for your plan' },
+        { status: 403 }
+      )
+    }
+
+    // Get the scheduled post
+    const { data: post, error: postError } = await supabase
+      .from('scheduled_posts')
+      .select('id, blog_id, content_draft, keyword_id, keywords(keyword)')
+      .eq('id', postId)
+      .single()
+
+    if (postError) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
+    // Verify user owns the blog
+    const { data: blog, error: blogError } = await supabase
+      .from('blogs')
+      .select('id, user_id')
+      .eq('id', (post as any).blog_id)
+      .single()
+
+    if (blogError || blog.user_id !== user.id) {
+      return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    }
+
+    const currentContent = (post as any).content_draft || ''
+    const keyword = (post as any).keywords?.keyword || 'target keyword'
+
+    // Call Claude API for improvement
+    const client = new Anthropic()
+    const improvedContent = await generateImprovement(
+      client,
+      improvementType,
+      currentContent,
+      keyword
+    )
+
+    return NextResponse.json({
+      data: {
+        postId,
+        improvementType,
+        improvedContent,
+        message: `${improvementType.toUpperCase()} 개선 완료`,
+      },
+      status: 200,
+    })
+  } catch (error) {
+    console.error('Error improving content:', error)
+    return NextResponse.json({ error: '콘텐츠 개선 실패' }, { status: 500 })
+  }
+}
+
+async function generateImprovement(
+  client: Anthropic,
+  type: ImprovementType,
+  content: string,
+  keyword: string
+): Promise<string> {
+  const prompts: Record<ImprovementType, string> = {
+    pasona: `다음 콘텐츠를 PASONA 구조로 개선해주세요.
+PASONA는:
+- P(Problem): 독자가 겪는 문제 명시
+- A(Agitation): 문제의 심각성 강조
+- S(Solution): 해결책 제시
+- O(Offer): 특정 제안 제시
+- N(Narrowing): 제한된 시간/수량 강조
+- A(Action): 명확한 행동 촉구
+
+현재 콘텐츠:
+${content}
+
+개선된 콘텐츠를 반환해주세요. HTML 형식을 유지하세요.`,
+
+    seo: `다음 콘텐츠를 SEO 최적화해주세요.
+키워드: "${keyword}"
+
+최적화 기준:
+- 키워드를 자연스럽게 포함 (밀도 1-2%)
+- H2, H3 구조 개선
+- 메타 설명 최적화
+- 내부 링크 추가 제안
+- 이미지 alt 텍스트 추가
+
+현재 콘텐츠:
+${content}
+
+개선된 콘텐츠를 반환해주세요. HTML 형식을 유지하세요.`,
+
+    cta: `다음 콘텐츠의 CTA(Call-To-Action)를 강화해주세요.
+키워드: "${keyword}"
+
+CTA 강화 방법:
+- 명확한 행동 촉구 문구 추가
+- 긴급성 전달 (시간 제한, 한정 수량 등)
+- 가치 제시 (혜택, 이점 명시)
+- 버튼/링크 추가
+- 마지막 부분에 강력한 클로징
+
+현재 콘텐츠:
+${content}
+
+개선된 콘텐츠를 반환해주세요. HTML 형식을 유지하세요.`,
+  }
+
+  const message = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 4096,
+    messages: [
+      {
+        role: 'user',
+        content: prompts[type],
+      },
+    ],
+  })
+
+  const textContent = message.content.find((block) => block.type === 'text')
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text content in response')
+  }
+
+  return textContent.text
+}
