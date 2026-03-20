@@ -13,11 +13,11 @@
 |-------|------|--------|--------|------|
 | **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ✅ 완료 |
 | **P2** | Blog Settings 3탭 추가 | 8 | M | ✅ 완료 |
-| **P3** | Editor 검수 워크플로우 | 5 | M-L | ⬜ |
+| **P3** | Editor 검수 워크플로우 | 5 | M-L | ✅ 완료 (T2-13~17) |
 | **P4** | API Keys 탭 확장 | 4 | M | ✅ 완료 (T2-19~21) |
 | **P5** | Consent 연동 | 5 | S-M | ⬜ |
 | **P6** | SNS Platform Publishing (Future) | 4 | L | ⬜ |
-| **합계** | | **30** | | **18/30 완료** |
+| **합계** | | **30** | | **23/30 완료** |
 
 ---
 
@@ -190,67 +190,72 @@
 > 기존 컴포넌트 존재: MonetizeEditorHeader, MonetizeEditorSidebar, MonetizeEditorActions
 > 백엔드 API 존재: /api/writing/edit-context/[id], re-score, ai-improve
 
-### [ ] T2-13: ?from=review 감지 + edit-context fetch
+### [x] T2-13: ?from=review 감지 + edit-context fetch ✅
 
 - **설명**: 에디터 페이지에서 `?from=review` 파라미터 감지 후 수익화 컨텍스트 로드.
 - **수정 파일**:
   - `app/(dashboard)/editor/[id]/page.tsx`
 - **작업**:
-  - [ ] `useSearchParams` import + Suspense 래핑
-  - [ ] `isReviewMode` 상태 추가 (`from === 'review'` 감지)
-  - [ ] `editContext` 상태 추가 (keyword, grade, intent, blog, score 등)
-  - [ ] `isReviewMode` 일 때 `GET /api/writing/edit-context/${id}` fetch
-  - [ ] editContext.content를 에디터 초기값으로 설정
+  - [x] `useSearchParams` import + Suspense 래핑
+  - [x] `isReviewMode` 상태 추가 (`from === 'review'` 감지)
+  - [x] `editContext` 상태 추가 (keyword, grade, intent, blog, score 등)
+  - [x] `isReviewMode` 일 때 `GET /api/writing/edit-context/${id}` fetch
+  - [x] editContext.content를 에디터 초기값으로 설정
 - **의존**: 없음
 - **복잡도**: M
+- **완료일**: 2026-03-21
 
-### [ ] T2-14: MonetizeEditorHeader 조건부 렌더링
+### [x] T2-14: MonetizeEditorHeader 조건부 렌더링 ✅
 
 - **설명**: 검수 모드 진입 시 에디터 상단에 키워드/등급/인텐트/블로그명 표시.
 - **수정 파일**:
   - `app/(dashboard)/editor/[id]/page.tsx`
 - **작업**:
-  - [ ] `MonetizeEditorHeader` import
-  - [ ] `isReviewMode && editContext` 조건으로 제목 입력 위에 렌더링
+  - [x] `MonetizeEditorHeader` import
+  - [x] `isReviewMode && editContext` 조건으로 제목 입력 위에 렌더링
 - **의존**: T2-13
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-15: MonetizeEditorSidebar 그리드 레이아웃
+### [x] T2-15: MonetizeEditorSidebar 그리드 레이아웃 ✅
 
 - **설명**: 검수 모드 시 에디터를 2/3 + 1/3 그리드로 변경. 사이드패널에 검수 점수, AI 개선, SEO 체크리스트 표시.
 - **수정 파일**:
   - `app/(dashboard)/editor/[id]/page.tsx`
 - **작업**:
-  - [ ] `MonetizeEditorSidebar` import
-  - [ ] 레이아웃 조건 분기: `isReviewMode ? 'grid grid-cols-3 gap-6' : ''`
-  - [ ] 에디터 영역: `col-span-2` / 사이드패널: `col-span-1`
-  - [ ] MonetizeEditorSidebar는 내부에 FeatureGate 포함 (이중 래핑 불필요)
+  - [x] `MonetizeEditorSidebar` import
+  - [x] 레이아웃 조건 분기: `isReviewMode ? 'grid grid-cols-3 gap-6' : ''`
+  - [x] 에디터 영역: `col-span-2` / 사이드패널: `col-span-1`
+  - [x] MonetizeEditorSidebar는 내부에 FeatureGate 포함 (이중 래핑 불필요)
 - **의존**: T2-13
 - **복잡도**: M
+- **완료일**: 2026-03-21
 
-### [ ] T2-16: MonetizeEditorActions 렌더링
+### [x] T2-16: MonetizeEditorActions 렌더링 ✅
 
 - **설명**: 검수 모드 시 저장/재검수/승인/거절 액션 버튼 추가.
 - **수정 파일**:
   - `app/(dashboard)/editor/[id]/page.tsx`
 - **작업**:
-  - [ ] `MonetizeEditorActions` import
-  - [ ] 사이드패널 하단에 렌더링 (postId, content, score props)
-  - [ ] 이미 내부적으로 draft/re-score/approve/reject API 호출
+  - [x] `MonetizeEditorActions` import
+  - [x] 사이드패널 하단에 렌더링 (postId, content, score props)
+  - [x] 이미 내부적으로 draft/re-score/approve/reject API 호출
 - **의존**: T2-15
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-17: AI 개선 이벤트 리스너 연결
+### [x] T2-17: AI 개선 이벤트 리스너 연결 ✅
 
 - **설명**: `AIImproveSuggestion`이 `CustomEvent('ai-improve-content')` 발생시킴. 에디터가 이를 수신하여 콘텐츠 갱신.
 - **수정 파일**:
   - `app/(dashboard)/editor/[id]/page.tsx`
 - **작업**:
-  - [ ] `useEffect`에서 `ai-improve-content` 이벤트 리스너 등록
-  - [ ] 이벤트 수신 시 `setHtmlContent(e.detail.content)`
-  - [ ] `isReviewMode` 일 때만 리스너 활성화
+  - [x] `useEffect`에서 `ai-improve-content` 이벤트 리스너 등록
+  - [x] 이벤트 수신 시 `setHtmlContent(e.detail.content)`
+  - [x] `isReviewMode` 일 때만 리스너 활성화
 - **의존**: T2-15
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
 ---
 

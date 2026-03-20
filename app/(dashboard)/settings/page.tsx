@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid } from 'lucide-react'
 import { MemoTab } from '@/components/blogs/MemoTab'
 import { PlanSettingsTab } from '@/components/plan/PlanSettingsTab'
+import { BlogSettingsAllInOne } from '@/components/blogs/settings/BlogSettingsAllInOne'
 import { usePlanContext } from '@/components/plan/PlanContext'
 
 interface AIKey {
@@ -313,6 +314,9 @@ function SettingsPageInner() {
               </TabsTrigger>
               <TabsTrigger value="consent" className="flex items-center gap-1.5 whitespace-nowrap">
                 <Shield className="h-3.5 w-3.5" /> 동의 관리
+              </TabsTrigger>
+              <TabsTrigger value="blog-all" className="flex items-center gap-1.5 whitespace-nowrap">
+                <LayoutGrid className="h-3.5 w-3.5" /> 블로그 설정
               </TabsTrigger>
               <TabsTrigger value="plan" className="flex items-center gap-1.5 whitespace-nowrap">
                 <CreditCard className="h-3.5 w-3.5" /> 요금제
@@ -693,6 +697,10 @@ function SettingsPageInner() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="blog-all" className="mt-6">
+            <BlogSettingsAllInOne />
           </TabsContent>
 
           <TabsContent value="plan" className="mt-6">
