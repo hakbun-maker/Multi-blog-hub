@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 async function handleTestConnection(supabase: any, userId: string, keyId: string) {
   const { data: keyRow, error } = await supabase
     .from('ai_api_keys')
-    .select('provider, encrypted_key, encrypted_secret')
+    .select('provider, encrypted_key, encrypted_secret, encrypted_extra')
     .eq('id', keyId)
     .eq('user_id', userId)
     .single()
@@ -70,11 +70,13 @@ async function handleTestConnection(supabase: any, userId: string, keyId: string
   try {
     const apiKey = decrypt(keyRow.encrypted_key)
     const apiSecret = keyRow.encrypted_secret ? decrypt(keyRow.encrypted_secret) : undefined
+    const apiExtra = keyRow.encrypted_extra ? decrypt(keyRow.encrypted_extra) : undefined
 
     const result = await testProviderConnection(
       keyRow.provider as ApiProvider,
       apiKey,
-      apiSecret
+      apiSecret,
+      apiExtra
     )
 
     return NextResponse.json(result)

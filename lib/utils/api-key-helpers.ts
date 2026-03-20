@@ -56,18 +56,21 @@ export interface TestResult {
 export async function testApiKey(
   provider: ApiProvider,
   key: string,
-  secret?: string
+  secret?: string,
+  extra?: string
 ): Promise<TestResult> {
-  return testProviderConnection(provider, key, secret)
+  return testProviderConnection(provider, key, secret, extra)
 }
 
 /**
  * Test provider connection (alias for backward compatibility)
+ * @param extra - Optional extra credential (e.g., Naver Ad Customer ID)
  */
 export async function testProviderConnection(
   provider: ApiProvider,
   key: string,
-  secret?: string
+  secret?: string,
+  extra?: string
 ): Promise<TestResult> {
   if (!key || key.trim().length === 0) {
     return { success: false, message: 'API key is required' }
@@ -83,7 +86,7 @@ export async function testProviderConnection(
     case 'imagen':
       return testImagenKey(key)
     case 'naver_ad':
-      return testNaverAdKey(key, secret)
+      return testNaverAdKey(key, secret, extra)
     case 'naver_search':
       return testNaverSearchKey(key, secret)
     case 'google_kwp':
@@ -226,12 +229,13 @@ function generateNaverAdSignature(timestamp: string, method: string, uri: string
  * Test Naver Advertising API key (Search Ads API)
  * Naver Search Ads API uses HMAC-SHA256 signature authentication.
  * Required: API Key (access license), Secret Key, Customer ID.
- * Since we only store key + secret, we attempt a signed request
- * and treat any auth-aware response (401/403/200/400) as "key is valid".
  */
-async function testNaverAdKey(key: string, secret?: string): Promise<TestResult> {
+async function testNaverAdKey(key: string, secret?: string, customerId?: string): Promise<TestResult> {
   if (!secret) {
     return { success: false, message: '네이버 광고 API는 API Key와 Secret Key가 모두 필요합니다.' }
+  }
+  if (!customerId) {
+    return { success: false, message: '네이버 광고 API는 Customer ID가 필요합니다. 키를 다시 등록해주세요.' }
   }
 
   try {
@@ -244,7 +248,7 @@ async function testNaverAdKey(key: string, secret?: string): Promise<TestResult>
       method,
       headers: {
         'X-API-KEY': key,
-        'X-Customer': '',
+        'X-Customer': customerId,
         'X-Signature': signature,
         'X-Timestamp': timestamp,
       },
@@ -252,12 +256,12 @@ async function testNaverAdKey(key: string, secret?: string): Promise<TestResult>
 
     // 401 = invalid API key or signature
     if (response.status === 401) {
-      return { success: false, message: '네이버 광고 API 인증 실패: API Key 또는 Secret이 올바르지 않습니다.' }
+      return { success: false, message: '네이버 광고 API 인증 실패: API Key, Secret 또는 Customer ID가 올바르지 않습니다.' }
     }
 
-    // 403 = auth succeeded but no permission, or missing customer ID → key is valid
+    // 403 = auth succeeded but no permission for this resource
     if (response.status === 403) {
-      return { success: true, message: '네이버 광고 API 키가 유효합니다. (Customer ID 미설정으로 권한 제한)' }
+      return { success: true, message: '네이버 광고 API 인증 성공 (해당 캠페인 접근 권한 없음, 키는 유효)' }
     }
 
     // 200 or 400 = server recognized the request → credentials valid

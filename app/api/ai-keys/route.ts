@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('ai_api_keys')
-    .select('id, provider, is_active, created_at, encrypted_key, encrypted_secret')
+    .select('id, provider, is_active, created_at, encrypted_key, encrypted_secret, encrypted_extra')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -41,6 +41,7 @@ export async function GET() {
       created_at: k.created_at,
       masked_key: maskedKey,
       has_secret: !!k.encrypted_secret,
+      has_extra: !!k.encrypted_extra,
     }
   })
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const { provider, apiKey, apiSecret } = await request.json()
+  const { provider, apiKey, apiSecret, apiExtra } = await request.json()
 
   if (!provider || !apiKey) {
     return NextResponse.json({ error: 'provider와 apiKey는 필수입니다.' }, { status: 400 })
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
 
   const encryptedKey = encrypt(apiKey)
   const encryptedSecret = apiSecret ? encrypt(apiSecret) : null
+  const encryptedExtra = apiExtra ? encrypt(apiExtra) : null
 
   const { data, error } = await supabase
     .from('ai_api_keys')
@@ -71,9 +73,10 @@ export async function POST(request: Request) {
       provider,
       encrypted_key: encryptedKey,
       encrypted_secret: encryptedSecret,
+      encrypted_extra: encryptedExtra,
       is_active: true,
     }, { onConflict: 'user_id,provider' })
-    .select('id, provider, is_active, created_at, encrypted_secret')
+    .select('id, provider, is_active, created_at, encrypted_secret, encrypted_extra')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -85,6 +88,7 @@ export async function POST(request: Request) {
       is_active: data.is_active,
       created_at: data.created_at,
       has_secret: !!data.encrypted_secret,
+      has_extra: !!data.encrypted_extra,
     }
   }, { status: 201 })
 }

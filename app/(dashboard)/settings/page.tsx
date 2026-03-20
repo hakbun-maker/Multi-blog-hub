@@ -23,6 +23,7 @@ interface AIKey {
   is_active: boolean
   created_at: string
   has_secret?: boolean
+  has_extra?: boolean
 }
 
 interface UserProfile {
@@ -38,6 +39,9 @@ interface ProviderDef {
   needsSecret?: boolean
   secretPlaceholder?: string
   secretLabel?: string
+  needsExtra?: boolean
+  extraPlaceholder?: string
+  extraLabel?: string
   guide?: string
 }
 
@@ -83,7 +87,10 @@ const KEYWORD_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: '시크릿 키 입력',
     secretLabel: 'API Secret',
-    note: '네이버 검색광고 키워드 도구 데이터를 조회합니다. 월간 검색량, 경쟁도, 클릭 단가(CPC) 분석에 필수입니다.\n\n[발급 조건] 네이버 검색광고 계정 필요 (사업자등록번호 또는 개인 가입 가능). 광고 집행 없이도 API 키 발급 가능\n[발급 순서] ① searchad.naver.com 가입 ② 도구 > API 사용 관리 ③ API 키 신청 ④ API License (키) + Secret Key 복사\n[주의] API 키와 Secret이 별도입니다. 둘 다 입력해야 합니다.',
+    needsExtra: true,
+    extraPlaceholder: '광고 계정 Customer ID (숫자)',
+    extraLabel: 'Customer ID',
+    note: '네이버 검색광고 키워드 도구 데이터를 조회합니다. 월간 검색량, 경쟁도, 클릭 단가(CPC) 분석에 필수입니다.\n\n[발급 조건] 네이버 검색광고 계정 필요 (사업자등록번호 또는 개인 가입 가능). 광고 집행 없이도 API 키 발급 가능\n[발급 순서] ① searchad.naver.com 가입 ② 도구 > API 사용 관리 ③ API 키 신청 ④ API License (키) + Secret Key 복사\n[Customer ID 확인] 네이버 검색광고 로그인 → 좌측 상단 광고 계정 이름 옆 숫자가 Customer ID입니다.\n[주의] API 키, Secret, Customer ID 세 가지 모두 입력해야 합니다.',
     guide: 'https://manage.searchad.naver.com',
   },
   {
@@ -161,8 +168,10 @@ function SettingsPageInner() {
   const [selectedProvider, setSelectedProvider] = useState<string>('claude')
   const [newKey, setNewKey] = useState('')
   const [newSecret, setNewSecret] = useState('')
+  const [newExtra, setNewExtra] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  const [showExtra, setShowExtra] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [addingKey, setAddingKey] = useState(false)
@@ -209,11 +218,16 @@ function SettingsPageInner() {
       setAddResult({ ok: false, message: `${providerDef.secretLabel ?? 'Secret'}을 입력해주세요.` })
       return
     }
+    if (providerDef?.needsExtra && !newExtra.trim()) {
+      setAddResult({ ok: false, message: `${providerDef.extraLabel ?? 'Customer ID'}를 입력해주세요.` })
+      return
+    }
     setAddingKey(true)
     setAddResult(null)
     try {
       const body: Record<string, string> = { provider: selectedProvider, apiKey: newKey.trim() }
       if (newSecret.trim()) body.apiSecret = newSecret.trim()
+      if (newExtra.trim()) body.apiExtra = newExtra.trim()
       const res = await fetch('/api/ai-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,6 +237,7 @@ function SettingsPageInner() {
       if (res.ok) {
         setNewKey('')
         setNewSecret('')
+        setNewExtra('')
         setAddResult({ ok: true, message: `${providerDef?.label ?? selectedProvider} 키가 성공적으로 등록되었습니다.` })
         fetchAll()
       } else {
@@ -459,7 +474,7 @@ function SettingsPageInner() {
                       return (
                         <button
                           key={p.value}
-                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
                           className={`relative px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-primary text-primary-foreground border-primary'
@@ -485,7 +500,7 @@ function SettingsPageInner() {
                       return (
                         <button
                           key={p.value}
-                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
                           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-violet-600 text-white border-violet-600'
@@ -512,7 +527,7 @@ function SettingsPageInner() {
                       return (
                         <button
                           key={p.value}
-                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
                           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-emerald-600 text-white border-emerald-600'
@@ -539,7 +554,7 @@ function SettingsPageInner() {
                       return (
                         <button
                           key={p.value}
-                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret('') }}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
                           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-orange-600 text-white border-orange-600'
@@ -615,6 +630,30 @@ function SettingsPageInner() {
                               {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {providerDef.needsExtra && (
+                        <div className="space-y-1.5">
+                          <Label>{providerDef.extraLabel ?? 'Customer ID'}</Label>
+                          <div className="relative">
+                            <Input
+                              type={showExtra ? 'text' : 'password'}
+                              placeholder={providerDef.extraPlaceholder ?? 'Customer ID 입력'}
+                              value={newExtra}
+                              onChange={e => setNewExtra(e.target.value)}
+                              className="pr-10 font-mono text-sm"
+                            />
+                            <button
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowExtra(s => !s)}
+                            >
+                              {showExtra ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            네이버 검색광고 로그인 후 좌측 상단에 표시되는 광고 계정 번호입니다.
+                          </p>
                         </div>
                       )}
 
