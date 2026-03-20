@@ -44,7 +44,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const body = await request.json()
+  let body: Record<string, unknown> = {}
+  try { body = await request.json() } catch { /* empty body → default to test */ }
   const action = body.action || 'test'
 
   if (action === 'test') {
