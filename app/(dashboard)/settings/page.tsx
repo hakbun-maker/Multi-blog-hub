@@ -41,9 +41,27 @@ interface ProviderDef {
 }
 
 const TEXT_PROVIDERS: ProviderDef[] = [
-  { value: 'claude', label: 'Claude (Anthropic)', placeholder: 'sk-ant-api...', guide: 'https://console.anthropic.com/settings/keys' },
-  { value: 'openai', label: 'OpenAI (GPT)', placeholder: 'sk-...', guide: 'https://platform.openai.com/api-keys' },
-  { value: 'gemini', label: 'Google Gemini', placeholder: 'AIza...', guide: 'https://aistudio.google.com/app/apikey' },
+  {
+    value: 'claude',
+    label: 'Claude (Anthropic)',
+    placeholder: 'sk-ant-api...',
+    note: 'AI 글 생성의 핵심 엔진입니다. 블로그 글, AI 캐릭터 생성에 사용됩니다.\n\n[발급 조건] Anthropic 계정 생성 → Console에서 API Key 발급 (무료 크레딧 제공, 이후 종량제)\n[발급 순서] ① console.anthropic.com 가입 ② Settings > API Keys ③ Create Key 클릭 ④ sk-ant-api로 시작하는 키 복사',
+    guide: 'https://console.anthropic.com/settings/keys',
+  },
+  {
+    value: 'openai',
+    label: 'OpenAI (GPT)',
+    placeholder: 'sk-...',
+    note: 'GPT 모델 기반 글 생성에 사용됩니다. Claude 대안으로 활용 가능합니다.\n\n[발급 조건] OpenAI 계정 + 결제 수단 등록 필요 (종량제 과금)\n[발급 순서] ① platform.openai.com 가입 ② API Keys 메뉴 ③ Create new secret key ④ sk-로 시작하는 키 복사\n[주의] 키는 생성 시 한 번만 표시됩니다. 반드시 즉시 복사하세요.',
+    guide: 'https://platform.openai.com/api-keys',
+  },
+  {
+    value: 'gemini',
+    label: 'Google Gemini',
+    placeholder: 'AIza...',
+    note: 'Google Gemini 모델로 글을 생성합니다. 무료 사용량이 넉넉하여 입문용으로 추천합니다.\n\n[발급 조건] Google 계정만 있으면 무료 발급 가능\n[발급 순서] ① aistudio.google.com 접속 ② Get API Key 클릭 ③ Create API key in new project 선택 ④ AIza로 시작하는 키 복사',
+    guide: 'https://aistudio.google.com/app/apikey',
+  },
 ]
 
 const IMAGE_PROVIDERS: ProviderDef[] = [
@@ -51,7 +69,7 @@ const IMAGE_PROVIDERS: ProviderDef[] = [
     value: 'imagen',
     label: 'Google Imagen 3',
     placeholder: 'AIza...',
-    note: 'Google AI Studio API Key (Gemini 키와 동일한 형식). Imagen 3 모델로 이미지를 자동 생성합니다.',
+    note: 'Imagen 3 모델로 블로그 대표 이미지를 자동 생성합니다. Gemini API 키와 동일한 형식입니다.\n\n[발급 조건] Google 계정 + Gemini API 키와 동일 (별도 발급 불필요)\n[발급 순서] Gemini 키를 이미 발급받았다면 같은 키를 입력하세요. 없다면 위 Gemini 가이드를 따라주세요.\n[참고] Imagen은 Gemini API를 통해 호출되므로 별도 키가 필요하지 않습니다.',
     guide: 'https://aistudio.google.com/app/apikey',
   },
 ]
@@ -64,7 +82,7 @@ const KEYWORD_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: '시크릿 키 입력',
     secretLabel: 'API Secret',
-    note: '네이버 검색광고 키워드 도구에 사용됩니다. 검색량, 경쟁도, CPC 데이터를 조회합니다.',
+    note: '네이버 검색광고 키워드 도구 데이터를 조회합니다. 월간 검색량, 경쟁도, 클릭 단가(CPC) 분석에 필수입니다.\n\n[발급 조건] 네이버 검색광고 계정 필요 (사업자등록번호 또는 개인 가입 가능). 광고 집행 없이도 API 키 발급 가능\n[발급 순서] ① searchad.naver.com 가입 ② 도구 > API 사용 관리 ③ API 키 신청 ④ API License (키) + Secret Key 복사\n[주의] API 키와 Secret이 별도입니다. 둘 다 입력해야 합니다.',
     guide: 'https://manage.searchad.naver.com',
   },
   {
@@ -74,14 +92,14 @@ const KEYWORD_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: 'Client Secret',
     secretLabel: 'Client Secret',
-    note: '네이버 검색 트렌드 및 연관 키워드 분석에 사용됩니다.',
+    note: '네이버 검색 트렌드, 연관 키워드, 블로그 검색 데이터를 분석합니다.\n\n[발급 조건] 네이버 개발자 계정 (일반 네이버 계정으로 가입 가능, 무료)\n[발급 순서] ① developers.naver.com 가입 ② Application > 애플리케이션 등록 ③ 사용 API: 검색 선택 ④ Client ID + Client Secret 복사\n[참고] 일일 25,000건 무료 호출 가능합니다.',
     guide: 'https://developers.naver.com/apps',
   },
   {
     value: 'google_kwp',
     label: 'Google Keyword Planner',
     placeholder: 'Developer Token',
-    note: 'Google Ads 키워드 플래너 데이터에 사용됩니다. 글로벌 검색량 분석에 필수.',
+    note: 'Google Ads 키워드 플래너로 글로벌 검색량을 분석합니다. 해외 블로그 운영 시 필수입니다.\n\n[발급 조건] Google Ads 계정 + API 개발자 토큰 신청 승인 필요 (승인까지 수일 소요)\n[발급 순서] ① ads.google.com 계정 생성 ② 도구 및 설정 > API 센터 ③ 개발자 토큰 신청 ④ 기본 액세스 승인 후 토큰 복사\n[주의] 광고를 집행하지 않아도 되지만, 계정 설정이 필요합니다. 테스트 계정으로는 제한된 데이터만 조회 가능합니다.',
     guide: 'https://ads.google.com/aw/apicenter',
   },
 ]
@@ -94,7 +112,7 @@ const MONETIZE_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: 'Secret Key',
     secretLabel: 'Secret Key',
-    note: '쿠팡 상품 링크를 자동 삽입하여 제휴 수익을 창출합니다.',
+    note: '쿠팡 상품 링크를 자동 삽입하여 구매 시 수수료 수익(3~7%)을 창출합니다.\n\n[발급 조건] 쿠팡파트너스 가입 + 웹사이트/블로그 URL 등록 + 심사 승인 필요 (보통 1~3일)\n[발급 순서] ① partners.coupang.com 가입 ② 미디어(블로그 URL) 등록 및 심사 대기 ③ 승인 후 "도구" > "Open API" 메뉴 진입 ④ Access Key + Secret Key 발급 및 복사\n[주의] 반드시 블로그/웹사이트가 실제 운영 중이어야 심사 통과됩니다. 컨텐츠가 없는 빈 사이트는 거절될 수 있습니다.\n[수익 구조] 방문자가 쿠팡 링크를 클릭하고 24시간 내 구매 시 수수료 적립',
     guide: 'https://partners.coupang.com',
   },
   {
@@ -104,7 +122,7 @@ const MONETIZE_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: 'Secret Key',
     secretLabel: 'Secret Key',
-    note: '아마존 상품 링크를 통한 해외 제휴 수익에 사용됩니다.',
+    note: '아마존 상품 링크를 통한 해외 제휴 수익(1~10%)을 창출합니다. 영어/글로벌 블로그에 적합합니다.\n\n[발급 조건] Amazon Associates 가입 + 웹사이트 등록 + 180일 내 3건 이상 판매 달성 필요 (미달성 시 계정 해지)\n[발급 순서] ① affiliate-program.amazon.com 가입 ② 프로필 및 웹사이트 정보 입력 ③ 승인 후 Tools > Product Advertising API ④ Add Credentials로 Access Key + Secret Key 발급\n[주의] 가입 후 180일 내 최소 3건 판매가 이루어져야 계정이 유지됩니다. API 키는 판매 실적과 별도로 바로 발급 가능합니다.\n[수익 구조] 카테고리별 1~10% 수수료. 전자기기(3~4%), 패션(7~10%), 도서(4.5%)',
     guide: 'https://affiliate-program.amazon.com',
   },
 ]
@@ -279,26 +297,28 @@ function SettingsPageInner() {
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="account" className="flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5" /> 계정
-            </TabsTrigger>
-            <TabsTrigger value="ai-keys" className="flex items-center gap-1.5">
-              <Key className="h-3.5 w-3.5" /> API 키 관리
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-1.5">
-              <Bell className="h-3.5 w-3.5" /> 알림
-            </TabsTrigger>
-            <TabsTrigger value="snippets" className="flex items-center gap-1.5">
-              <Scissors className="h-3.5 w-3.5" /> 스니펫 관리
-            </TabsTrigger>
-            <TabsTrigger value="consent" className="flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5" /> 동의 관리
-            </TabsTrigger>
-            <TabsTrigger value="plan" className="flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5" /> 요금제
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="min-w-max">
+              <TabsTrigger value="account" className="flex items-center gap-1.5 whitespace-nowrap">
+                <User className="h-3.5 w-3.5" /> 계정
+              </TabsTrigger>
+              <TabsTrigger value="ai-keys" className="flex items-center gap-1.5 whitespace-nowrap">
+                <Key className="h-3.5 w-3.5" /> API 키 관리
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="flex items-center gap-1.5 whitespace-nowrap">
+                <Bell className="h-3.5 w-3.5" /> 알림
+              </TabsTrigger>
+              <TabsTrigger value="snippets" className="flex items-center gap-1.5 whitespace-nowrap">
+                <Scissors className="h-3.5 w-3.5" /> 스니펫 관리
+              </TabsTrigger>
+              <TabsTrigger value="consent" className="flex items-center gap-1.5 whitespace-nowrap">
+                <Shield className="h-3.5 w-3.5" /> 동의 관리
+              </TabsTrigger>
+              <TabsTrigger value="plan" className="flex items-center gap-1.5 whitespace-nowrap">
+                <CreditCard className="h-3.5 w-3.5" /> 요금제
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* 계정 탭 */}
           <TabsContent value="account" className="mt-6">
@@ -541,13 +561,15 @@ function SettingsPageInner() {
                   return (
                     <div className="space-y-3">
                       {providerDef.note && (
-                        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 whitespace-pre-line leading-relaxed">
                           {providerDef.note}
                           {providerDef.guide && (
-                            <a href={providerDef.guide} target="_blank" rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline ml-1">
-                              발급 가이드 →
-                            </a>
+                            <div className="mt-2">
+                              <a href={providerDef.guide} target="_blank" rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline font-medium">
+                                공식 사이트에서 발급하기 →
+                              </a>
+                            </div>
                           )}
                         </div>
                       )}

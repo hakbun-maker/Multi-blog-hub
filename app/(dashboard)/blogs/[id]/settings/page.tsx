@@ -379,7 +379,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
     const res = await fetch(`/api/blogs/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive, blogType: blogType || null, language: blogLanguage }),
+      body: JSON.stringify({ name, description, customDomain: customDomain || null, color, isActive, blogType: blogType || null }),
     })
     setSaving(false)
     if (res.ok) showSuccess('기본정보가 저장되었습니다.')
@@ -560,16 +560,16 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
           </div>
           <div className="space-y-1.5">
             <Label>블로그 언어</Label>
-            <select
-              value={blogLanguage}
-              onChange={e => setBlogLanguage(e.target.value as BlogLanguage)}
-              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {LANGUAGES.map(l => (
-                <option key={l.value} value={l.value}>{l.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400">블로그 콘텐츠의 주 언어입니다. AI 글 생성 시 해당 언어로 작성됩니다.</p>
+            <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-md px-3 py-2.5 border border-gray-100">
+              <span>{LANGUAGES.find(l => l.value === blogLanguage)?.label ?? '한국어'}</span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('language')}
+                className="text-blue-600 hover:underline text-xs ml-auto"
+              >
+                언어/지역 탭에서 변경 →
+              </button>
+            </div>
           </div>
           <DomainSettingSection customDomain={customDomain} setCustomDomain={setCustomDomain} />
           <div className="space-y-2">
