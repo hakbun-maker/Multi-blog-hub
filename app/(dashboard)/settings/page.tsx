@@ -401,43 +401,39 @@ function SettingsPageInner() {
                       const catInfo = getCategoryBadge(key.provider)
                       return (
                         <div key={key.id} className={`p-3 border rounded-lg ${!key.is_active ? 'opacity-60' : ''}`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium">{providerLabel(key.provider)}</span>
-                                  <Badge variant={catInfo.badge as 'default' | 'outline' | 'secondary' | 'destructive'}>
-                                    {catInfo.label}
-                                  </Badge>
-                                  {key.has_secret && (
-                                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">시크릿 포함</span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground font-mono mt-0.5">{key.masked_key}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <Switch
-                                  checked={key.is_active}
-                                  onCheckedChange={() => toggleKey(key.id, key.is_active)}
-                                />
-                                <span className="text-xs text-muted-foreground w-8">
-                                  {key.is_active ? '활성' : '비활성'}
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => testKey(key.id)}
-                                disabled={testingId === key.id}
-                              >
-                                {testingId === key.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '테스트'}
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => deleteKey(key.id)}>
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                              </Button>
-                            </div>
+                          {/* 상단: 제공자명 + 배지 */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium">{providerLabel(key.provider)}</span>
+                            <Badge variant={catInfo.badge as 'default' | 'outline' | 'secondary' | 'destructive'} className="text-[10px] px-1.5 py-0">
+                              {catInfo.label}
+                            </Badge>
+                            {key.has_secret && (
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">시크릿 포함</span>
+                            )}
+                          </div>
+                          {/* 중단: 마스킹 키 */}
+                          <p className="text-xs text-muted-foreground font-mono mt-1">{key.masked_key}</p>
+                          {/* 하단: 액션 버튼 */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <Switch
+                              checked={key.is_active}
+                              onCheckedChange={() => toggleKey(key.id, key.is_active)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {key.is_active ? '활성' : '비활성'}
+                            </span>
+                            <div className="flex-1" />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => testKey(key.id)}
+                              disabled={testingId === key.id}
+                            >
+                              {testingId === key.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '테스트'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => deleteKey(key.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
                           </div>
                           {result && (
                             <div className={`flex items-center gap-1.5 mt-2 text-xs px-2.5 py-1.5 rounded ${
