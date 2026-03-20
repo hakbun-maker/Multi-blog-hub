@@ -185,35 +185,28 @@ async function testGeminiKey(key: string): Promise<TestResult> {
 
 /**
  * Test Google Imagen API key
- * Imagen is typically accessed through Vertex AI with a Google Cloud API key
+ * Imagen 3 uses the same Google AI Studio API key (AIza...) as Gemini,
+ * accessed via generativelanguage.googleapis.com
  */
 async function testImagenKey(key: string): Promise<TestResult> {
   try {
+    // Verify key by checking Gemini models endpoint (same API key)
     const response = await fetch(
-      'https://us-central1-aiplatform.googleapis.com/v1/projects/_/locations/us-central1/publishers/google/models/imagegeneration:predict',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          instances: [{ prompt: 'test' }],
-        }),
-      }
+      `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(key)}`,
+      { method: 'GET' }
     )
 
     if (response.status === 401 || response.status === 403) {
-      return { success: false, message: 'Invalid Imagen API key or credentials' }
+      return { success: false, message: 'Imagen API 키가 유효하지 않습니다.' }
     }
 
-    if (response.ok || response.status === 400) {
-      return { success: true, message: 'Imagen API key is valid' }
+    if (response.ok) {
+      return { success: true, message: 'Imagen API 키가 유효합니다. (Google AI Studio 키 확인)' }
     }
 
-    return { success: false, message: `Imagen API returned status ${response.status}` }
+    return { success: false, message: `Imagen API 응답: HTTP ${response.status}` }
   } catch (e: any) {
-    return { success: false, message: `Imagen API test failed: ${e.message}` }
+    return { success: false, message: `Imagen API 연결 실패: ${e.message}` }
   }
 }
 
