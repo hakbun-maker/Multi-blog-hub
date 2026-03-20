@@ -215,33 +215,59 @@ async function testImagenKey(key: string): Promise<TestResult> {
 }
 
 /**
- * Test Naver Advertising API key
+ * Generate HMAC-SHA256 signature for Naver Search Ads API
+ */
+function generateNaverAdSignature(timestamp: string, method: string, uri: string, secretKey: string): string {
+  const message = `${timestamp}.${method}.${uri}`
+  return createHmac('sha256', secretKey).update(message).digest('base64')
+}
+
+/**
+ * Test Naver Advertising API key (Search Ads API)
+ * Naver Search Ads API uses HMAC-SHA256 signature authentication.
+ * Required: API Key (access license), Secret Key, Customer ID.
+ * Since we only store key + secret, we attempt a signed request
+ * and treat any auth-aware response (401/403/200/400) as "key is valid".
  */
 async function testNaverAdKey(key: string, secret?: string): Promise<TestResult> {
   if (!secret) {
-    return { success: false, message: 'Naver Advertising API requires both API key and secret' }
+    return { success: false, message: '네이버 광고 API는 API Key와 Secret Key가 모두 필요합니다.' }
   }
 
   try {
-    const response = await fetch('https://api.naver.com/v2/ncc/keywordstool', {
-      method: 'GET',
+    const timestamp = String(Date.now())
+    const method = 'GET'
+    const uri = '/ncc/campaigns'
+    const signature = generateNaverAdSignature(timestamp, method, uri, secret)
+
+    const response = await fetch(`https://api.searchad.naver.com${uri}`, {
+      method,
       headers: {
         'X-API-KEY': key,
-        'X-Secret-Key': secret,
+        'X-Customer': '',
+        'X-Signature': signature,
+        'X-Timestamp': timestamp,
       },
     })
 
-    if (response.status === 401 || response.status === 403) {
-      return { success: false, message: 'Invalid Naver Advertising API credentials' }
+    // 401 = invalid API key or signature
+    if (response.status === 401) {
+      return { success: false, message: '네이버 광고 API 인증 실패: API Key 또는 Secret이 올바르지 않습니다.' }
     }
 
+    // 403 = auth succeeded but no permission, or missing customer ID → key is valid
+    if (response.status === 403) {
+      return { success: true, message: '네이버 광고 API 키가 유효합니다. (Customer ID 미설정으로 권한 제한)' }
+    }
+
+    // 200 or 400 = server recognized the request → credentials valid
     if (response.ok || response.status === 400) {
-      return { success: true, message: 'Naver Advertising API credentials are valid' }
+      return { success: true, message: '네이버 광고 API 키가 유효합니다.' }
     }
 
-    return { success: false, message: `Naver Advertising API returned status ${response.status}` }
+    return { success: false, message: `네이버 광고 API 응답: HTTP ${response.status}` }
   } catch (e: any) {
-    return { success: false, message: `Naver Advertising API test failed: ${e.message}` }
+    return { success: false, message: `네이버 광고 API 연결 실패: ${e.message}` }
   }
 }
 
