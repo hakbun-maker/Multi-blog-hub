@@ -12,12 +12,12 @@
 | Phase | 설명 | 태스크 | 복잡도 | 상태 |
 |-------|------|--------|--------|------|
 | **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ✅ 완료 |
-| **P2** | Blog Settings 3탭 추가 | 8 | M | 🔶 일부 (T2-06 언어 선택 완료) |
+| **P2** | Blog Settings 3탭 추가 | 8 | M | ✅ 완료 |
 | **P3** | Editor 검수 워크플로우 | 5 | M-L | ⬜ |
 | **P4** | API Keys 탭 확장 | 4 | M | ✅ 완료 (T2-19~21) |
 | **P5** | Consent 연동 | 5 | S-M | ⬜ |
 | **P6** | SNS Platform Publishing (Future) | 4 | L | ⬜ |
-| **합계** | | **30** | | **10/30 완료** |
+| **합계** | | **30** | | **18/30 완료** |
 
 ---
 
@@ -93,17 +93,16 @@
 > 백엔드 API 모두 실구현 완료: GET/PUT /api/blogs/[id]/settings/language, sns, affiliate
 > 기존 컴포넌트 재사용: SNSSettingsPanel, AffiliateSettingsPanel
 
-### [ ] T2-05: SettingsTab 타입 확장 (4→7탭)
+### [x] T2-05: SettingsTab 타입 확장 (4→7탭) ✅
 
 - **설명**: 탭 타입과 네비게이션을 7개로 확장.
 - **수정 파일**:
   - `app/(dashboard)/blogs/[id]/settings/page.tsx`
 - **작업**:
-  - [ ] `SettingsTab` 타입: `'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'sns' | 'monetize'`
-  - [ ] `TABS` 배열에 3개 추가: `{ id: 'language', label: '언어/지역' }`, `{ id: 'sns', label: 'SNS' }`, `{ id: 'monetize', label: '수익화 연동' }`
-  - [ ] `FeatureGate`, `usePlan` import 추가
-- **의존**: 없음
-- **복잡도**: S
+  - [x] `SettingsTab` 타입: `'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'sns' | 'monetize'`
+  - [x] `TABS` 배열에 3개 추가
+  - [x] `FeatureGate` import 추가 + 탭 overflow-x-auto 스크롤 지원
+- **완료일**: 2026-03-20
 
 ### [x] T2-06: 언어 선택 기능 ✅ (기본정보 탭에 통합)
 
@@ -119,89 +118,69 @@
 - **완료일**: 2026-03-20
 - **비고**: 별도 컴포넌트 대신 기본정보 탭에 통합. FeatureGate는 추후 필요 시 적용.
 
-### [ ] T2-07: DataSourcePreview 컴포넌트
+### [x] T2-07: DataSourcePreview 컴포넌트 ✅
 
 - **설명**: 선택 언어의 데이터소스 매핑 읽기전용 표시. DB 미저장, 런타임 계산.
 - **신규 파일**:
-  - `components/blogs/settings/DataSourcePreview.tsx`
+  - `components/blogs/settings/language/DataSourcePreview.tsx`
 - **작업**:
-  - [ ] Props: `{ language }`
-  - [ ] `getDataSourceConfig(language)` 함수: 언어별 primary/secondary/trend/affiliate/timezone 매핑
-  - [ ] 정보 카드 UI (라벨-값 쌍)
-- **데이터 매핑**:
+  - [x] Props: `{ language: BlogLanguage }`
+  - [x] `DATA_SOURCE_MAP` 상수: 언어별 keyword/trend/affiliate/timezone/publishTime 매핑
+  - [x] 아이콘 포함 정보 카드 UI (Database, TrendingUp, ShoppingBag, Clock)
+- **완료일**: 2026-03-20
 
-| 언어 | 키워드 1순위 | 트렌드 | 제휴 기본값 | 발행 시간 |
-|------|------------|-------|-----------|----------|
-| ko | 네이버 광고 API | 네이버 DataLab | 쿠팡파트너스 | KST 06:00 |
-| en | Google KWP (US) | Google Trends | Amazon US | PST 09:00 |
-| ja | Google KWP (JP) | Google Trends | Amazon JP | JST 07:00 |
-| de | Google KWP (DE) | Google Trends | Amazon DE | CET 07:00 |
-| pt_br | Google KWP (BR) | Google Trends | Amazon BR | BRT 08:00 |
-| es | Google KWP (ES) | Google Trends | Amazon ES | CET 08:00 |
-
-- **의존**: 없음
-- **복잡도**: S
-
-### [ ] T2-08: 언어 탭 연결 (settings page)
+### [x] T2-08: 언어 탭 연결 (settings page) ✅
 
 - **설명**: 블로그 설정 페이지에 언어 탭 콘텐츠 연결. API: `GET/PUT /api/blogs/[id]/settings/language`
 - **수정 파일**:
   - `app/(dashboard)/blogs/[id]/settings/page.tsx`
 - **작업**:
-  - [ ] `language`, `writeStyle` 상태 추가
-  - [ ] `useEffect`에서 language 설정 fetch
-  - [ ] `activeTab === 'language'` 블록: LanguageSelector + DataSourcePreview + writeStyle textarea + 저장 버튼
-  - [ ] 저장 핸들러: `PUT /api/blogs/[id]/settings/language` with `{ language, writeStyle }`
-  - [ ] 비ko 언어에 FeatureGate(multilingual, growth) 래핑
-- **의존**: T2-05, T2-06, T2-07
-- **복잡도**: M
+  - [x] `writeStyle` 상태 추가 + `useEffect`에서 language 설정 fetch
+  - [x] `activeTab === 'language'` 블록: LanguageSelector + DataSourcePreview + AffiliateDefaultNotice + writeStyle textarea + 저장 버튼
+  - [x] `handleSaveLanguageSettings`: `PUT /api/blogs/[id]/settings/language` with `{ language, writeStyle }`
+  - [x] LanguageSelector 컴포넌트 내부에서 비ko 플랜 체크 처리
+- **완료일**: 2026-03-20
 
-### [ ] T2-09: SNS 탭 연결 (기존 컴포넌트 활용)
+### [x] T2-09: SNS 탭 연결 (기존 컴포넌트 활용) ✅
 
 - **설명**: 기존 `SNSSettingsPanel` 컴포넌트를 블로그 설정 SNS 탭에 연결.
 - **수정 파일**:
   - `app/(dashboard)/blogs/[id]/settings/page.tsx`
 - **작업**:
-  - [ ] `SNSSettingsPanel` import
-  - [ ] `activeTab === 'sns'` 블록에 FeatureGate + SNSSettingsPanel 렌더링
-  - [ ] SNSSettingsPanel 내부에서 이미 API 호출 처리
-- **의존**: T2-05
-- **복잡도**: S
+  - [x] `SNSSettingsPanel` import + `FeatureGate(sns_auto_deploy, pro)` 래핑
+  - [x] `activeTab === 'sns'` 블록에 렌더링
+- **완료일**: 2026-03-20
 
-### [ ] T2-10: 수익화 연동 탭 연결 (기존 컴포넌트 활용)
+### [x] T2-10: 수익화 연동 탭 연결 (기존 컴포넌트 활용) ✅
 
 - **설명**: 기존 `AffiliateSettingsPanel` 컴포넌트를 블로그 설정 수익화 탭에 연결.
 - **수정 파일**:
   - `app/(dashboard)/blogs/[id]/settings/page.tsx`
 - **작업**:
-  - [ ] `AffiliateSettingsPanel` import
-  - [ ] `activeTab === 'monetize'` 블록에 FeatureGate + AffiliateSettingsPanel 렌더링
-- **의존**: T2-05
-- **복잡도**: S
+  - [x] `AffiliateSettingsPanel` import + `FeatureGate(coupang_affiliate, pro)` 래핑
+  - [x] `activeTab === 'monetize'` 블록에 렌더링
+- **완료일**: 2026-03-20
 
-### [ ] T2-11: ApiKeyStatusBadge 링크 연결
+### [x] T2-11: ApiKeyStatusBadge 링크 연결 ✅
 
 - **설명**: SNS/Affiliate 설정 패널의 "준비 중" 버튼을 `/settings?tab=ai-keys`로 링크 변경.
 - **수정 파일**:
-  - `components/monetize/sns/SNSSettingsPanel.tsx` — "연결하기" toast → 설정 링크
-  - `components/monetize/affiliate/AffiliateSettingsPanel.tsx` — disabled 버튼 → 설정 링크
+  - `components/monetize/sns/SNSSettingsPanel.tsx`
+  - `components/monetize/affiliate/AffiliateSettingsPanel.tsx`
 - **작업**:
-  - [ ] SNSSettingsPanel.handleConnect: `toast.info` → `router.push('/settings?tab=ai-keys')` 또는 Link
-  - [ ] AffiliateSettingsPanel: disabled 버튼 → `<Link href="/settings?tab=ai-keys">설정 > API 키 관리에서 등록</Link>`
-- **의존**: T2-09, T2-10
-- **복잡도**: S
+  - [x] SNSSettingsPanel.handleConnect: toast + `router.push('/settings?tab=ai-keys')`
+  - [x] AffiliateSettingsPanel: disabled 버튼 → `<Link href="/settings?tab=ai-keys">설정 > API 키 관리에서 등록</Link>`
+- **완료일**: 2026-03-20
 
-### [ ] T2-12: 블로그 설정 URL ?tab= 쿼리파라미터 지원
+### [x] T2-12: 블로그 설정 URL ?tab= 쿼리파라미터 지원 ✅
 
 - **설명**: `/blogs/[id]/settings?tab=language` 등으로 직접 탭 이동 가능하게.
 - **수정 파일**:
   - `app/(dashboard)/blogs/[id]/settings/page.tsx`
 - **작업**:
-  - [ ] `useSearchParams` import
-  - [ ] `activeTab` 초기값을 searchParams에서 파생
-  - [ ] `Suspense` 래핑 (Next.js useSearchParams 요구사항)
-- **의존**: T2-05
-- **복잡도**: S
+  - [x] `useSearchParams` import + `activeTab` 초기값을 searchParams에서 파생
+  - [x] `Suspense` 래핑 (BlogSettingsContent + BlogSettingsPage wrapper)
+- **완료일**: 2026-03-20
 
 ---
 

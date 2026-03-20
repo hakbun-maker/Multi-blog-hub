@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -199,8 +200,8 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
                 파트너스 콘솔에서 발급받기
               </a>
             </p>
-            <Button variant="outline" size="sm" disabled={true}>
-              설정하기 (준비 중)
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings?tab=ai-keys">설정 &gt; API 키 관리에서 등록</Link>
             </Button>
           </div>
 
@@ -224,8 +225,8 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
                 Amazon Associates에서 신청하기
               </a>
             </p>
-            <Button variant="outline" size="sm" disabled={true}>
-              설정하기 (준비 중)
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings?tab=ai-keys">설정 &gt; API 키 관리에서 등록</Link>
             </Button>
           </div>
         </CardContent>

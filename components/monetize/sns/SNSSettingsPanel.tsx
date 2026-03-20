@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +25,7 @@ const PLATFORMS = [
 ] as const
 
 export function SNSSettingsPanel({ blogId }: { blogId: string }) {
+  const router = useRouter()
   const [settings, setSettings] = useState<SNSSettings>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -69,8 +71,8 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
   }
 
   const handleConnect = (platformId: string) => {
-    // In real implementation, would open OAuth flow
-    toast.info(`${platformId} 계정 연결이 필요합니다. (준비 중)`)
+    toast.info(`${platformId} OAuth 연결은 준비 중입니다. API 키 관리 페이지로 이동합니다.`)
+    router.push('/settings?tab=ai-keys')
   }
 
   const saveSettings = async (newSettings: SNSSettings) => {

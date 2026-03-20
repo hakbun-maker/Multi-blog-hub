@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Save, Trash2, Pencil, X, Sparkles, RotateCw, Loader2, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCategories } from '@/hooks/useCategories'
 import { Button } from '@/components/ui/button'
@@ -10,14 +10,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import LayoutTab from '@/components/blogs/LayoutTab'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
+import { FeatureGate } from '@/components/plan/FeatureGate'
+import { SNSSettingsPanel } from '@/components/monetize/sns/SNSSettingsPanel'
+import { AffiliateSettingsPanel } from '@/components/monetize/affiliate/AffiliateSettingsPanel'
+import { LanguageSelector } from '@/components/blogs/settings/language/LanguageSelector'
+import { DataSourcePreview } from '@/components/blogs/settings/language/DataSourcePreview'
+import { AffiliateDefaultNotice } from '@/components/blogs/settings/language/AffiliateDefaultNotice'
+import type { BlogLanguage } from '@/types/monetize'
 
-type SettingsTab = 'basic' | 'categories' | 'ai' | 'layout'
+type SettingsTab = 'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'sns' | 'monetize'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'basic', label: '기본정보' },
   { id: 'categories', label: '카테고리' },
   { id: 'ai', label: 'AI 캐릭터' },
   { id: 'layout', label: '레이아웃' },
+  { id: 'language', label: '언어/지역' },
+  { id: 'sns', label: 'SNS' },
+  { id: 'monetize', label: '수익화 연동' },
 ]
 
 const LANGUAGES = [
@@ -278,9 +288,13 @@ function DomainSettingSection({ customDomain, setCustomDomain }: { customDomain:
   )
 }
 
-export default function BlogSettingsPage({ params }: { params: { id: string } }) {
+function BlogSettingsContent({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<SettingsTab>('basic')
+  const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get('tab') as SettingsTab | null
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'basic'
+  )
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
@@ -292,7 +306,8 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
   const [color, setColor] = useState(COLORS[0])
   const [isActive, setIsActive] = useState(true)
   const [blogType, setBlogType] = useState('')
-  const [blogLanguage, setBlogLanguage] = useState('ko')
+  const [blogLanguage, setBlogLanguage] = useState<BlogLanguage>('ko')
+  const [writeStyle, setWriteStyle] = useState('')
   const [slug, setSlug] = useState('')
 
   // AI 캐릭터 폼 (21개 필드를 단일 객체로 관리)
@@ -343,6 +358,15 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
 
       setDefaultCategoryId(blogData.default_category_id ?? null)
       setLayoutConfig(blogData.layout_config ?? null)
+
+      // 언어 설정 (writeStyle) 로드
+      try {
+        const langRes = await fetch(`/api/blogs/${params.id}/settings/language`)
+        if (langRes.ok) {
+          const langData = await langRes.json()
+          setWriteStyle(langData.data?.writeStyle ?? '')
+        }
+      } catch { /* ignore */ }
 
       setLoading(false)
     }
@@ -450,6 +474,17 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
     if (res.ok) router.push('/blogs')
   }
 
+  const handleSaveLanguageSettings = async () => {
+    setSaving(true)
+    const res = await fetch(`/api/blogs/${params.id}/settings/language`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: blogLanguage, writeStyle }),
+    })
+    setSaving(false)
+    if (res.ok) showSuccess('언어/지역 설정이 저장되었습니다.')
+  }
+
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -482,11 +517,11 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
       )}
 
       {/* SettingsTabNav */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-0">
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <div className="flex gap-0 min-w-max">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === t.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -534,7 +569,7 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
             <Label>블로그 언어</Label>
             <select
               value={blogLanguage}
-              onChange={e => setBlogLanguage(e.target.value)}
+              onChange={e => setBlogLanguage(e.target.value as BlogLanguage)}
               className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {LANGUAGES.map(l => (
@@ -869,6 +904,64 @@ export default function BlogSettingsPage({ params }: { params: { id: string } })
         <LayoutTab blogId={params.id} blogSlug={slug} initialConfig={layoutConfig} onSuccess={showSuccess} />
       )}
 
+      {/* ═══ LanguageTab ═══ */}
+      {activeTab === 'language' && (
+        <div className="space-y-6">
+          <LanguageSelector
+            blogId={params.id}
+            currentLanguage={blogLanguage}
+            onLanguageChange={(lang) => setBlogLanguage(lang)}
+          />
+
+          <DataSourcePreview language={blogLanguage} />
+
+          <AffiliateDefaultNotice language={blogLanguage} />
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">글쓰기 스타일 힌트</label>
+            <textarea
+              value={writeStyle}
+              onChange={e => setWriteStyle(e.target.value)}
+              rows={4}
+              placeholder="AI가 글을 작성할 때 참고할 스타일 힌트를 입력하세요. 예: 친근한 말투, 전문적인 톤, 짧은 문장 선호 등"
+              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+            />
+            <p className="text-xs text-gray-500">AI 글 생성 시 이 힌트가 시스템 프롬프트에 포함됩니다.</p>
+          </div>
+
+          <Button onClick={handleSaveLanguageSettings} disabled={saving}>
+            <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : '저장'}
+          </Button>
+        </div>
+      )}
+
+      {/* ═══ SNSTab ═══ */}
+      {activeTab === 'sns' && (
+        <FeatureGate featureKey="sns_auto_deploy" minPlan="pro" featureName="SNS 자동배포">
+          <SNSSettingsPanel blogId={params.id} />
+        </FeatureGate>
+      )}
+
+      {/* ═══ MonetizeTab ═══ */}
+      {activeTab === 'monetize' && (
+        <FeatureGate featureKey="coupang_affiliate" minPlan="pro" featureName="제휴마케팅 연동">
+          <AffiliateSettingsPanel blogId={params.id} />
+        </FeatureGate>
+      )}
+
     </div>
+  )
+}
+
+export default function BlogSettingsPage({ params }: { params: { id: string } }) {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-48" />
+        <div className="h-64 bg-gray-100 rounded" />
+      </div>
+    }>
+      <BlogSettingsContent params={params} />
+    </Suspense>
   )
 }
