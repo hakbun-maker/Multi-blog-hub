@@ -34,9 +34,10 @@ const NAV_MAIN = [
 ]
 
 const NAV_MONETIZE = [
-  { href: '/keywords',  label: '키워드 탐색기',  icon: Search },
-  { href: '/scheduler', label: '스케줄러',       icon: CalendarClock },
-  { href: '/monetize',  label: '수익화 글 작성', icon: TrendingUp },
+  { href: '/monetize',         label: '수익화 대시보드', icon: TrendingUp },
+  { href: '/keywords',         label: '키워드 탐색기',   icon: Search },
+  { href: '/scheduler',        label: '스케줄러',        icon: CalendarClock },
+  { href: '/monetize/writing', label: '글작성 & 대기',   icon: PenSquare },
 ]
 
 const NAV_BOTTOM = [
@@ -53,7 +54,9 @@ function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = 
   onLockedClick?: () => void
 }) {
   const pathname = usePathname()
-  const isActive = pathname === href || pathname.startsWith(href + '/')
+  // Exact match or prefix match, but avoid /monetize matching /monetize/writing
+  const isActive = pathname === href ||
+    (pathname.startsWith(href + '/') && !NAV_MONETIZE.some(m => m.href !== href && m.href.startsWith(href + '/') && pathname.startsWith(m.href)))
 
   if (locked) {
     return (
