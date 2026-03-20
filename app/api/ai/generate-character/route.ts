@@ -59,6 +59,7 @@ function buildCharacterPrompt(
   blogInfo: { name: string; description?: string; blogType?: string; categories?: string[] },
   fieldKey?: string,
   existingConfig?: Record<string, string>,
+  userPrompt?: string,
 ): string {
   const blogTypeLabel = blogInfo.blogType ? (BLOG_TYPE_LABELS[blogInfo.blogType] ?? blogInfo.blogType) : ''
 
@@ -67,6 +68,7 @@ function buildCharacterPrompt(
     blogTypeLabel ? `블로그 유형: ${blogTypeLabel}` : '',
     blogInfo.description ? `블로그 설명: ${blogInfo.description}` : '',
     blogInfo.categories?.length ? `블로그 카테고리: ${blogInfo.categories.join(', ')}` : '',
+    userPrompt ? `\n## 사용자 요청 캐릭터 방향\n${userPrompt}` : '',
   ].filter(Boolean).join('\n')
 
   // 단일 필드 재생성
@@ -104,6 +106,7 @@ ${otherContext || '(아직 없음)'}
 ${context}
 
 위 블로그에 어울리는 AI 캐릭터를 설계해주세요.
+${userPrompt ? `**중요: 사용자가 요청한 캐릭터 방향을 최우선으로 반영해주세요.**` : ''}
 ${blogTypeLabel ? `특히 "${blogTypeLabel}" 유형의 블로그에 적합한 전문성과 신뢰감 있는 캐릭터를 만들어주세요.` : ''}
 ${blogInfo.categories?.length ? `블로그의 카테고리(${blogInfo.categories.join(', ')})를 참고하여 해당 분야에 맞는 캐릭터를 구성해주세요.` : ''}
 
@@ -126,7 +129,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { blogId, provider = 'gemini', fieldKey, existingConfig, blogInfo } = body
+  const { blogId, provider = 'gemini', fieldKey, existingConfig, blogInfo, userPrompt } = body
 
   if (!blogId) return NextResponse.json({ error: 'blogId는 필수입니다.' }, { status: 400 })
 
@@ -166,7 +169,7 @@ export async function POST(request: Request) {
   }
 
   const adapter = await createAIAdapter(aiProvider, apiKey)
-  const prompt = buildCharacterPrompt(resolvedBlogInfo, fieldKey, existingConfig)
+  const prompt = buildCharacterPrompt(resolvedBlogInfo, fieldKey, existingConfig, userPrompt)
 
   try {
     const text = await adapter.generateText(prompt)

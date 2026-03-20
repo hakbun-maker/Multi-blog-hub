@@ -307,12 +307,12 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
   const [isActive, setIsActive] = useState(true)
   const [blogType, setBlogType] = useState('')
   const [blogLanguage, setBlogLanguage] = useState<BlogLanguage>('ko')
-  const [writeStyle, setWriteStyle] = useState('')
   const [slug, setSlug] = useState('')
 
   // AI 캐릭터 폼 (21개 필드를 단일 객체로 관리)
   const [aiProvider, setAiProvider] = useState<'claude' | 'gemini'>('gemini')
   const [characterConfig, setCharacterConfig] = useState<Record<string, string>>({})
+  const [characterPrompt, setCharacterPrompt] = useState('')
   const [generatingAll, setGeneratingAll] = useState(false)
   const [regeneratingField, setRegeneratingField] = useState<string | null>(null)
 
@@ -355,18 +355,10 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
         if (aiConfig[key]) config[key] = aiConfig[key]
       }
       setCharacterConfig(config)
+      setCharacterPrompt(aiConfig._userPrompt ?? '')
 
       setDefaultCategoryId(blogData.default_category_id ?? null)
       setLayoutConfig(blogData.layout_config ?? null)
-
-      // 언어 설정 (writeStyle) 로드
-      try {
-        const langRes = await fetch(`/api/blogs/${params.id}/settings/language`)
-        if (langRes.ok) {
-          const langData = await langRes.json()
-          setWriteStyle(langData.data?.writeStyle ?? '')
-        }
-      } catch { /* ignore */ }
 
       setLoading(false)
     }
@@ -400,7 +392,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         aiProvider,
-        aiCharacterConfig: { ...characterConfig },
+        aiCharacterConfig: { ...characterConfig, _userPrompt: characterPrompt },
       }),
     })
     setSaving(false)
@@ -421,7 +413,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       const res = await fetch('/api/ai/generate-character', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogId: params.id, provider: aiProvider, blogInfo: getBlogInfo() }),
+        body: JSON.stringify({ blogId: params.id, provider: aiProvider, blogInfo: getBlogInfo(), userPrompt: characterPrompt || undefined }),
       })
       const data = await res.json()
       if (data.character) {
@@ -454,6 +446,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
           fieldKey,
           existingConfig: characterConfig,
           blogInfo: getBlogInfo(),
+          userPrompt: characterPrompt || undefined,
         }),
       })
       const data = await res.json()
@@ -479,7 +472,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
     const res = await fetch(`/api/blogs/${params.id}/settings/language`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ language: blogLanguage, writeStyle }),
+      body: JSON.stringify({ language: blogLanguage }),
     })
     setSaving(false)
     if (res.ok) showSuccess('언어/지역 설정이 저장되었습니다.')
@@ -794,6 +787,19 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       {/* ═══ AICharacterTab ═══ */}
       {activeTab === 'ai' && (
         <div className="space-y-6">
+          {/* AI 캐릭터 설정 요청 프롬프트 */}
+          <div className="space-y-2">
+            <Label>AI 캐릭터 설정 요청 프롬프트</Label>
+            <textarea
+              value={characterPrompt}
+              onChange={e => setCharacterPrompt(e.target.value)}
+              rows={3}
+              placeholder="원하는 캐릭터를 대략적으로 설명하세요. 예: 30대 직장인 여성, 재테크에 관심 많고 친근한 말투로 실전 경험 위주의 글을 쓰는 캐릭터"
+              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+            />
+            <p className="text-xs text-gray-500">아래 &quot;AI 캐릭터 일괄 생성&quot; 시 이 내용을 참고하여 캐릭터가 생성됩니다.</p>
+          </div>
+
           {/* AI 공급자 선택 + 일괄 생성 버튼 */}
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="space-y-2">
@@ -916,18 +922,6 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
           <DataSourcePreview language={blogLanguage} />
 
           <AffiliateDefaultNotice language={blogLanguage} />
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">글쓰기 스타일 힌트</label>
-            <textarea
-              value={writeStyle}
-              onChange={e => setWriteStyle(e.target.value)}
-              rows={4}
-              placeholder="AI가 글을 작성할 때 참고할 스타일 힌트를 입력하세요. 예: 친근한 말투, 전문적인 톤, 짧은 문장 선호 등"
-              className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-            />
-            <p className="text-xs text-gray-500">AI 글 생성 시 이 힌트가 시스템 프롬프트에 포함됩니다.</p>
-          </div>
 
           <Button onClick={handleSaveLanguageSettings} disabled={saving}>
             <Save className="w-4 h-4 mr-1.5" />{saving ? '저장 중...' : '저장'}

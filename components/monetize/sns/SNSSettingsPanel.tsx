@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,11 +24,9 @@ const PLATFORMS = [
 ] as const
 
 export function SNSSettingsPanel({ blogId }: { blogId: string }) {
-  const router = useRouter()
   const [settings, setSettings] = useState<SNSSettings>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [connectionStatuses, setConnectionStatuses] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadSettings()
@@ -43,13 +40,6 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
 
       const data = await res.json()
       setSettings(data.data || {})
-
-      // Update connection statuses
-      const statuses: Record<string, boolean> = {}
-      PLATFORMS.forEach((p) => {
-        statuses[p.id] = data.data?.[p.id]?.enabled || false
-      })
-      setConnectionStatuses(statuses)
     } catch (error: any) {
       toast.error(error.message)
     } finally {
@@ -57,25 +47,26 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
     }
   }
 
+  // 실제 OAuth 토큰이 있는지 확인
+  const isConnected = (platformId: string) => {
+    const config = settings[platformId as keyof SNSSettings]
+    return !!(config?.accessToken)
+  }
+
   const handleToggle = async (platformId: string) => {
-    const newStatus = !connectionStatuses[platformId]
-    setConnectionStatuses((prev) => ({
-      ...prev,
-      [platformId]: newStatus,
-    }))
-
-    if (!newStatus) {
-      // Disable platform
-      await saveSettings({ ...settings, [platformId]: { enabled: false } })
+    // 연결되지 않은 상태에서는 토글 불가
+    if (!isConnected(platformId)) {
+      toast.info('먼저 플랫폼을 연결해주세요.')
+      return
     }
-  }
 
-  const handleConnect = (platformId: string) => {
-    toast.info(`${platformId} OAuth 연결은 준비 중입니다. API 키 관리 페이지로 이동합니다.`)
-    router.push('/settings?tab=ai-keys')
-  }
+    const config = settings[platformId as keyof SNSSettings]
+    const newEnabled = !config?.enabled
+    const newSettings = {
+      ...settings,
+      [platformId]: { ...config, enabled: newEnabled },
+    }
 
-  const saveSettings = async (newSettings: SNSSettings) => {
     try {
       setSaving(true)
       const res = await fetch(`/api/blogs/${blogId}/settings/sns`, {
@@ -86,15 +77,18 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
 
       if (!res.ok) throw new Error('설정 저장 실패')
 
-      toast.success('SNS 설정이 저장되었습니다.')
       setSettings(newSettings)
+      toast.success(newEnabled ? '자동 공유가 활성화되었습니다.' : '자동 공유가 비활성화되었습니다.')
     } catch (error: any) {
       toast.error(error.message)
-      // Revert toggle
       loadSettings()
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleConnect = (platformId: string) => {
+    toast.info(`${platformId} OAuth 연동은 준비 중입니다. 추후 업데이트를 기다려주세요.`)
   }
 
   if (loading) {
@@ -108,53 +102,59 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
         <CardDescription>블로그 포스트를 SNS에 자동 공유할 플랫폼을 선택하세요.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {PLATFORMS.map((platform) => (
-          <div key={platform.id} className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center space-x-4">
-              <div className={`${platform.color} w-12 h-12 rounded-lg flex items-center justify-center text-2xl`}>
-                {platform.icon}
+        {PLATFORMS.map((platform) => {
+          const connected = isConnected(platform.id)
+          const config = settings[platform.id as keyof SNSSettings]
+
+          return (
+            <div key={platform.id} className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center space-x-4">
+                <div className={`${platform.color} w-12 h-12 rounded-lg flex items-center justify-center text-2xl`}>
+                  {platform.icon}
+                </div>
+                <div>
+                  <h3 className="font-semibold">{platform.name}</h3>
+                  <p className="text-sm text-gray-600">
+                    {connected ? (
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>연결됨{config?.enabled ? ' · 자동 공유 ON' : ''}</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                        <span>연결 안 됨</span>
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold">{platform.name}</h3>
-                <p className="text-sm text-gray-600">
-                  {connectionStatuses[platform.id] ? (
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      <span>연결됨</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                      <span>연결 안 됨</span>
-                    </span>
-                  )}
-                </p>
+
+              <div className="flex items-center space-x-4">
+                {connected ? (
+                  <Switch
+                    checked={config?.enabled || false}
+                    onCheckedChange={() => handleToggle(platform.id)}
+                    disabled={saving}
+                  />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConnect(platform.id)}
+                    disabled={saving}
+                  >
+                    연결하기 (준비 중)
+                  </Button>
+                )}
               </div>
             </div>
+          )
+        })}
 
-            <div className="flex items-center space-x-4">
-              <Switch
-                checked={connectionStatuses[platform.id] || false}
-                onCheckedChange={() => handleToggle(platform.id)}
-                disabled={saving}
-              />
-              {!connectionStatuses[platform.id] && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleConnect(platform.id)}
-                  disabled={saving}
-                >
-                  연결하기
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
-
-        <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
-          <p className="font-semibold mb-2">💡 자동 공유 설정</p>
-          <p>활성화된 플랫폼에 블로그 포스트 발행 시 자동으로 SNS에 공유됩니다.</p>
+        <div className="bg-amber-50 p-4 rounded-lg text-sm text-amber-800">
+          <p className="font-semibold mb-2">📌 SNS 연동 안내</p>
+          <p>SNS 자동 공유 기능은 현재 준비 중입니다. 각 플랫폼의 OAuth 인증이 구현되면 연결 및 자동 공유가 가능해집니다.</p>
         </div>
       </CardContent>
     </Card>
