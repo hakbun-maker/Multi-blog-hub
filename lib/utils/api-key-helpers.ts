@@ -35,8 +35,8 @@ export const PROVIDER_NEEDS_SECRET: Record<ApiProvider, boolean> = {
   naver_ad: true,   // Client ID + Secret
   naver_search: true, // Client ID + Secret
   google_kwp: false,
-  coupang: false,   // Partner ID only
-  amazon: false,    // Associates Tag only
+  coupang: true,    // API Key + Secret
+  amazon: true,     // Access Key + Secret Key
 }
 
 export interface TestResult {
@@ -88,9 +88,9 @@ export async function testProviderConnection(
     case 'google_kwp':
       return testGoogleKWPKey(key)
     case 'coupang':
-      return testCoupangKey(key)
+      return testCoupangKey(key, secret)
     case 'amazon':
-      return testAmazonKey(key)
+      return testAmazonKey(key, secret)
     default:
       return { success: false, message: `Unsupported provider: ${provider}` }
   }
