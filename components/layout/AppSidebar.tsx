@@ -222,9 +222,13 @@ export function AppSidebar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 flex">
         {[
           ...NAV_MAIN,
-          { href: '/keywords', label: '수익화', icon: Rocket },
+          { href: '/monetize', label: '수익화', icon: Rocket },
         ].map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/')
+          // 수익화 탭: /monetize, /keywords, /scheduler, /monetize/writing 모두 active
+          const isMonetizeTab = href === '/monetize'
+          const isActive = isMonetizeTab
+            ? NAV_MONETIZE.some(m => pathname === m.href || pathname.startsWith(m.href + '/'))
+            : pathname === href || pathname.startsWith(href + '/')
           const locked = getLockedState(href)
           return locked ? (
             <button

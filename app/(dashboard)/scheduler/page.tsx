@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { FeatureGate } from '@/components/plan/FeatureGate'
+import { MonetizeSubNav } from '@/components/monetize/MonetizeSubNav'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -159,6 +160,8 @@ export default function SchedulerPage() {
   const pendingCount = keywords.filter(k => k.status === 'pending').length
 
   return (
+    <>
+    <MonetizeSubNav />
     <FeatureGate featureKey="scheduler" minPlan="pro" featureName="스케줄러">
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -417,5 +420,6 @@ export default function SchedulerPage() {
       </Dialog>
     </div>
     </FeatureGate>
+    </>
   )
 }

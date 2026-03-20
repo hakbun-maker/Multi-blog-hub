@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { FeatureGate } from '@/components/plan/FeatureGate'
+import { MonetizeSubNav } from '@/components/monetize/MonetizeSubNav'
 import { RocketStatusCard } from '@/components/monetize/dashboard/RocketStatusCard'
 import { RevenueSummaryCard } from '@/components/monetize/dashboard/RevenueSummaryCard'
 import { BlogGradeTable } from '@/components/monetize/dashboard/BlogGradeTable'
@@ -33,6 +34,8 @@ export default function MonetizePage() {
   }, [])
 
   return (
+    <>
+    <MonetizeSubNav />
     <FeatureGate featureKey="revenue_dashboard" minPlan="pro" featureName="수익화 대시보드">
       <div className="space-y-6">
         <div>
@@ -52,5 +55,6 @@ export default function MonetizePage() {
         />
       </div>
     </FeatureGate>
+    </>
   )
 }

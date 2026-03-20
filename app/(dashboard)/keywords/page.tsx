@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { FeatureGate } from '@/components/plan/FeatureGate'
+import { MonetizeSubNav } from '@/components/monetize/MonetizeSubNav'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,6 +84,8 @@ export default function KeywordsPage() {
   ]
 
   return (
+    <>
+    <MonetizeSubNav />
     <FeatureGate featureKey="keyword_explorer" minPlan="pro" featureName="키워드 탐색기">
     <div className="p-6 space-y-6">
       <div>
@@ -238,5 +241,6 @@ export default function KeywordsPage() {
       </div>
     </div>
     </FeatureGate>
+    </>
   )
 }
