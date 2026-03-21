@@ -25,8 +25,6 @@ export function ConsentCheckboxGroup({ onConsentChange, disabled }: ConsentCheck
     sns_oauth_threads: false,
     affiliate_marketing: false,
     adsense_oauth: false,
-    blog_platform_tistory: false,
-    blog_platform_wordpress: false,
   })
 
   const [openFullTextModal, setOpenFullTextModal] = useState<ConsentType | null>(null)

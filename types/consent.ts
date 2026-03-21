@@ -12,8 +12,6 @@ export type ConsentType =
   | 'sns_oauth_threads'
   | 'affiliate_marketing'
   | 'adsense_oauth'
-  | 'blog_platform_tistory'
-  | 'blog_platform_wordpress'
 
 // 동의 수집 방법
 export type ConsentMethod = 'checkbox' | 'modal' | 'inline_panel' | 'upgrade_flow'

@@ -11,11 +11,11 @@ import { CheckSquare, Square, ExternalLink, Info } from 'lucide-react'
 const PLAN_CONSENT_MAP: Record<string, { bundled: ConsentType[]; deferred: ConsentType[] }> = {
   growth: {
     bundled: ['automation', 'affiliate_marketing'],
-    deferred: ['sns_oauth_instagram', 'sns_oauth_twitter', 'sns_oauth_threads', 'adsense_oauth', 'blog_platform_tistory', 'blog_platform_wordpress'],
+    deferred: ['sns_oauth_instagram', 'sns_oauth_twitter', 'sns_oauth_threads', 'adsense_oauth'],
   },
   scale: {
     bundled: ['automation', 'affiliate_marketing'],
-    deferred: ['sns_oauth_instagram', 'sns_oauth_twitter', 'sns_oauth_threads', 'adsense_oauth', 'blog_platform_tistory', 'blog_platform_wordpress'],
+    deferred: ['sns_oauth_instagram', 'sns_oauth_twitter', 'sns_oauth_threads', 'adsense_oauth'],
   },
 }
 

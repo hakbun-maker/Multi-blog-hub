@@ -189,10 +189,6 @@ async function handleRevokeCascade(userId: string, consentType: ConsentType): Pr
     case 'adsense_oauth':
       // AdSense OAuth 토큰 삭제 처리 (향후 구현)
       break
-    case 'blog_platform_tistory':
-    case 'blog_platform_wordpress':
-      // 블로그 플랫폼 인증 정보 삭제 (향후 구현)
-      break
     case 'tos':
     case 'privacy':
       // 필수 동의 철회 → 서비스 이용 불가 (프론트에서 처리)

@@ -417,7 +417,7 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
             <div className="flex items-center gap-2">
               <Label className="text-sm">Imagen API 키 상태</Label>
             </div>
-            <ApiKeyStatusBadge provider="google_imagen" label="Imagen" />
+            <ApiKeyStatusBadge provider="imagen" label="Imagen" />
           </div>
 
           {settings.imageGen?.enabled && (
