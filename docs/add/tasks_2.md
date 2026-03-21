@@ -14,10 +14,10 @@
 | **P1** | Quick Wins (독립, 즉시 가능) | 4 | S | ✅ 완료 |
 | **P2** | Blog Settings 3탭 추가 | 8 | M | ✅ 완료 |
 | **P3** | Editor 검수 워크플로우 | 5 | M-L | ✅ 완료 (T2-13~17) |
-| **P4** | API Keys 탭 확장 | 4 | M | ✅ 완료 (T2-19~21) |
-| **P5** | Consent 연동 | 5 | S-M | ⬜ |
-| **P6** | SNS Platform Publishing (Future) | 4 | L | ⬜ |
-| **합계** | | **30** | | **23/30 완료** |
+| **P4** | API Keys 탭 확장 | 4 | M | ✅ 완료 (T2-18~21) |
+| **P5** | Consent 연동 | 5 | S-M | ✅ 완료 (T2-22~26) |
+| **P6** | SNS Platform Publishing (Future) | 4 | L | ✅ 완료 (T2-27~30) |
+| **합계** | | **30** | | **30/30 완료** |
 
 ---
 
@@ -264,11 +264,15 @@
 > 현재 AI 4종만 표시. keyword(naver_ad, naver_search, google_kwp) + monetize(coupang, amazon) 추가.
 > 백엔드 ai_api_keys 테이블은 이미 9개 provider 지원.
 
-### [ ] T2-18: ApiGuideAccordion 컴포넌트 → 별도 컴포넌트 대신 인라인 가이드 링크로 대체
+### [x] T2-18: ApiGuideAccordion 컴포넌트 연결 ✅
 
-- **설명**: 카테고리별 접히는 API 발급 가이드. 하드코딩 콘텐츠.
-- **상태**: 🔶 별도 컴포넌트 미생성. 각 프로바이더에 인라인 `guide` 링크로 대체 구현됨.
-- **비고**: 상세 가이드(비용, 단계별 설명)가 필요하면 별도 컴포넌트로 분리 가능.
+- **설명**: 카테고리별 접히는 API 발급 가이드. `ApiGuideAccordion` 컴포넌트 + `api-guide-contents.ts` 데이터 존재.
+- **수정 파일**:
+  - `app/(dashboard)/settings/page.tsx`
+- **작업**:
+  - [x] `ApiGuideAccordion` import 추가
+  - [x] API 키 등록 폼에서 프로바이더 선택 시 상세 가이드 아코디언 표시
+- **완료일**: 2026-03-21
 
 ### [x] T2-19: Provider 정의 확장 ✅
 
@@ -315,65 +319,69 @@
 > 동의서 컴포넌트(ConsentGate, ConsentInlinePanel, ConsentPreActionModal) 모두 구현 완료.
 > 실제 기능 트리거 포인트에 ConsentGate를 래핑하는 작업.
 
-### [ ] T2-22: API 키 등록 → ConsentGate(api_key_storage)
+### [x] T2-22: API 키 등록 → ConsentGate(api_key_storage) ✅
 
 - **설명**: API 키 등록 폼을 `ConsentGate(api_key_storage, inline_panel)`로 래핑.
 - **수정 파일**:
   - `app/(dashboard)/settings/page.tsx`
 - **작업**:
-  - [ ] `ConsentGate` import
-  - [ ] API 키 등록 폼 Card를 ConsentGate로 래핑
-  - [ ] 미동의 시 ConsentInlinePanel 표시 → 동의 후 폼 노출
+  - [x] `ConsentGate` import
+  - [x] API 키 등록 폼 Card를 ConsentGate로 래핑
+  - [x] 미동의 시 ConsentInlinePanel 표시 → 동의 후 폼 노출
 - **의존**: T2-20
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-23: 로켓 활성화 → ConsentGate(automation)
+### [x] T2-23: 로켓 활성화 → ConsentGate(automation) ✅
 
-- **설명**: 수익화 로켓 활성화 트리거에 자동화 동의 모달 적용.
+- **설명**: 수익화 대시보드의 RocketStatusCard + RevenueSummaryCard를 자동화 동의 모달로 래핑.
 - **수정 파일**:
-  - `components/monetize/dashboard/RocketStatusCard.tsx`
+  - `app/(dashboard)/monetize/page.tsx`
 - **작업**:
-  - [ ] 로켓 활성화 버튼/토글을 `ConsentGate(automation, modal)`로 래핑
+  - [x] `ConsentGate(automation, modal)` 래핑 (RocketStatusCard + RevenueSummaryCard grid)
 - **의존**: 없음
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-24: SNS OAuth → ConsentGate(sns_oauth_{platform})
+### [x] T2-24: SNS OAuth → ConsentGate(sns_oauth_{platform}) ✅
 
 - **설명**: 각 SNS 플랫폼 연결 버튼에 플랫폼별 동의 모달 적용.
 - **수정 파일**:
   - `components/monetize/sns/SNSSettingsPanel.tsx`
 - **작업**:
-  - [ ] 플랫폼별 consent_type 매핑: instagram→sns_oauth_instagram, twitter→sns_oauth_twitter, threads→sns_oauth_threads
-  - [ ] 각 "연결하기" 버튼을 `ConsentGate(sns_oauth_{platform}, modal)`로 래핑
+  - [x] 플랫폼별 consent_type 매핑: `sns_oauth_${platform.id}` as ConsentType
+  - [x] 각 "연결하기" 버튼을 `ConsentGate(sns_oauth_{platform}, modal)`로 래핑
 - **의존**: T2-09
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-25: 제휴마케팅 → ConsentGate(affiliate_marketing)
+### [x] T2-25: 제휴마케팅 → ConsentGate(affiliate_marketing) ✅
 
-- **설명**: 제휴마케팅 자동삽입 토글에 동의 패널 적용.
+- **설명**: 제휴마케팅 자동삽입 카드에 동의 패널 적용.
 - **수정 파일**:
   - `components/monetize/affiliate/AffiliateSettingsPanel.tsx`
 - **작업**:
-  - [ ] 자동삽입 섹션을 `ConsentGate(affiliate_marketing, inline_panel)`로 래핑
+  - [x] 자동삽입 카드를 `ConsentGate(affiliate_marketing, inline_panel)`로 래핑
 - **의존**: T2-10
 - **복잡도**: S
+- **완료일**: 2026-03-21
 
-### [ ] T2-26: ConsentManagementSection 빌드
+### [x] T2-26: ConsentManagementSection 빌드 ✅
 
 - **설명**: 설정 > 동의 관리 탭에 동의 현황 + 철회 기능 구현. T2-04 플레이스홀더를 교체.
-- **신규 파일**:
-  - `components/settings/ConsentManagementSection.tsx`
 - **수정 파일**:
+  - `components/settings/ConsentManagementSection.tsx` (기존 파일 버그 수정)
   - `app/(dashboard)/settings/page.tsx` (consent 탭 플레이스홀더 교체)
 - **작업**:
-  - [ ] `GET /api/consents` fetch → 동의 현황 리스트
-  - [ ] 각 consent_type: 라벨 + 동의일 + 버전 + 상태 표시
-  - [ ] 필수(tos, privacy): "필수" 배지, 철회 불가
-  - [ ] 선택: "철회" 버튼 + 확인 다이얼로그 (연쇄 처리 경고)
-  - [ ] 철회: `POST /api/consents/[type]/revoke`
-  - [ ] 기존 Card/CardContent 패턴 활용
+  - [x] `GET /api/consents` fetch → 동의 현황 리스트 (API 응답 형식 snake_case 맞춤)
+  - [x] 각 consent_type: 라벨 + 동의일 + 버전 + 상태 표시
+  - [x] 필수(tos, privacy): "필수" 배지, 철회 버튼 숨김
+  - [x] 선택: "철회" 버튼 + 확인 다이얼로그 (연쇄 처리 경고)
+  - [x] 철회: `POST /api/consents/[type]/revoke` (reason 필드 포함)
+  - [x] 설정 페이지에서 `ConsentManagementSection` import + 플레이스홀더 교체
 - **의존**: T2-04
 - **복잡도**: M
+- **완료일**: 2026-03-21
 
 ---
 
@@ -383,63 +391,77 @@
 > OAuth 앱 등록이 선행 필요 (Meta Developer, X Developer).
 > 별도 스프린트로 진행 권장.
 
-### [ ] T2-27: OAuth 콜백 라우트 (Instagram/Twitter/Threads)
+### [x] T2-27: OAuth 콜백 라우트 (Instagram/Twitter/Threads) ✅
 
 - **설명**: 각 플랫폼 OAuth 2.0 code exchange 핸들러.
 - **신규 파일**:
-  - `app/api/oauth/instagram/callback/route.ts`
-  - `app/api/oauth/twitter/callback/route.ts`
-  - `app/api/oauth/threads/callback/route.ts`
+  - `lib/sns/oauth-config.ts` (공통 OAuth 설정 상수)
+  - `app/api/oauth/[platform]/authorize/route.ts` (동적 라우트)
+  - `app/api/oauth/[platform]/callback/route.ts` (동적 라우트)
 - **작업**:
-  - [ ] OAuth code → access token 교환
-  - [ ] 암호화 후 blog_settings에 저장
-  - [ ] 블로그 설정 SNS 탭으로 리디렉트
+  - [x] OAuth code → access token 교환 (Instagram/Twitter/Threads)
+  - [x] 암호화 후 blog_settings.snsSettings에 저장
+  - [x] 블로그 설정 SNS 탭으로 리디렉트
+  - [x] CSRF state 검증 (userId + blogId + nonce)
+  - [x] Instagram long-lived token 자동 교환
 - **선행 조건**: Meta Developer App, X Developer App 등록 완료
 - **의존**: T2-24
 - **복잡도**: L
+- **완료일**: 2026-03-22
 
-### [ ] T2-28: 플랫폼 발행 함수 구현
+### [x] T2-28: 플랫폼 발행 함수 구현 ✅
 
 - **설명**: 주석 처리된 SNS publish 코드를 실구현으로 교체.
 - **수정 파일**:
-  - `app/api/monetize/sns/publish/route.ts` (주석 해제 + 구현)
+  - `app/api/monetize/sns/publish/route.ts` (실구현으로 교체)
 - **신규 파일**:
-  - `lib/sns/publishers/instagram.ts`
-  - `lib/sns/publishers/twitter.ts`
-  - `lib/sns/publishers/threads.ts`
+  - `lib/sns/publishers/instagram.ts` (Graph API container → publish)
+  - `lib/sns/publishers/twitter.ts` (X API v2 tweets)
+  - `lib/sns/publishers/threads.ts` (Threads API container → publish)
 - **작업**:
-  - [ ] 각 publisher: access token 복호화 → 플랫폼 API 호출 → platform_post_id 반환
-  - [ ] Instagram: Graph API `/me/media` + `/me/media_publish`
-  - [ ] Twitter: `POST https://api.twitter.com/2/tweets`
-  - [ ] Threads: Meta Threads API
-  - [ ] sns_posts 레코드 status 업데이트
+  - [x] 각 publisher: access token 복호화 → 플랫폼 API 호출 → platform_post_id 반환
+  - [x] Instagram: Graph API `/me/media` + `/me/media_publish`
+  - [x] Twitter: `POST https://api.twitter.com/2/tweets`
+  - [x] Threads: Meta Threads API container → publish
+  - [x] sns_posts 레코드 status 업데이트 (pending → published)
+  - [x] 플랫폼 연결 상태 확인 후 발행
 - **의존**: T2-27
 - **복잡도**: L
+- **완료일**: 2026-03-22
 
-### [ ] T2-29: SNSSettingsPanel → 실제 OAuth 리디렉트
+### [x] T2-29: SNSSettingsPanel → 실제 OAuth 리디렉트 ✅
 
 - **설명**: "연결하기" 버튼 클릭 시 실제 OAuth 인증 URL로 리디렉트.
 - **수정 파일**:
   - `components/monetize/sns/SNSSettingsPanel.tsx`
 - **작업**:
-  - [ ] `handleConnect` → OAuth authorization URL 리디렉트
-  - [ ] 연결 상태 표시 (green indicator when token exists)
-  - [ ] 환경변수: `META_APP_ID`, `X_CLIENT_ID` 등
+  - [x] `handleConnect` → `/api/oauth/{platform}/authorize?blogId=` 리디렉트
+  - [x] 연결 상태 표시 (green/red/gray indicator + connectedAt)
+  - [x] 연결 해제 기능 (Unlink 버튼)
+  - [x] SNSFormatPromptInput: PASONA 기반 플랫폼별 프롬프트 (기본값 복원 지원)
+  - [x] ImageGenToggle: 이미지 자동 생성 ON/OFF + 스타일 선택
+  - [x] ApiKeyStatusBadge: Imagen API 키 상태 표시
+  - [x] 전체 설정 저장 버튼
 - **의존**: T2-27
 - **복잡도**: M
+- **완료일**: 2026-03-22
 
-### [ ] T2-30: SNS 연결 테스트 기능
+### [x] T2-30: SNS 연결 테스트 기능 ✅
 
 - **설명**: 저장된 access token이 유효한지 확인하는 테스트 버튼.
 - **신규 파일**:
   - `app/api/blogs/[id]/settings/sns/test/[platform]/route.ts`
 - **수정 파일**:
-  - `components/monetize/sns/SNSSettingsPanel.tsx`
+  - `components/monetize/sns/SNSSettingsPanel.tsx` (테스트 버튼 + 결과 표시)
 - **작업**:
-  - [ ] API: token 복호화 → 경량 API 호출 (프로필 조회) → 성공/실패 반환
-  - [ ] UI: 각 플랫폼 옆 "테스트" 버튼 + 결과 배지
+  - [x] API: token 복호화 → 경량 API 호출 (프로필 조회) → 성공/실패 + username 반환
+  - [x] Instagram: Graph API 비즈니스 계정 프로필
+  - [x] Twitter: /2/users/me 프로필
+  - [x] Threads: /me 프로필
+  - [x] UI: 각 플랫폼 옆 TestTube 아이콘 버튼 + toast 결과
 - **의존**: T2-27
 - **복잡도**: M
+- **완료일**: 2026-03-22
 
 ---
 
@@ -466,7 +488,7 @@
 
 ## 검증 체크리스트
 
-- [ ] `npm run build` 빌드 성공
+- [x] `npm run build` 빌드 성공 (2026-03-21)
 - [ ] `npx tsc --noEmit` 타입 에러 없음
 - [ ] Phase 1: `/blogs` → 비ko 블로그에 언어 배지 표시
 - [ ] Phase 1: `/monetize` → RevenueGuidePanel 접힌 상태로 표시
@@ -476,4 +498,6 @@
 - [ ] Phase 3: `/editor/[id]?from=review` → 2/3+1/3 레이아웃 + 검수 사이드패널
 - [ ] Phase 4: `/settings?tab=ai-keys` → 4카테고리 + 9 provider + 발급 가이드
 - [ ] Phase 5: API 키 등록 시 동의 패널 표시
+- [ ] Phase 5: SNS 연결 시 플랫폼별 동의 모달 표시
+- [ ] Phase 5: 제휴마케팅 자동삽입 시 동의 패널 표시
 - [ ] Phase 5: `/settings?tab=consent` → 동의 현황 + 철회 기능

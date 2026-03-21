@@ -1,5 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { decrypt } from '@/lib/utils/encryption'
+import { publishToInstagram } from '@/lib/sns/publishers/instagram'
+import { publishToTwitter } from '@/lib/sns/publishers/twitter'
+import { publishToThreads } from '@/lib/sns/publishers/threads'
 
 export async function POST(request: Request) {
   const supabase = createClient()
@@ -24,10 +28,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // 블로그 소유권 확인
+    // 블로그 소유권 확인 + SNS 설정 조회
     const { data: blog, error: blogError } = await supabase
       .from('blogs')
-      .select('id')
+      .select('id, settings')
       .eq('id', blogId)
       .eq('user_id', user.id)
       .single()
@@ -36,6 +40,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: '블로그를 찾을 수 없습니다.' },
         { status: 404 }
+      )
+    }
+
+    // 플랫폼 연결 상태 확인
+    const snsSettings = blog.settings?.snsSettings || {}
+    const platformConfig = snsSettings[platform]
+    if (!platformConfig?.accessToken) {
+      return NextResponse.json(
+        { error: `${platform} 계정이 연결되지 않았습니다. 먼저 OAuth 인증을 완료해주세요.` },
+        { status: 400 }
       )
     }
 
@@ -60,18 +74,31 @@ export async function POST(request: Request) {
       )
     }
 
-    // 실제 SNS 플랫폼에 게시 (주석 처리 - 플랫폼 인증 필요)
-    // const published = await publishToSNSPlatform(platform, content, imageUrl, accessToken)
-    // if (published) {
-    //   await supabase
-    //     .from('sns_posts')
-    //     .update({
-    //       platform_post_id: published.postId,
-    //       status: 'published',
-    //       published_at: new Date().toISOString(),
-    //     })
-    //     .eq('id', snsPost.id)
-    // }
+    // Access Token 복호화
+    const accessToken = decrypt(platformConfig.accessToken)
+
+    // 실제 SNS 플랫폼에 게시
+    const published = await publishToSNSPlatform(platform, content, imageUrl, accessToken)
+
+    if (published) {
+      await supabase
+        .from('sns_posts')
+        .update({
+          platform_post_id: published.postId,
+          status: 'published',
+          published_at: new Date().toISOString(),
+        })
+        .eq('id', snsPost.id)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...snsPost,
+          platform_post_id: published.postId,
+          status: 'published',
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,
@@ -86,23 +113,20 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * 실제 SNS 플랫폼에 게시하는 함수 (향후 구현)
- */
-// async function publishToSNSPlatform(
-//   platform: string,
-//   content: string,
-//   imageUrl: string | null,
-//   accessToken: string
-// ) {
-//   switch (platform) {
-//     case 'instagram':
-//       return publishToInstagram(content, imageUrl, accessToken)
-//     case 'twitter':
-//       return publishToTwitter(content, accessToken)
-//     case 'threads':
-//       return publishToThreads(content, imageUrl, accessToken)
-//     default:
-//       return null
-//   }
-// }
+async function publishToSNSPlatform(
+  platform: string,
+  content: string,
+  imageUrl: string | null,
+  accessToken: string
+): Promise<{ postId: string } | null> {
+  switch (platform) {
+    case 'instagram':
+      return publishToInstagram(content, imageUrl, accessToken)
+    case 'twitter':
+      return publishToTwitter(content, accessToken)
+    case 'threads':
+      return publishToThreads(content, imageUrl, accessToken)
+    default:
+      return null
+  }
+}
