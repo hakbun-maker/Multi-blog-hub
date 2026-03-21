@@ -15,6 +15,9 @@ import { MemoTab } from '@/components/blogs/MemoTab'
 import { PlanSettingsTab } from '@/components/plan/PlanSettingsTab'
 import { BlogSettingsAllInOne } from '@/components/blogs/settings/BlogSettingsAllInOne'
 import { usePlanContext } from '@/components/plan/PlanContext'
+import { ApiGuideAccordion } from '@/components/settings/ApiGuideAccordion'
+import { ConsentGate } from '@/components/consent/ConsentGate'
+import { ConsentManagementSection } from '@/components/settings/ConsentManagementSection'
 
 interface AIKey {
   id: string
@@ -455,7 +458,8 @@ function SettingsPageInner() {
               </CardContent>
             </Card>
 
-            {/* 새 키 추가 — 4카테고리 */}
+            {/* 새 키 추가 — 4카테고리 (동의 필요) */}
+            <ConsentGate consentType="api_key_storage" ui="inline_panel">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">API 키 추가</CardTitle>
@@ -589,6 +593,8 @@ function SettingsPageInner() {
                         </div>
                       )}
 
+                      <ApiGuideAccordion provider={providerDef.value} label={`${providerDef.label} 발급 가이드`} />
+
                       <div className="space-y-1.5">
                         <Label>API 키</Label>
                         <div className="relative">
@@ -679,6 +685,7 @@ function SettingsPageInner() {
                 )}
               </CardContent>
             </Card>
+            </ConsentGate>
           </TabsContent>
 
           {/* 알림 탭 */}
@@ -716,22 +723,7 @@ function SettingsPageInner() {
           </TabsContent>
           {/* 동의 관리 탭 */}
           <TabsContent value="consent" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Shield className="h-4 w-4" /> 동의 관리
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Shield className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    서비스 이용약관, 개인정보 처리방침 등 동의 현황을 확인하고 관리할 수 있습니다.
-                  </p>
-                  <Badge variant="secondary" className="mt-3">준비 중</Badge>
-                </div>
-              </CardContent>
-            </Card>
+            <ConsentManagementSection />
           </TabsContent>
 
           <TabsContent value="blog-all" className="mt-6">

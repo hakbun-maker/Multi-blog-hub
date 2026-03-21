@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { FeatureGate } from '@/components/plan/FeatureGate'
+import { ConsentGate } from '@/components/consent/ConsentGate'
 import { MonetizeSubNav } from '@/components/monetize/MonetizeSubNav'
 import { RocketStatusCard } from '@/components/monetize/dashboard/RocketStatusCard'
 import { RevenueSummaryCard } from '@/components/monetize/dashboard/RevenueSummaryCard'
@@ -42,10 +43,12 @@ export default function MonetizePage() {
           <h1 className="text-2xl font-bold text-gray-900">수익화 대시보드</h1>
           <p className="text-sm text-gray-500 mt-0.5">파이프라인 현황과 수익 분석을 한눈에 확인합니다.</p>
         </div>
+        <ConsentGate consentType="automation" ui="modal">
         <div className="grid grid-cols-2 gap-4">
           <RocketStatusCard />
           <RevenueSummaryCard />
         </div>
+        </ConsentGate>
         <RevenueLineChart />
         <BlogGradeTable />
         <RevenueGuidePanel

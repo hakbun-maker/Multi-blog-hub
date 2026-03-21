@@ -13,11 +13,22 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import type { ConsentStatusItem, ConsentType } from '@/types/consent'
-import { CONSENT_LABELS, REVOKE_CASCADES } from '@/lib/consent/constants'
+import type { ConsentType } from '@/types/consent'
+import { CONSENT_LABELS, ESSENTIAL_CONSENTS, REVOKE_CASCADES } from '@/lib/consent/constants'
+
+interface ConsentRow {
+  consent_type: ConsentType
+  title: string
+  latest_version: string
+  agreed_version: string | null
+  is_agreed: boolean
+  agreed_at: string | null
+  method: string | null
+  needs_update: boolean
+}
 
 export function ConsentManagementSection() {
-  const [consents, setConsents] = useState<ConsentStatusItem[]>([])
+  const [consents, setConsents] = useState<ConsentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [revoking, setRevoking] = useState(false)
   const [revokeConfirm, setRevokeConfirm] = useState<ConsentType | null>(null)
@@ -30,9 +41,9 @@ export function ConsentManagementSection() {
     setLoading(true)
     try {
       const res = await fetch('/api/consents')
-      const data = await res.json()
-      if (data.consents) {
-        setConsents(data.consents)
+      const json = await res.json()
+      if (json.data) {
+        setConsents(json.data as ConsentRow[])
       }
     } catch (err) {
       console.error('Failed to fetch consents:', err)
@@ -42,11 +53,16 @@ export function ConsentManagementSection() {
     }
   }
 
+  const isEssential = (consentType: ConsentType) =>
+    ESSENTIAL_CONSENTS.includes(consentType)
+
   const handleRevoke = async (consentType: ConsentType) => {
     setRevoking(true)
     try {
       const res = await fetch(`/api/consents/${consentType}/revoke`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: '사용자 직접 철회' }),
       })
 
       if (!res.ok) {
@@ -55,8 +71,8 @@ export function ConsentManagementSection() {
 
       setConsents(prev =>
         prev.map(c =>
-          c.consentType === consentType
-            ? { ...c, isAgreed: false, agreedAt: null }
+          c.consent_type === consentType
+            ? { ...c, is_agreed: false, agreed_at: null }
             : c
         )
       )
@@ -72,6 +88,9 @@ export function ConsentManagementSection() {
   }
 
   const getRevokeMessage = (consentType: ConsentType) => {
+    if (isEssential(consentType)) {
+      return '필수 동의입니다. 철회 시 서비스 이용이 불가능합니다.'
+    }
     const cascade = REVOKE_CASCADES[consentType]
     if (!cascade) return null
     return `이 동의를 철회하면 다음이 적용됩니다: ${cascade}`
@@ -107,21 +126,28 @@ export function ConsentManagementSection() {
               <div className="space-y-3">
                 {consents.map(consent => (
                   <div
-                    key={consent.consentType}
+                    key={consent.consent_type}
                     className="flex items-start justify-between border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex-1 space-y-1">
-                      <h4 className="font-semibold text-sm">{consent.title}</h4>
-                      {consent.isAgreed ? (
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-sm">{consent.title}</h4>
+                        {isEssential(consent.consent_type) && (
+                          <span className="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                            필수
+                          </span>
+                        )}
+                      </div>
+                      {consent.is_agreed ? (
                         <div className="text-xs text-muted-foreground space-y-0.5">
                           <p>
-                            동의일: {new Date(consent.agreedAt!).toLocaleDateString('ko-KR')}
+                            동의일: {new Date(consent.agreed_at!).toLocaleDateString('ko-KR')}
                           </p>
                           <p>
-                            버전: v{consent.version}
-                            {consent.needsUpdate && (
+                            버전: v{consent.agreed_version}
+                            {consent.needs_update && (
                               <span className="ml-2 inline-block bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs">
-                                업데이트 필요
+                                업데이트 필요 (최신: v{consent.latest_version})
                               </span>
                             )}
                           </p>
@@ -131,12 +157,12 @@ export function ConsentManagementSection() {
                       )}
                     </div>
 
-                    {consent.isAgreed && (
+                    {consent.is_agreed && !isEssential(consent.consent_type) && (
                       <Button
                         size="sm"
                         variant="outline"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => setRevokeConfirm(consent.consentType)}
+                        onClick={() => setRevokeConfirm(consent.consent_type)}
                         disabled={revoking}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />

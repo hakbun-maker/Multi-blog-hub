@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ConsentGate } from '@/components/consent/ConsentGate'
 import type { IntentType } from '@/types/monetize'
 
 interface AffiliateConfig {
@@ -102,7 +103,8 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* 자동 삽입 카드 */}
+      {/* 자동 삽입 카드 — 제휴마케팅 동의 필요 */}
+      <ConsentGate consentType="affiliate_marketing" ui="inline_panel">
       <Card>
         <CardHeader>
           <CardTitle>자동 삽입 설정</CardTitle>
@@ -172,6 +174,8 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
           )}
         </CardContent>
       </Card>
+
+      </ConsentGate>
 
       {/* API 설정 카드 */}
       <Card>

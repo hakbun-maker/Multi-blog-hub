@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { ConsentGate } from '@/components/consent/ConsentGate'
+import type { ConsentType } from '@/types/consent'
 
 interface SNSPlatformConfig {
   enabled: boolean
@@ -138,14 +140,19 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
                     disabled={saving}
                   />
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleConnect(platform.id)}
-                    disabled={saving}
+                  <ConsentGate
+                    consentType={`sns_oauth_${platform.id}` as ConsentType}
+                    ui="modal"
                   >
-                    연결하기 (준비 중)
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleConnect(platform.id)}
+                      disabled={saving}
+                    >
+                      연결하기 (준비 중)
+                    </Button>
+                  </ConsentGate>
                 )}
               </div>
             </div>
