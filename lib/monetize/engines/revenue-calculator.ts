@@ -106,32 +106,35 @@ export function calculateRevenueGuide(input: RevenueGuideInput): RevenueGuideRes
   const monthlyPerBlogA = rppA * monthlyPostsA
   const monthlyPerBlogB = rppB * monthlyPostsB
 
-  // 최소 구성으로 시작해서 목표 달성될 때까지 스케일업
-  let sCount = 1
-  let aCount = 1
-  let bCount = 1
+  // 0에서 시작하여 목표 달성까지 스케일업
+  let sCount = 0
+  let aCount = 0
+  let bCount = 0
 
   const calcTotal = (s: number, a: number, b: number) =>
     s * monthlyPerBlogS + a * monthlyPerBlogA + b * monthlyPerBlogB
 
-  // S등급 우선 확보 (수익 효율 최고)
-  while (calcTotal(sCount, aCount, bCount) < target && sCount < 5) {
-    sCount++
+  // 소액 목표: B등급(입문 친화적)부터 추가
+  while (calcTotal(sCount, aCount, bCount) < target && bCount < 3) {
+    bCount++
   }
   // A등급 추가
   while (calcTotal(sCount, aCount, bCount) < target && aCount < 4) {
     aCount++
   }
-  // B등급 추가
-  while (calcTotal(sCount, aCount, bCount) < target && bCount < 3) {
-    bCount++
+  // S등급 추가 (고CPC, 전문성 필요)
+  while (calcTotal(sCount, aCount, bCount) < target && sCount < 5) {
+    sCount++
   }
-  // 그래도 부족하면 S부터 한 번 더
+  // 그래도 부족하면 골고루 추가
   while (calcTotal(sCount, aCount, bCount) < target && (sCount + aCount + bCount) < 15) {
     if (sCount <= aCount) sCount++
     else if (aCount <= bCount) aCount++
     else sCount++
   }
+
+  // 최소 1개 블로그 보장
+  if (sCount + aCount + bCount === 0) bCount = 1
 
   const totalBlogs = sCount + aCount + bCount
   const totalMonthlyRevenue = calcTotal(sCount, aCount, bCount)

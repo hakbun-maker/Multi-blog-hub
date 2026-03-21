@@ -10,7 +10,14 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid, AlertTriangle } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { MemoTab } from '@/components/blogs/MemoTab'
 import { PlanSettingsTab } from '@/components/plan/PlanSettingsTab'
 import { BlogSettingsAllInOne } from '@/components/blogs/settings/BlogSettingsAllInOne'
@@ -179,6 +186,11 @@ function SettingsPageInner() {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [addingKey, setAddingKey] = useState(false)
   const [addResult, setAddResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  // 계정 삭제 2단계
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0)
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -379,7 +391,11 @@ function SettingsPageInner() {
                     <p className="text-sm font-medium">계정 삭제</p>
                     <p className="text-xs text-muted-foreground mt-0.5">모든 데이터가 영구적으로 삭제됩니다.</p>
                   </div>
-                  <Button variant="destructive" size="sm" disabled>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => { setDeleteStep(1); setDeleteConfirmEmail('') }}
+                  >
                     계정 삭제
                   </Button>
                 </div>
@@ -735,6 +751,88 @@ function SettingsPageInner() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* 계정 삭제 2단계 다이얼로그 */}
+      <Dialog open={deleteStep > 0} onOpenChange={isOpen => { if (!isOpen) setDeleteStep(0) }}>
+        <DialogContent className="max-w-sm">
+          {deleteStep === 1 && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  정말 계정을 삭제하시겠습니까?
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  확인을 위해 이메일 주소를 입력해주세요.
+                </p>
+                <Input
+                  placeholder={profile?.email ?? '이메일 입력'}
+                  value={deleteConfirmEmail}
+                  onChange={e => setDeleteConfirmEmail(e.target.value)}
+                />
+              </div>
+              <DialogFooter className="flex-row gap-2">
+                <Button variant="outline" onClick={() => setDeleteStep(0)}>취소</Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteConfirmEmail !== profile?.email}
+                  onClick={() => setDeleteStep(2)}
+                >
+                  다음
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+          {deleteStep === 2 && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  최종 확인
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm">
+                  계정을 삭제하시면 다음 혜택들을 더 이상 이용할 수 없습니다:
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
+                  <li>등록된 모든 블로그 및 게시물 데이터</li>
+                  <li>AI 캐릭터 및 키워드 분석 데이터</li>
+                  <li>저장된 API 키 및 연동 설정</li>
+                  <li>수익화 설정 및 SNS 연동</li>
+                  <li>스케줄러 자동화 설정</li>
+                </ul>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800 font-medium">이 작업은 되돌릴 수 없습니다.</p>
+                </div>
+              </div>
+              <DialogFooter className="flex-row gap-2">
+                <Button variant="outline" onClick={() => setDeleteStep(0)} disabled={deletingAccount}>취소</Button>
+                <Button
+                  variant="destructive"
+                  disabled={deletingAccount}
+                  onClick={async () => {
+                    setDeletingAccount(true)
+                    try {
+                      const res = await fetch('/api/me', { method: 'DELETE' })
+                      if (!res.ok) throw new Error('삭제 실패')
+                      window.location.href = '/login'
+                    } catch {
+                      setDeletingAccount(false)
+                    }
+                  }}
+                >
+                  {deletingAccount ? (
+                    <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />삭제 중...</>
+                  ) : '계정 삭제'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

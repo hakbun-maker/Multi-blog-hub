@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Trash2 } from 'lucide-react'
+import { AlertCircle, Trash2, CheckCircle2, Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -32,6 +31,7 @@ export function ConsentManagementSection() {
   const [loading, setLoading] = useState(true)
   const [revoking, setRevoking] = useState(false)
   const [revokeConfirm, setRevokeConfirm] = useState<ConsentType | null>(null)
+  const [bulkConsenting, setBulkConsenting] = useState(false)
 
   useEffect(() => {
     fetchConsents()
@@ -55,6 +55,68 @@ export function ConsentManagementSection() {
 
   const isEssential = (consentType: ConsentType) =>
     ESSENTIAL_CONSENTS.includes(consentType)
+
+  // 미동의 항목 수
+  const unagreedConsents = consents.filter(c => !c.is_agreed)
+
+  // 일괄 동의
+  const handleBulkConsent = async () => {
+    if (unagreedConsents.length === 0) return
+    setBulkConsenting(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const consent of unagreedConsents) {
+      try {
+        const res = await fetch('/api/consents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consent_type: consent.consent_type,
+            method: 'bulk_consent',
+          }),
+        })
+        if (res.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch {
+        failCount++
+      }
+    }
+
+    setBulkConsenting(false)
+
+    if (successCount > 0) {
+      toast.success(`${successCount}개 항목에 동의했습니다.`)
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount}개 항목 동의에 실패했습니다.`)
+    }
+
+    // 동의 현황 새로고침
+    fetchConsents()
+  }
+
+  // 개별 동의
+  const handleSingleConsent = async (consentType: ConsentType) => {
+    try {
+      const res = await fetch('/api/consents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consent_type: consentType,
+          method: 'inline_panel',
+        }),
+      })
+      if (!res.ok) throw new Error('동의 처리 실패')
+      toast.success(`${CONSENT_LABELS[consentType]} 동의가 완료되었습니다.`)
+      fetchConsents()
+    } catch {
+      toast.error('동의 처리에 실패했습니다.')
+    }
+  }
 
   const handleRevoke = async (consentType: ConsentType) => {
     setRevoking(true)
@@ -113,10 +175,33 @@ export function ConsentManagementSection() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>동의 관리</CardTitle>
-          <CardDescription>
-            서비스 이용 시 수집한 동의 현황과 철회 관리
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>동의 관리</CardTitle>
+              <CardDescription>
+                서비스 이용 시 수집한 동의 현황과 철회 관리
+              </CardDescription>
+            </div>
+            {unagreedConsents.length > 0 && (
+              <Button
+                onClick={handleBulkConsent}
+                disabled={bulkConsenting}
+                size="sm"
+              >
+                {bulkConsenting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                    전체 동의 ({unagreedConsents.length}개)
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -157,18 +242,29 @@ export function ConsentManagementSection() {
                       )}
                     </div>
 
-                    {consent.is_agreed && !isEssential(consent.consent_type) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setRevokeConfirm(consent.consent_type)}
-                        disabled={revoking}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        철회
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!consent.is_agreed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSingleConsent(consent.consent_type)}
+                        >
+                          동의
+                        </Button>
+                      )}
+                      {consent.is_agreed && !isEssential(consent.consent_type) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setRevokeConfirm(consent.consent_type)}
+                          disabled={revoking}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          철회
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

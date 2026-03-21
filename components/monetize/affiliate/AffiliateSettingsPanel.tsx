@@ -25,6 +25,11 @@ interface AffiliateSettingsData {
   amazonConfigured: boolean
 }
 
+interface ApiKeyInfo {
+  provider: string
+  is_active: boolean
+}
+
 const INTENT_TYPES: { type: IntentType; label: string; description: string }[] = [
   { type: 'AD', label: '광고 (AD)', description: '항상 제품 삽입' },
   { type: 'REVIEW', label: '리뷰 (REVIEW)', description: '항상 제품 삽입' },
@@ -44,9 +49,12 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
     provider: 'coupang',
     intentSettings: { AD: true, REVIEW: true, INFO: false, CRITIC: false, COMPARE: true, TREND: false },
   })
+  const [apiKeyCoupang, setApiKeyCoupang] = useState(false)
+  const [apiKeyAmazon, setApiKeyAmazon] = useState(false)
 
   useEffect(() => {
     loadSettings()
+    loadApiKeys()
   }, [blogId])
 
   const loadSettings = async () => {
@@ -63,6 +71,17 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 설정 > API 키 관리에서 등록된 키도 확인
+  const loadApiKeys = async () => {
+    try {
+      const res = await fetch('/api/ai-keys')
+      const data = await res.json()
+      const keys: ApiKeyInfo[] = data.data || data.keys || []
+      setApiKeyCoupang(keys.some(k => k.provider === 'coupang' && k.is_active))
+      setApiKeyAmazon(keys.some(k => k.provider === 'amazon' && k.is_active))
+    } catch { /* ignore */ }
   }
 
   const handleSave = async () => {
@@ -189,7 +208,7 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-sm">쿠팡 (Coupang)</h4>
               <ApiKeyStatusBadge
-                configured={settings?.coupangConfigured ?? false}
+                configured={(settings?.coupangConfigured ?? false) || apiKeyCoupang}
                 platform="Coupang"
               />
             </div>
@@ -214,7 +233,7 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-sm">아마존 (Amazon)</h4>
               <ApiKeyStatusBadge
-                configured={settings?.amazonConfigured ?? false}
+                configured={(settings?.amazonConfigured ?? false) || apiKeyAmazon}
                 platform="Amazon"
               />
             </div>

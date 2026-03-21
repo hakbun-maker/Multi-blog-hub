@@ -2,10 +2,17 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, Trash2, Info, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Save, Trash2, Info, ChevronDown, ChevronUp, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { LANGUAGES, COLORS, BLOG_TYPES } from './constants'
 import type { BlogLanguage } from '@/types/monetize'
 
@@ -219,10 +226,28 @@ export function BasicInfoForm({ blogId, showDeleteButton = true, onLanguageTabCl
     if (res.ok) showSuccessMsg('기본정보가 저장되었습니다.')
   }
 
-  const handleDelete = async () => {
-    if (!confirm(`"${name}" 블로그를 삭제하시겠습니까?\n모든 글과 데이터가 삭제됩니다.`)) return
+  // ─── 2단계 블로그 삭제 ───
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0)
+  const [deleteConfirmName, setDeleteConfirmName] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDeleteStep1 = () => {
+    setDeleteStep(1)
+    setDeleteConfirmName('')
+  }
+
+  const handleDeleteStep2 = () => {
+    setDeleteStep(2)
+  }
+
+  const handleDeleteFinal = async () => {
+    setDeleting(true)
     const res = await fetch(`/api/blogs/${blogId}`, { method: 'DELETE' })
-    if (res.ok) router.push('/blogs')
+    setDeleting(false)
+    if (res.ok) {
+      setDeleteStep(0)
+      router.push('/blogs')
+    }
   }
 
   if (loading) {
@@ -305,11 +330,85 @@ export function BasicInfoForm({ blogId, showDeleteButton = true, onLanguageTabCl
         </Button>
         {showDeleteButton && (
           <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50"
-            onClick={handleDelete}>
+            onClick={handleDeleteStep1}>
             <Trash2 className="w-4 h-4 mr-1.5" />블로그 삭제
           </Button>
         )}
       </div>
+
+      {/* 블로그 삭제 1단계: 블로그명 확인 */}
+      <Dialog open={deleteStep === 1} onOpenChange={isOpen => !isOpen && setDeleteStep(0)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              정말 블로그를 삭제하시겠습니까?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              삭제할 블로그: <strong>{name}</strong>
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-sm">확인을 위해 블로그 이름을 입력해주세요</Label>
+              <Input
+                value={deleteConfirmName}
+                onChange={e => setDeleteConfirmName(e.target.value)}
+                placeholder={name}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteStep(0)}>취소</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmName !== name}
+              onClick={handleDeleteStep2}
+            >
+              다음
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 블로그 삭제 2단계: 최종 경고 */}
+      <Dialog open={deleteStep === 2} onOpenChange={isOpen => !isOpen && setDeleteStep(0)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              최종 확인
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800 font-medium mb-2">
+                블로그를 삭제하시면 다음 혜택을 누리실 수 없게 됩니다:
+              </p>
+              <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
+                <li>블로그에 등록된 모든 글이 영구 삭제됩니다</li>
+                <li>SNS 자동 공유 연동이 해제됩니다</li>
+                <li>제휴마케팅 자동 삽입 설정이 삭제됩니다</li>
+                <li>AI 캐릭터 설정이 삭제됩니다</li>
+                <li>커스텀 도메인 연결이 해제됩니다</li>
+              </ul>
+            </div>
+            <p className="text-sm font-medium text-foreground">
+              그래도 삭제하시겠습니까?
+            </p>
+          </div>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteStep(0)} disabled={deleting}>취소</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteFinal}
+              disabled={deleting}
+            >
+              {deleting ? '삭제 중...' : '삭제'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

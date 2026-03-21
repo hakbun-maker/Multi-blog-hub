@@ -412,6 +412,14 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
             />
           </div>
 
+          {/* Imagen API 키 상태 — 항상 표시 */}
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Imagen API 키 상태</Label>
+            </div>
+            <ApiKeyStatusBadge provider="google_imagen" label="Imagen" />
+          </div>
+
           {settings.imageGen?.enabled && (
             <div className="space-y-3 pl-4 border-l-2 border-muted">
               <div className="space-y-1.5">
@@ -431,11 +439,6 @@ export function SNSSettingsPanel({ blogId }: { blogId: string }) {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="pt-2">
-                <Label className="text-sm mb-1 block">Imagen API 키 상태</Label>
-                <ApiKeyStatusBadge provider="google_imagen" label="Imagen" />
               </div>
             </div>
           )}
