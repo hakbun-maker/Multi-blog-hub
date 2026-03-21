@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { recordConsent } from '@/lib/consent/server'
 import type { ConsentType, ConsentMethod } from '@/types/consent'
+import { CONSENT_TYPES } from '@/lib/consent/constants'
 
 export async function GET() {
   // 사용자의 전체 동의 현황 조회
@@ -21,10 +22,12 @@ export async function GET() {
       return NextResponse.json({ error: versionsError.message }, { status: 500 })
     }
 
-    // consent_type별 최신 버전만 추출
+    // consent_type별 최신 버전만 추출 (유효한 타입만)
+    const validTypes = new Set<string>(CONSENT_TYPES)
     const latestVersions = new Map<string, { version: string; title: string; effectiveDate: string }>()
     if (versions) {
       for (const v of versions) {
+        if (!validTypes.has(v.consent_type)) continue
         if (!latestVersions.has(v.consent_type)) {
           latestVersions.set(v.consent_type, {
             version: v.version,
