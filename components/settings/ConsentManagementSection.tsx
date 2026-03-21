@@ -123,7 +123,7 @@ export function ConsentManagementSection() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             consent_type: consent.consent_type,
-            method: 'consent_management',
+            method: 'checkbox',
           }),
         })
         if (res.ok) successCount++
