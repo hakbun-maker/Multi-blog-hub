@@ -25,11 +25,8 @@ export async function GET(request: NextRequest) {
     const isValid = await hasValidConsent(user.id, type as ConsentType)
 
     return NextResponse.json({
-      data: {
-        consent_type: type,
-        user_id: user.id,
-        valid: isValid,
-      },
+      hasValidConsent: isValid,
+      consent_type: type,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : '알 수 없는 오류'

@@ -58,7 +58,11 @@ export function ConsentPreActionModal({
       const res = await fetch('/api/consents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consentType }),
+        body: JSON.stringify({
+          consent_type: consentType,
+          version: version?.version,
+          method: 'modal',
+        }),
       })
 
       if (!res.ok) {
@@ -91,15 +95,15 @@ export function ConsentPreActionModal({
             <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground">로딩 중...</div>
             </div>
-          ) : version ? (
+          ) : (
             <div className="space-y-3 text-sm">
-              {version.summary && (
+              {version?.summary && (
                 <div className="bg-muted p-3 rounded-lg">
                   <p className="text-muted-foreground">{version.summary}</p>
                 </div>
               )}
 
-              {version.contentUrl && (
+              {version?.contentUrl && (
                 <p className="text-xs text-muted-foreground">
                   자세한 내용은 동의 후 설정에서 확인할 수 있습니다.
                 </p>
@@ -107,11 +111,11 @@ export function ConsentPreActionModal({
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-foreground">
-                  <strong>동의하면:</strong> {CONSENT_LABELS[consentType]}를 사용할 수 있습니다.
+                  <strong>동의하면:</strong> {CONSENT_LABELS[consentType]} 기능을 사용할 수 있습니다.
                 </p>
               </div>
             </div>
-          ) : null}
+          )}
         </div>
 
         <DialogFooter className="flex-row gap-2">

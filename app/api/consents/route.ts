@@ -76,18 +76,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { consent_type, version, method } = body as {
-      consent_type?: ConsentType
-      version?: string
-      method?: ConsentMethod
-    }
+    // camelCase / snake_case 모두 호환
+    const consentType = (body.consent_type || body.consentType) as ConsentType | undefined
+    let version = (body.version) as string | undefined
+    const method = (body.method || 'inline_panel') as ConsentMethod
 
-    // 필수 필드 검증
-    if (!consent_type || !version || !method) {
+    if (!consentType) {
       return NextResponse.json(
-        { error: 'consent_type, version, method는 필수입니다.' },
+        { error: 'consent_type 또는 consentType은 필수입니다.' },
         { status: 400 }
       )
+    }
+
+    // version 미제공 시 최신 버전 자동 조회
+    if (!version) {
+      const { data: latestVersion } = await supabase
+        .from('consent_versions')
+        .select('version')
+        .eq('consent_type', consentType)
+        .order('effective_date', { ascending: false })
+        .limit(1)
+        .single()
+
+      version = latestVersion?.version ?? '1.0'
     }
 
     // IP 주소 추출 (x-forwarded-for 헤더)
@@ -96,13 +107,15 @@ export async function POST(request: NextRequest) {
     // User-Agent 추출
     const userAgent = request.headers.get('user-agent') || null
 
+    const resolvedVersion = version!
+
     // 동의 기록
-    await recordConsent(user.id, consent_type, version, method, ip || undefined, userAgent || undefined)
+    await recordConsent(user.id, consentType, resolvedVersion, method, ip || undefined, userAgent || undefined)
 
     return NextResponse.json({
       data: {
         user_id: user.id,
-        consent_type,
+        consent_type: consentType,
         version,
         method,
         agreed_at: new Date().toISOString(),

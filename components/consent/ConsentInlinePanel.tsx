@@ -27,7 +27,10 @@ export function ConsentInlinePanel({
       const res = await fetch('/api/consents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consentType }),
+        body: JSON.stringify({
+          consent_type: consentType,
+          method: 'inline_panel',
+        }),
       })
 
       if (!res.ok) {
