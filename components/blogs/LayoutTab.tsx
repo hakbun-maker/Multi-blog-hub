@@ -560,7 +560,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => window.open(`/blog/${blogSlug}`, '_blank')}
+            onClick={() => window.open(customDomain ? `https://${customDomain}` : `/blog/${blogSlug}`, '_blank')}
           >
             <Eye className="w-4 h-4 mr-1.5" />미리보기
           </Button>
