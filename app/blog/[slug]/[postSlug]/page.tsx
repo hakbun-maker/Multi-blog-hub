@@ -294,21 +294,23 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         </div>
       </header>
 
-      {/* 상단 광고 배너 */}
+      {/* 상단 광고 배너 (가로 100%) */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
-        <div className="mx-auto w-full px-4 py-2" style={{ maxWidth: cfg.layout.max_width }}>
-          <AdSlotRenderer code={cfg.ads.top_banner.code} />
+        <div className="w-full bg-gray-50 py-2">
+          <AdSlotRenderer code={cfg.ads.top_banner.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 본문 영역 */}
       <div className={`flex-1 ${hasSidebar ? 'flex gap-8' : ''} mx-auto px-4`} style={{ maxWidth: cfg.layout.max_width }}>
-        {/* 좌측 사이드바 */}
+        {/* 좌측 사이드바 (스크롤 고정) */}
         {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="w-64 flex-shrink-0 py-10 space-y-4">
-            {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
-              <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
-            )}
+          <aside className="w-64 flex-shrink-0 py-10">
+            <div className="sticky top-4 space-y-4">
+              {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
+                <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
+              )}
+            </div>
           </aside>
         )}
 
@@ -355,20 +357,22 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
           )}
         </article>
 
-        {/* 우측 사이드바 */}
+        {/* 우측 사이드바 (스크롤 고정) */}
         {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="w-64 flex-shrink-0 py-10 space-y-4">
-            {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
-              <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
-            )}
+          <aside className="w-64 flex-shrink-0 py-10">
+            <div className="sticky top-4 space-y-4">
+              {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
+                <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
+              )}
+            </div>
           </aside>
         )}
       </div>
 
-      {/* 하단 광고 */}
+      {/* 하단 광고 (가로 100%) */}
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
-        <div className="mx-auto w-full px-4 py-2" style={{ maxWidth: cfg.layout.max_width }}>
-          <AdSlotRenderer code={cfg.ads.footer_ad.code} />
+        <div className="w-full bg-gray-50 py-2">
+          <AdSlotRenderer code={cfg.ads.footer_ad.code} className="w-full text-center" />
         </div>
       )}
 
