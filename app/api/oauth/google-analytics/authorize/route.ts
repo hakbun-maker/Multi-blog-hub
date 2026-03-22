@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     response_type: 'code',
     scope: 'https://www.googleapis.com/auth/analytics.edit https://www.googleapis.com/auth/userinfo.email',
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: 'consent select_account',
     state,
   })
 
