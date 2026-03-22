@@ -913,44 +913,93 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
 
       {/* ═══ 5. 분석 & 추적 ═══ */}
       <Section title="분석 & 추적">
-        <div className="space-y-1">
-          <Label className="text-xs">Google Analytics 4 ID</Label>
+        {/* GA4 */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Google Analytics 4 ID</Label>
           <Input
             value={config.tracking.ga4_id}
             onChange={e => updateTracking({ ga4_id: e.target.value })}
             placeholder="G-XXXXXXXXXX"
             className="text-sm font-mono"
           />
+          <details className="group">
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p>1. <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Analytics</a>에 로그인합니다.</p>
+              <p>2. 좌측 하단 <strong>관리(⚙️)</strong> → <strong>데이터 스트림</strong>을 클릭합니다.</p>
+              <p>3. 웹 스트림을 선택하면 상단에 <code className="bg-gray-200 px-1 rounded">G-XXXXXXXXXX</code> 형태의 <strong>측정 ID</strong>가 표시됩니다.</p>
+              <p>4. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
+              <p className="text-gray-400 pt-1">✓ 입력하면 블로그 방문자 수, 페이지뷰, 유입 경로, 체류 시간 등을 Google Analytics 대시보드에서 실시간으로 분석할 수 있습니다.</p>
+            </div>
+          </details>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs">Google Search Console (확인 코드)</Label>
+        {/* GSC */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Google Search Console (확인 코드)</Label>
           <Input
             value={config.tracking.gsc_code}
             onChange={e => updateTracking({ gsc_code: e.target.value })}
             placeholder="확인 코드 (meta 태그 content 값)"
             className="text-sm font-mono"
           />
+          <details className="group">
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p>1. <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Search Console</a>에 로그인합니다.</p>
+              <p>2. <strong>속성 추가</strong> → <strong>URL 접두어</strong>에 블로그 주소를 입력합니다.</p>
+              <p>3. 확인 방법에서 <strong>&quot;HTML 태그&quot;</strong>를 선택합니다.</p>
+              <p>4. 아래와 같은 메타 태그가 표시됩니다:</p>
+              <code className="block bg-gray-200 px-2 py-1 rounded text-[11px] break-all">&lt;meta name=&quot;google-site-verification&quot; content=&quot;<strong>여기_값</strong>&quot; /&gt;</code>
+              <p>5. <strong>content=&quot;...&quot;</strong> 안의 값만 복사하여 위에 붙여넣으세요.</p>
+              <p className="text-gray-400 pt-1">✓ 입력하면 Google에 블로그 소유권이 확인되어, 검색 노출 현황, 클릭 수, 색인 상태, 크롤링 오류 등을 모니터링할 수 있습니다.</p>
+            </div>
+          </details>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs">네이버 서치어드바이저</Label>
+        {/* 네이버 서치어드바이저 */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">네이버 서치어드바이저</Label>
           <Input
             value={config.tracking.naver_code}
             onChange={e => updateTracking({ naver_code: e.target.value })}
             placeholder="확인 코드"
             className="text-sm font-mono"
           />
+          <details className="group">
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p>1. <a href="https://searchadvisor.naver.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">네이버 서치어드바이저</a>에 로그인합니다.</p>
+              <p>2. <strong>웹마스터 도구</strong> → <strong>사이트 추가</strong>에서 블로그 URL을 등록합니다.</p>
+              <p>3. 소유 확인 방법에서 <strong>&quot;HTML 태그&quot;</strong>를 선택합니다.</p>
+              <p>4. 아래와 같은 메타 태그가 표시됩니다:</p>
+              <code className="block bg-gray-200 px-2 py-1 rounded text-[11px] break-all">&lt;meta name=&quot;naver-site-verification&quot; content=&quot;<strong>여기_값</strong>&quot; /&gt;</code>
+              <p>5. <strong>content=&quot;...&quot;</strong> 안의 값만 복사하여 위에 붙여넣으세요.</p>
+              <p className="text-gray-400 pt-1">✓ 입력하면 네이버 검색에 블로그가 등록되어, 네이버 검색 노출/색인 현황과 방문 분석을 확인할 수 있습니다. 한국 대상 블로그라면 필수입니다.</p>
+            </div>
+          </details>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs">카카오 픽셀</Label>
+        {/* 카카오 픽셀 */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">카카오 픽셀</Label>
           <Input
             value={config.tracking.kakao_pixel}
             onChange={e => updateTracking({ kakao_pixel: e.target.value })}
             placeholder="픽셀 ID"
             className="text-sm font-mono"
           />
+          <details className="group">
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p>1. <a href="https://moment.kakao.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">카카오 모먼트</a>에 로그인합니다.</p>
+              <p>2. <strong>도구</strong> → <strong>카카오 픽셀 &amp; SDK</strong>로 이동합니다.</p>
+              <p>3. <strong>새 픽셀 만들기</strong>로 픽셀을 생성하거나, 기존 픽셀을 선택합니다.</p>
+              <p>4. 픽셀 상세 페이지에서 <strong>픽셀 ID</strong> (숫자)를 확인합니다.</p>
+              <p>5. 이 숫자를 위 입력란에 붙여넣으세요.</p>
+              <p className="text-gray-400 pt-1">✓ 입력하면 카카오 광고를 통해 유입된 방문자의 행동(페이지뷰, 전환 등)을 추적할 수 있습니다. 카카오 광고를 운영하지 않는다면 비워두셔도 됩니다.</p>
+            </div>
+          </details>
         </div>
 
         {/* 고급: 커스텀 코드 */}
@@ -958,9 +1007,10 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
           <summary className="text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700">
             고급: 커스텀 코드
           </summary>
-          <div className="mt-3 space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">커스텀 {'<head>'} 코드</Label>
+          <div className="mt-3 space-y-4">
+            {/* 커스텀 <head> */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">커스텀 {'<head>'} 코드</Label>
               <textarea
                 value={config.tracking.custom_head}
                 onChange={e => updateTracking({ custom_head: e.target.value })}
@@ -968,9 +1018,46 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
                 rows={4}
                 className="w-full text-xs font-mono border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <details className="group">
+                <summary className="text-xs text-blue-600 cursor-pointer hover:underline">이것은 무엇인가요? (상세 가이드)</summary>
+                <div className="mt-1.5 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2 leading-relaxed">
+                  <p><strong>{'<head>'} 코드란?</strong> 블로그 HTML의 {'<head>'} 영역에 삽입되는 코드입니다. 방문자에게 직접 보이지 않지만, 브라우저가 페이지를 로드할 때 먼저 실행됩니다.</p>
+                  <p className="font-semibold text-gray-700">자주 사용되는 코드:</p>
+                  <div className="space-y-2">
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">1. 웹폰트 로드</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;link href=&quot;https://fonts.googleapis.com/css2?family=Noto+Serif+KR&quot; rel=&quot;stylesheet&quot;&gt;</code>
+                      <p className="text-gray-400 mt-1">→ Google Fonts에서 원하는 폰트를 선택 후 {'<link>'} 코드를 복사합니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">2. 파비콘 (브라우저 탭 아이콘)</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;link rel=&quot;icon&quot; href=&quot;https://example.com/favicon.ico&quot;&gt;</code>
+                      <p className="text-gray-400 mt-1">→ 16x16 또는 32x32 픽셀 ICO/PNG 파일의 URL을 넣습니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">3. Open Graph / SNS 공유 메타태그</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;meta property=&quot;og:image&quot; content=&quot;https://example.com/thumbnail.jpg&quot;&gt;</code>
+                      <p className="text-gray-400 mt-1">→ 카카오톡, 페이스북 등에서 링크 공유 시 표시되는 썸네일/제목을 지정합니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">4. 외부 분석 도구 스크립트</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;script src=&quot;https://cdn.example.com/analytics.js&quot;&gt;&lt;/script&gt;</code>
+                      <p className="text-gray-400 mt-1">→ Hotjar, Microsoft Clarity, Channel Talk 등 서드파티 도구의 스크립트 코드를 넣습니다. 각 서비스의 설치 가이드에서 {'<head>'}에 넣으라는 코드를 여기에 붙여넣으면 됩니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">5. 커스텀 CSS 스타일</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;style&gt; .my-class {'{'} color: red; {'}'} &lt;/style&gt;</code>
+                      <p className="text-gray-400 mt-1">→ 블로그의 특정 요소 스타일을 직접 수정하고 싶을 때 CSS를 넣습니다.</p>
+                    </div>
+                  </div>
+                  <p className="text-amber-700 pt-1">⚠️ 잘못된 스크립트를 넣으면 블로그 로딩 속도가 느려지거나 오류가 발생할 수 있습니다. 신뢰할 수 있는 서비스의 공식 코드만 넣어주세요.</p>
+                </div>
+              </details>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">커스텀 {'<body>'} 코드</Label>
+
+            {/* 커스텀 <body> */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">커스텀 {'<body>'} 코드</Label>
               <textarea
                 value={config.tracking.custom_body}
                 onChange={e => updateTracking({ custom_body: e.target.value })}
@@ -978,6 +1065,37 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
                 rows={4}
                 className="w-full text-xs font-mono border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <details className="group">
+                <summary className="text-xs text-blue-600 cursor-pointer hover:underline">이것은 무엇인가요? (상세 가이드)</summary>
+                <div className="mt-1.5 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2 leading-relaxed">
+                  <p><strong>{'<body>'} 코드란?</strong> 블로그 HTML의 {'<body>'} 태그 맨 끝에 삽입됩니다. 페이지 콘텐츠가 모두 로드된 후 실행되므로, 페이지 로딩 속도에 영향을 덜 줍니다.</p>
+                  <p className="font-semibold text-gray-700">자주 사용되는 코드:</p>
+                  <div className="space-y-2">
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">1. 실시간 채팅 위젯</p>
+                      <p className="text-gray-400 mt-1">→ <strong>Channel Talk, Zendesk, Crisp</strong> 등 고객 상담 채팅 위젯 코드입니다. 각 서비스 대시보드에서 &quot;설치 코드&quot;를 복사하면 됩니다. 블로그 우하단에 채팅 버튼이 나타납니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">2. 히트맵 / 사용자 행동 분석</p>
+                      <p className="text-gray-400 mt-1">→ <strong>Microsoft Clarity, Hotjar</strong> 등에서 제공하는 코드를 넣으면, 방문자가 어디를 클릭하고, 어디까지 스크롤했는지 히트맵으로 확인할 수 있습니다. 무료 서비스도 있습니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">3. 팝업 / 배너 스크립트</p>
+                      <p className="text-gray-400 mt-1">→ 뉴스레터 구독 팝업, 이벤트 배너 등을 보여주는 외부 스크립트입니다. <strong>Mailchimp, Stibee</strong> 등에서 제공합니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">4. 리타겟팅 / 광고 전환 태그</p>
+                      <p className="text-gray-400 mt-1">→ <strong>Meta (Facebook) Pixel, Google Ads 전환 태그, 네이버 전환 스크립트</strong> 등입니다. 각 광고 플랫폼에서 &quot;전환 추적 코드&quot;를 복사하여 붙여넣습니다. 광고 성과를 측정하려면 필요합니다.</p>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-amber-100">
+                      <p className="font-medium text-gray-700">5. 커스텀 JavaScript</p>
+                      <code className="block text-[11px] text-gray-500 mt-1 break-all">&lt;script&gt; console.log(&apos;블로그 로드 완료&apos;) &lt;/script&gt;</code>
+                      <p className="text-gray-400 mt-1">→ 직접 작성한 JavaScript 코드를 넣어 블로그 동작을 커스터마이즈할 수 있습니다.</p>
+                    </div>
+                  </div>
+                  <p className="text-amber-700 pt-1">⚠️ {'<body>'} 코드는 페이지 로드 후 실행되어 사용자 경험에 직접 영향을 줍니다. 알 수 없는 출처의 스크립트는 넣지 마세요.</p>
+                </div>
+              </details>
             </div>
           </div>
         </details>
