@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import LayoutTab from '@/components/blogs/LayoutTab'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
@@ -89,6 +89,19 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
+
+      {/* All-in-One 안내 배너 */}
+      <Link
+        href="/settings?tab=blog-all"
+        className="flex items-center justify-between px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors group"
+      >
+        <span className="text-sm text-blue-700">
+          💡 여러 블로그를 한 곳에서 관리하세요 — <strong>설정 &gt; 블로그 설정</strong>에서 모든 블로그의 설정을 한번에 확인하고 수정할 수 있습니다.
+        </span>
+        <span className="flex items-center gap-1 text-xs text-blue-600 font-medium shrink-0 ml-3 group-hover:gap-2 transition-all">
+          바로가기 <ArrowRight className="w-3.5 h-3.5" />
+        </span>
+      </Link>
 
       {/* 성공 토스트 */}
       {success && (

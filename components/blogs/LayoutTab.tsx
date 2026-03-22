@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2, Eye, Code, X } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2, Eye, Code, X, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -336,6 +336,8 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showJsonModal, setShowJsonModal] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
@@ -389,6 +391,35 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
       setError(message)
     }
     setSaving(false)
+  }
+
+  // ─── AI 레이아웃 생성 ───
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim() || aiGenerating) return
+    setAiGenerating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/ai/generate-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blogId,
+          instruction: aiPrompt,
+          currentConfig: config,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'AI 생성 실패')
+      if (data.layoutConfig) {
+        setConfig(mergeConfig(data.layoutConfig))
+        setAiPrompt('')
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'AI 레이아웃 생성 중 오류가 발생했습니다.'
+      setError(message)
+    }
+    setAiGenerating(false)
   }
 
   // ─── 네비게이션 아이템 관리 ───
@@ -495,6 +526,47 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
         >
           <Code className="w-4 h-4 mr-1.5" />JSON 편집
         </Button>
+      </div>
+
+      {/* ═══ AI 레이아웃 생성 ═══ */}
+      <div className="border border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-600" />
+          <span className="text-sm font-semibold text-purple-800">AI 레이아웃 디자이너</span>
+          <span className="text-xs text-purple-500">블로그 유형 &amp; AI 캐릭터 페르소나 반영</span>
+        </div>
+        <textarea
+          value={aiPrompt}
+          onChange={e => setAiPrompt(e.target.value)}
+          placeholder="원하는 레이아웃을 자유롭게 설명해주세요.&#10;예: 따뜻한 느낌의 파스텔 톤으로 만들어줘. 우측 사이드바 레이아웃에 로고 이미지도 생성해줘.&#10;예: 전문적이고 깔끔한 IT 블로그 느낌으로, 매거진 레이아웃에 다크 테마로 변경해줘."
+          className="w-full text-sm border border-purple-200 rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white/80 placeholder:text-gray-400"
+          rows={3}
+          disabled={aiGenerating}
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-purple-500">
+            AI가 블로그 특성에 맞게 색상, 레이아웃, 폰트, 푸터 등을 자동 설정합니다. Imagen 키가 있으면 로고 이미지도 생성합니다.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleAIGenerate}
+            disabled={aiGenerating || !aiPrompt.trim()}
+            className="bg-purple-600 hover:bg-purple-700 text-white shrink-0 ml-3"
+          >
+            {aiGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                생성 중...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                AI 생성
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* ═══ 1. 헤더 설정 ═══ */}

@@ -247,7 +247,7 @@ export function ConsentManagementSection() {
                     </div>
 
                     {/* 스크롤 가능한 동의 내용 */}
-                    <div className="h-36 overflow-y-auto border rounded-lg p-3 bg-muted/30 text-sm text-muted-foreground leading-relaxed">
+                    <div className="h-36 overflow-y-auto border rounded-lg p-3 bg-muted/30 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                       {versionInfo?.summary ? (
                         <p>{versionInfo.summary}</p>
                       ) : (
