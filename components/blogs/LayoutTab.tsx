@@ -338,11 +338,25 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
   const [showJsonModal, setShowJsonModal] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [gaConnected, setGaConnected] = useState(false)
+  const [gaEmail, setGaEmail] = useState<string | null>(null)
+  const [gaCreating, setGaCreating] = useState(false)
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
     setConfig(mergeConfig(initialConfig))
   }, [initialConfig])
+
+  // Google Analytics 연결 상태 확인
+  useEffect(() => {
+    fetch('/api/ga4/status')
+      .then(r => r.json())
+      .then(data => {
+        setGaConnected(data.connected)
+        setGaEmail(data.googleAccountId)
+      })
+      .catch(() => {})
+  }, [])
 
   // ─── 상태 업데이트 헬퍼 ───
 
@@ -420,6 +434,38 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
       setError(message)
     }
     setAiGenerating(false)
+  }
+
+  // ─── GA4 자동 등록 / 연결 해제 ───
+
+  const handleGaAutoCreate = async () => {
+    setGaCreating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/ga4/create-property', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      updateTracking({ ga4_id: data.measurementId })
+      onSuccess(`GA4 속성이 생성되었습니다. 측정 ID: ${data.measurementId}`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'GA4 자동 등록 실패'
+      setError(message)
+    }
+    setGaCreating(false)
+  }
+
+  const handleGaDisconnect = async () => {
+    try {
+      await fetch('/api/ga4/disconnect', { method: 'POST' })
+      setGaConnected(false)
+      setGaEmail(null)
+    } catch {
+      setError('Google 연결 해제에 실패했습니다.')
+    }
   }
 
   // ─── 네비게이션 아이템 관리 ───
@@ -769,14 +815,29 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
       {/* ═══ 3. 광고 배치 ═══ */}
       <Section title="광고 배치">
         {/* AdSense Publisher ID */}
-        <div className="space-y-1">
-          <Label className="text-xs">AdSense Publisher ID</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">AdSense Publisher ID</Label>
           <Input
             value={config.ads.adsense_pub_id}
             onChange={e => updateAds({ adsense_pub_id: e.target.value })}
             placeholder="ca-pub-xxxxxxxxxxxx"
             className="text-sm font-mono"
           />
+          <details className="group">
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p className="font-medium text-gray-700">AdSense 계정이 없다면 먼저 가입하세요:</p>
+              <p>1. <a href="https://www.google.com/adsense" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google AdSense</a>에 접속하여 가입합니다.</p>
+              <p>2. 사이트 URL로 블로그 주소를 입력하고 승인 절차를 진행합니다.</p>
+              <p>3. 승인까지 보통 1~14일 소요됩니다.</p>
+              <p className="font-medium text-gray-700 pt-2">Publisher ID 찾기:</p>
+              <p>4. AdSense에 로그인 후 <strong>계정 → 계정 정보</strong>로 이동합니다.</p>
+              <p>5. <strong>게시자 ID</strong> 항목에 <code className="bg-gray-200 px-1 rounded">ca-pub-xxxxxxxxxxxx</code> 형태의 ID가 표시됩니다.</p>
+              <p>6. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
+              <p className="text-gray-400 pt-1">✓ Publisher ID를 입력하면 아래 광고 슬롯에 AdSense 광고를 배치할 수 있습니다. 각 슬롯별로 광고 코드를 넣어주세요.</p>
+              <p className="text-amber-600 pt-1">⚠️ AdSense 승인 전에는 광고가 표시되지 않습니다. 먼저 AdSense 가입 및 사이트 승인을 완료해주세요.</p>
+            </div>
+          </details>
         </div>
 
         {/* 광고 슬롯 */}
@@ -914,7 +975,7 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
       {/* ═══ 5. 분석 & 추적 ═══ */}
       <Section title="분석 & 추적">
         {/* GA4 */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label className="text-xs font-semibold">Google Analytics 4 ID</Label>
           <Input
             value={config.tracking.ga4_id}
@@ -922,13 +983,76 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
             placeholder="G-XXXXXXXXXX"
             className="text-sm font-mono"
           />
+
+          {/* Google 계정 연결 & 자동 등록 */}
+          <div className="rounded-lg border p-3 space-y-2 bg-gray-50">
+            {gaConnected ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-green-700">
+                    <span className="w-2 h-2 bg-green-500 rounded-full shrink-0" />
+                    Google 계정 연결됨{gaEmail && ` (${gaEmail})`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGaDisconnect}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    연결 해제
+                  </button>
+                </div>
+                {!config.tracking.ga4_id && (
+                  <button
+                    type="button"
+                    onClick={handleGaAutoCreate}
+                    disabled={gaCreating}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  >
+                    {gaCreating ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> GA4 속성 생성 중...</>
+                    ) : (
+                      '자동 등록 (GA4 속성 + 데이터 스트림 자동 생성)'
+                    )}
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `/api/oauth/google-analytics/authorize?blogId=${blogId}`
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Google 계정 연결하기
+                </button>
+                <p className="text-[11px] text-gray-400 text-center">
+                  연결하면 GA4 속성을 자동으로 생성할 수 있습니다.
+                </p>
+              </div>
+            )}
+          </div>
+
           <details className="group">
-            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
+            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">수동으로 입력하려면?</summary>
             <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
+              <p className="font-medium text-gray-700">먼저 Google Analytics에 블로그를 등록하세요:</p>
               <p>1. <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Analytics</a>에 로그인합니다.</p>
-              <p>2. 좌측 하단 <strong>관리(⚙️)</strong> → <strong>데이터 스트림</strong>을 클릭합니다.</p>
-              <p>3. 웹 스트림을 선택하면 상단에 <code className="bg-gray-200 px-1 rounded">G-XXXXXXXXXX</code> 형태의 <strong>측정 ID</strong>가 표시됩니다.</p>
-              <p>4. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
+              <p>2. 좌측 하단 <strong>관리(⚙️)</strong>를 클릭합니다.</p>
+              <p>3. <strong>+ 속성 만들기</strong>를 클릭하고 블로그 이름을 입력합니다.</p>
+              <p>4. 비즈니스 정보를 선택한 후 <strong>웹</strong> 플랫폼을 선택합니다.</p>
+              <p>5. 블로그 URL을 입력하고 스트림을 생성합니다.</p>
+              <p className="font-medium text-gray-700 pt-2">그 다음 측정 ID를 가져오세요:</p>
+              <p>6. <strong>관리(⚙️)</strong> → <strong>데이터 스트림</strong>을 클릭합니다.</p>
+              <p>7. 방금 만든 웹 스트림을 선택하면 <code className="bg-gray-200 px-1 rounded">G-XXXXXXXXXX</code> 형태의 <strong>측정 ID</strong>가 표시됩니다.</p>
+              <p>8. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
               <p className="text-gray-400 pt-1">✓ 입력하면 블로그 방문자 수, 페이지뷰, 유입 경로, 체류 시간 등을 Google Analytics 대시보드에서 실시간으로 분석할 수 있습니다.</p>
             </div>
           </details>
