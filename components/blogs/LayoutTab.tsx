@@ -1072,6 +1072,22 @@ export default function LayoutTab({ blogId, blogSlug, initialConfig, onSuccess }
             <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
               <p>1. <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Search Console</a>에 로그인합니다.</p>
               <p>2. <strong>속성 추가</strong> → <strong>URL 접두어</strong>에 블로그 주소를 입력합니다.</p>
+              {blogSlug && (
+                <div className="flex items-center gap-2 bg-white border rounded px-2 py-1.5 my-1">
+                  <code className="text-[11px] text-gray-700 flex-1 truncate">
+                    {`${window.location.origin}/blog/${blogSlug}`}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/blog/${blogSlug}`)
+                    }}
+                    className="text-[10px] text-blue-600 hover:underline whitespace-nowrap"
+                  >
+                    복사
+                  </button>
+                </div>
+              )}
               <p>3. 확인 방법에서 <strong>&quot;HTML 태그&quot;</strong>를 선택합니다.</p>
               <p>4. 아래와 같은 메타 태그가 표시됩니다:</p>
               <code className="block bg-gray-200 px-2 py-1 rounded text-[11px] break-all">&lt;meta name=&quot;google-site-verification&quot; content=&quot;<strong>여기_값</strong>&quot; /&gt;</code>

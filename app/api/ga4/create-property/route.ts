@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   // 블로그 정보 조회
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, custom_domain, url')
+    .select('id, name, slug, custom_domain, url, layout_config')
     .eq('id', blogId)
     .eq('user_id', user.id)
     .single()
@@ -105,6 +105,20 @@ export async function POST(request: Request) {
     const measurementId = stream.webStreamData?.measurementId
 
     if (!measurementId) throw new Error('측정 ID를 가져올 수 없습니다.')
+
+    // layout_config에 GA4 ID 즉시 저장 (레이아웃 저장 안 해도 유지되도록)
+    const currentConfig = (blog.layout_config as Record<string, unknown>) || {}
+    const currentTracking = (currentConfig.tracking as Record<string, unknown>) || {}
+    await supabase
+      .from('blogs')
+      .update({
+        layout_config: {
+          ...currentConfig,
+          tracking: { ...currentTracking, ga4_id: measurementId },
+        },
+      })
+      .eq('id', blogId)
+      .eq('user_id', user.id)
 
     return NextResponse.json({
       success: true,
