@@ -244,13 +244,11 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
           <Link href={`/blog/${blog.slug}`} className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.header.text_color }}>
             <ArrowLeft className="w-4 h-4" />
             {cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? (
-              <img src={cfg.header.logo_image_url} alt={blog.name} className="h-6 object-contain" />
+              <img src={cfg.header.logo_image_url} alt={blog.name} className="h-7 w-7 object-contain rounded" />
             ) : (
-              <>
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                <span className="font-medium">{blog.name}</span>
-              </>
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
             )}
+            <span className="font-medium">{blog.name}</span>
           </Link>
 
           {/* 네비게이션 메뉴 */}
