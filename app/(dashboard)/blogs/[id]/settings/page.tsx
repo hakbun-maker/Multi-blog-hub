@@ -33,6 +33,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
   // Minimal blog data needed for header, layout tab, and language tab
   const [blogName, setBlogName] = useState('')
   const [blogSlug, setBlogSlug] = useState('')
+  const [blogCustomDomain, setBlogCustomDomain] = useState<string | null>(null)
   const [blogLanguage, setBlogLanguage] = useState<BlogLanguage>('ko')
   const [layoutConfig, setLayoutConfig] = useState<Partial<LayoutConfig> | null>(null)
 
@@ -43,6 +44,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       const { data } = await res.json()
       setBlogName(data.name ?? '')
       setBlogSlug(data.slug ?? '')
+      setBlogCustomDomain(data.custom_domain ?? null)
       setBlogLanguage(data.language ?? 'ko')
       setLayoutConfig(data.layout_config ?? null)
       setLoading(false)
@@ -146,7 +148,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
 
       {/* ═══ LayoutTab ═══ */}
       {activeTab === 'layout' && (
-        <LayoutTab blogId={params.id} blogSlug={blogSlug} initialConfig={layoutConfig} onSuccess={showSuccess} />
+        <LayoutTab blogId={params.id} blogSlug={blogSlug} customDomain={blogCustomDomain} initialConfig={layoutConfig} onSuccess={showSuccess} />
       )}
 
       {/* ═══ LanguageTab ═══ */}
