@@ -821,7 +821,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
           <Input
             value={config.ads.adsense_pub_id}
             onChange={e => updateAds({ adsense_pub_id: e.target.value })}
-            placeholder="ca-pub-xxxxxxxxxxxx"
+            placeholder="ca-pub-xxxxxxxxxxxx 또는 pub-xxxxxxxxxxxx"
             className="text-sm font-mono"
           />
           <details className="group">

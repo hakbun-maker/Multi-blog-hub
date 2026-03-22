@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Calendar, Eye } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
@@ -76,10 +76,27 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 광고 슬롯 렌더러 ───
 
 function AdSlotRenderer({ code, className }: { code: string; className?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!code || !containerRef.current) return
+    const container = containerRef.current
+    container.innerHTML = code
+
+    // dangerouslySetInnerHTML은 script를 실행하지 않으므로 수동 실행
+    const scripts = container.querySelectorAll('script')
+    scripts.forEach(oldScript => {
+      const newScript = document.createElement('script')
+      Array.from(oldScript.attributes).forEach(attr => {
+        newScript.setAttribute(attr.name, attr.value)
+      })
+      newScript.textContent = oldScript.textContent
+      oldScript.parentNode?.replaceChild(newScript, oldScript)
+    })
+  }, [code])
+
   if (!code) return null
-  return (
-    <div className={className} dangerouslySetInnerHTML={{ __html: code }} />
-  )
+  return <div ref={containerRef} className={className} />
 }
 
 export default function PublicBlogPage({ params }: { params: { slug: string } }) {
@@ -156,6 +173,18 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         document.head.appendChild(child)
         injected.push(child as HTMLElement)
       })
+    }
+
+    // AdSense 기본 스크립트 로드
+    const adsensePubId = blog?.layout_config?.ads?.adsense_pub_id
+    if (adsensePubId) {
+      const pubId = adsensePubId.startsWith('ca-pub-') ? adsensePubId : `ca-${adsensePubId}`
+      const s = document.createElement('script')
+      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`
+      s.async = true
+      s.crossOrigin = 'anonymous'
+      document.head.appendChild(s)
+      injected.push(s)
     }
 
     // 클린업
