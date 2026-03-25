@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+
 interface LayoutProps {
   children: React.ReactNode
   params: { slug: string }
@@ -27,10 +29,27 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     verification.other = tracking.naver_code
   }
 
+  const url = `${APP_URL}/blog/${params.slug}`
+
   return {
     title: blog.name,
     description: blog.description || undefined,
     verification,
+    openGraph: {
+      type: 'website',
+      title: blog.name,
+      description: blog.description || undefined,
+      url,
+      siteName: blog.name,
+    },
+    twitter: {
+      card: 'summary',
+      title: blog.name,
+      description: blog.description || undefined,
+    },
+    alternates: {
+      canonical: url,
+    },
     other: {
       ...(tracking?.naver_code ? { 'naver-site-verification': tracking.naver_code } : {}),
     },

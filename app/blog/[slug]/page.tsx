@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Calendar, Eye } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
@@ -23,6 +24,13 @@ interface Post {
   published_at: string
   view_count: number | null
   content_html?: string
+}
+
+interface CategoryInfo {
+  id: string
+  name: string
+  slug: string
+  sort_order: number
 }
 
 // ─── 레이아웃 설정 병합 헬퍼 ───
@@ -100,13 +108,20 @@ function AdSlotRenderer({ code, className }: { code: string; className?: string 
 }
 
 export default function PublicBlogPage({ params }: { params: { slug: string } }) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeCategory = searchParams.get('category') ?? ''
+
   const [blog, setBlog] = useState<Blog | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
+  const [categories, setCategories] = useState<CategoryInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/public/blog?slug=${encodeURIComponent(params.slug)}`)
+    const url = `/api/public/blog?slug=${encodeURIComponent(params.slug)}${activeCategory ? `&category=${encodeURIComponent(activeCategory)}` : ''}`
+    setLoading(true)
+    fetch(url)
       .then(res => {
         if (!res.ok) { setNotFound(true); setLoading(false); return null }
         return res.json()
@@ -115,9 +130,10 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         if (!data) return
         setBlog(data.blog)
         setPosts(data.posts)
+        setCategories(data.categories ?? [])
         setLoading(false)
       })
-  }, [params.slug])
+  }, [params.slug, activeCategory])
 
   // ─── 트래킹 코드 삽입 ───
   useEffect(() => {
@@ -286,6 +302,41 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         </div>
       </header>
 
+      {/* 카테고리 필터 탭 */}
+      {categories.length > 0 && (
+        <div className="border-b border-gray-100" style={{ backgroundColor: cfg.header.bg_color }}>
+          <div className="mx-auto px-4" style={{ maxWidth: cfg.layout.max_width }}>
+            <div className="flex gap-1 overflow-x-auto py-2 -mb-px scrollbar-hide">
+              <button
+                onClick={() => router.push(`/blog/${blog.slug}`)}
+                className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
+                  !activeCategory
+                    ? 'font-semibold text-white'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                style={!activeCategory ? { backgroundColor: color } : undefined}
+              >
+                전체
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => router.push(`/blog/${blog.slug}?category=${encodeURIComponent(cat.slug)}`)}
+                  className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
+                    activeCategory === cat.slug
+                      ? 'font-semibold text-white'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                  style={activeCategory === cat.slug ? { backgroundColor: color } : undefined}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 상단 광고 배너 (가로 100%) */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
         <div className="relative w-full bg-gray-50 py-2 overflow-hidden">
@@ -401,14 +452,14 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
 
       {/* 푸터 */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
-        <div className="mx-auto px-4 py-10" style={{ maxWidth: cfg.layout.max_width }}>
+        <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
-            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
+            <div className={`grid gap-x-6 gap-y-4 mb-6 ${cfg.footer.columns === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-' + cfg.footer.columns}`}>
               {cfg.footer.column_data.map((col, idx) => (
                 <div key={idx}>
-                  {col.title && <h4 className="font-semibold mb-3 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}
-                  <ul className="space-y-1.5">
+                  {col.title && <h4 className="font-semibold mb-2 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}
+                  <ul className="space-y-1">
                     {col.items.map((link, linkIdx) => (
                       <li key={linkIdx}>
                         <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>

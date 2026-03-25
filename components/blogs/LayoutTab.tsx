@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2, Eye, Code, X, Sparkles } from 'lucide-react'
+import { Save, ChevronDown, ChevronUp, Plus, Trash2, GripVertical, Loader2, Eye, Code, X, Sparkles, Scissors } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,6 +59,7 @@ export interface LayoutConfig {
   tracking: {
     ga4_id: string
     gsc_code: string
+    gsc_auto_index: boolean
     naver_code: string
     kakao_pixel: string
     custom_head: string
@@ -107,6 +108,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   tracking: {
     ga4_id: '',
     gsc_code: '',
+    gsc_auto_index: false,
     naver_code: '',
     kakao_pixel: '',
     custom_head: '',
@@ -184,12 +186,12 @@ function Section({ title, defaultOpen, children }: { title: string; defaultOpen?
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${open ? 'bg-indigo-50 hover:bg-indigo-100 border-b border-indigo-100' : 'bg-gray-50 hover:bg-gray-100'}`}
       >
-        <span className="text-sm font-semibold text-gray-800">{title}</span>
-        {open ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        <span className={`text-sm font-semibold ${open ? 'text-indigo-800' : 'text-gray-800'}`}>{title}</span>
+        {open ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
       </button>
-      {open && <div className="p-4 space-y-4">{children}</div>}
+      {open && <div className="p-4 space-y-4 bg-indigo-50/20">{children}</div>}
     </div>
   )
 }
@@ -342,6 +344,11 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
   const [gaConnected, setGaConnected] = useState(false)
   const [gaEmail, setGaEmail] = useState<string | null>(null)
   const [gaCreating, setGaCreating] = useState(false)
+  const [gscConnected, setGscConnected] = useState(false)
+  const [gscEmail, setGscEmail] = useState<string | null>(null)
+  const [snippetPickerSlot, setSnippetPickerSlot] = useState<string | null>(null)
+  const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
+  const [snippetsLoading, setSnippetsLoading] = useState(false)
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
@@ -355,6 +362,17 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
       .then(data => {
         setGaConnected(data.connected)
         setGaEmail(data.googleAccountId)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Google Indexing (GSC) 연결 상태 확인
+  useEffect(() => {
+    fetch('/api/gsc/status')
+      .then(r => r.json())
+      .then(data => {
+        setGscConnected(data.connected)
+        setGscEmail(data.googleAccountId)
       })
       .catch(() => {})
   }, [])
@@ -469,6 +487,17 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
     }
   }
 
+  const handleGscDisconnect = async () => {
+    try {
+      await fetch('/api/gsc/disconnect', { method: 'POST' })
+      setGscConnected(false)
+      setGscEmail(null)
+      updateTracking({ gsc_auto_index: false })
+    } catch {
+      setError('Google Indexing 연결 해제에 실패했습니다.')
+    }
+  }
+
   // ─── 네비게이션 아이템 관리 ───
 
   const addNavItem = () => {
@@ -483,6 +512,28 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
     const items = [...config.header.nav_items]
     items[idx] = { ...items[idx], [field]: value }
     updateHeader({ nav_items: items })
+  }
+
+  // ─── 카테고리를 네비게이션에 추가 ───
+
+  const [navCategories, setNavCategories] = useState<{ id: string; name: string; slug: string }[]>([])
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
+
+  const openCategoryPicker = async () => {
+    if (showCategoryPicker) { setShowCategoryPicker(false); return }
+    setShowCategoryPicker(true)
+    try {
+      const res = await fetch(`/api/categories?blogId=${blogId}`)
+      const json = await res.json()
+      setNavCategories(json.data ?? [])
+    } catch { /* ignore */ }
+  }
+
+  const addCategoryNavItem = (cat: { name: string; slug: string }) => {
+    const baseUrl = customDomain || (blogSlug ? `/blog/${blogSlug}` : '')
+    const url = `${baseUrl}?category=${cat.slug}`
+    updateHeader({ nav_items: [...config.header.nav_items, { label: cat.name, url }] })
+    setShowCategoryPicker(false)
   }
 
   // ─── 푸터 컬럼 관리 ───
@@ -543,6 +594,25 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
       ...prev,
       ads: { ...prev.ads, [key]: { ...current, ...patch } },
     }))
+  }
+
+  // ─── 스니펫 불러오기 (광고 코드용) ───
+
+  const openSnippetPicker = async (slotKey: string) => {
+    if (snippetPickerSlot === slotKey) { setSnippetPickerSlot(null); return }
+    setSnippetPickerSlot(slotKey)
+    setSnippetsLoading(true)
+    try {
+      const res = await fetch('/api/snippets')
+      const json = await res.json()
+      setSnippets(json.data ?? [])
+    } catch { /* ignore */ }
+    setSnippetsLoading(false)
+  }
+
+  const applySnippet = (slotKey: string, content: string) => {
+    updateAdSlot(slotKey, { code: content })
+    setSnippetPickerSlot(null)
   }
 
   return (
@@ -695,9 +765,40 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs">네비게이션 메뉴</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addNavItem} className="h-7 text-xs">
-              <Plus className="w-3 h-3 mr-1" />추가
-            </Button>
+            <div className="flex gap-1.5 relative">
+              <Button type="button" variant="outline" size="sm" onClick={openCategoryPicker} className="h-7 text-xs">
+                <Plus className="w-3 h-3 mr-1" />카테고리 추가
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={addNavItem} className="h-7 text-xs">
+                <Plus className="w-3 h-3 mr-1" />추가
+              </Button>
+              {showCategoryPicker && (
+                <div className="absolute right-0 bottom-8 z-20 w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-700">카테고리 선택</span>
+                    <button type="button" onClick={() => setShowCategoryPicker(false)} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {navCategories.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-xs text-gray-400">등록된 카테고리가 없습니다.</div>
+                    ) : (
+                      navCategories.map(cat => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => addCategoryNavItem(cat)}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                        >
+                          {cat.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           {config.header.nav_items.length === 0 && (
             <p className="text-xs text-gray-400">메뉴 항목이 없습니다.</p>
@@ -837,6 +938,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
               <p>6. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
               <p className="text-gray-400 pt-1">✓ Publisher ID를 입력하면 아래 광고 슬롯에 AdSense 광고를 배치할 수 있습니다. 각 슬롯별로 광고 코드를 넣어주세요.</p>
               <p className="text-amber-600 pt-1">⚠️ AdSense 승인 전에는 광고가 표시되지 않습니다. 먼저 AdSense 가입 및 사이트 승인을 완료해주세요.</p>
+              <p className="text-blue-600 pt-1">💡 같은 AdSense 계정의 블로그라면 Publisher ID가 동일합니다. 다른 블로그에서 이미 입력한 ID를 그대로 복사·붙여넣기 하세요.</p>
             </div>
           </details>
         </div>
@@ -864,13 +966,54 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                 <Toggle checked={typedSlot.enabled} onChange={v => updateAdSlot(slot.key, { enabled: v })} />
               </div>
               {typedSlot.enabled && (
-                <textarea
-                  value={typedSlot.code}
-                  onChange={e => updateAdSlot(slot.key, { code: e.target.value })}
-                  placeholder="광고 코드를 붙여넣으세요 (AdSense, etc.)"
-                  rows={3}
-                  className="w-full text-xs font-mono border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="space-y-1.5">
+                  <textarea
+                    value={typedSlot.code}
+                    onChange={e => updateAdSlot(slot.key, { code: e.target.value })}
+                    placeholder="광고 코드를 붙여넣으세요 (AdSense, etc.)"
+                    rows={3}
+                    className="w-full text-xs font-mono border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="relative">
+                    <Button type="button" variant="outline" size="sm" onClick={() => openSnippetPicker(slot.key)} className="h-7 text-xs gap-1">
+                      <Scissors className="w-3 h-3" />스니펫 불러오기
+                    </Button>
+                    {snippetPickerSlot === slot.key && (
+                      <div className="absolute left-0 bottom-8 z-20 w-72 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                        <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-700">스니펫 선택</span>
+                          <button type="button" onClick={() => setSnippetPickerSlot(null)} className="text-gray-400 hover:text-gray-600">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {snippetsLoading ? (
+                            <div className="px-3 py-4 text-center text-xs text-gray-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />불러오는 중...</div>
+                          ) : snippets.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-xs text-gray-400">저장된 스니펫이 없습니다.</div>
+                          ) : (
+                            snippets.map(s => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => applySnippet(slot.key, s.content)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-800 truncate flex-1">{s.name}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.type === 'html' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                                    {s.type}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-400 truncate mt-0.5">{s.content.slice(0, 60)}</p>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )
@@ -1101,6 +1244,71 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
               <p className="text-gray-400 pt-1">✓ 입력하면 Google에 블로그 소유권이 확인되어, 검색 노출 현황, 클릭 수, 색인 상태, 크롤링 오류 등을 모니터링할 수 있습니다.</p>
             </div>
           </details>
+
+          {/* Google Indexing 연결 & 자동 색인 */}
+          <div className="rounded-lg border p-3 space-y-2 bg-gray-50 mt-2">
+            {gscConnected ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-green-700">
+                    <span className="w-2 h-2 bg-green-500 rounded-full shrink-0" />
+                    Google Indexing 연결됨{gscEmail && ` (${gscEmail})`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGscDisconnect}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    연결 해제
+                  </button>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">글 발행 시 자동 색인 요청</p>
+                    <p className="text-[11px] text-gray-400">발행할 때마다 Google에 URL을 자동 제출합니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateTracking({ gsc_auto_index: !config.tracking.gsc_auto_index })}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      config.tracking.gsc_auto_index ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      config.tracking.gsc_auto_index ? 'translate-x-4.5' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `/api/oauth/google-indexing/authorize?blogId=${blogId}`
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Google 계정 연결하기 (Indexing API)
+                </button>
+                <p className="text-[11px] text-gray-400 text-center">
+                  연결하면 글 발행 시 Google에 자동으로 색인 요청을 보낼 수 있습니다.
+                </p>
+                <div className="text-[11px] text-gray-400 bg-white rounded p-2 space-y-0.5 leading-relaxed">
+                  <p>위 GSC 확인 코드는 <strong>사이트 소유권 인증</strong> 용도이고,</p>
+                  <p>이 연결은 <strong>Google Indexing API</strong> 권한을 부여합니다.</p>
+                  <p>연결 후 토글을 켜면, 글을 발행할 때마다 Google에</p>
+                  <p>해당 URL을 즉시 제출하여 <strong>빠른 검색 노출</strong>을 유도합니다.</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 네이버 서치어드바이저 */}

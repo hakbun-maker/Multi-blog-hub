@@ -399,14 +399,14 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
 
       {/* 푸터 */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
-        <div className="mx-auto px-4 py-10" style={{ maxWidth: cfg.layout.max_width }}>
+        <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
-            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
+            <div className={`grid gap-x-6 gap-y-4 mb-6 ${cfg.footer.columns === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-' + cfg.footer.columns}`}>
               {cfg.footer.column_data.map((col, idx) => (
                 <div key={idx}>
-                  {col.title && <h4 className="font-semibold mb-3 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}
-                  <ul className="space-y-1.5">
+                  {col.title && <h4 className="font-semibold mb-2 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}
+                  <ul className="space-y-1">
                     {col.items.map((link, linkIdx) => (
                       <li key={linkIdx}>
                         <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>

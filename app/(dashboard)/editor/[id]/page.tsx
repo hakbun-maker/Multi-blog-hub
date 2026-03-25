@@ -44,6 +44,7 @@ function EditorContent({ params }: { params: { id: string } }) {
   const [publishing, setPublishing] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [generatingMeta, setGeneratingMeta] = useState(false)
+  const [indexingError, setIndexingError] = useState<string | null>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -138,7 +139,14 @@ function EditorContent({ params }: { params: { id: string } }) {
       }),
     })
     setPublishing(false)
-    if (res.ok) router.push(selectedBlogId ? `/blogs/${selectedBlogId}` : '/dashboard')
+    if (res.ok) {
+      const result = await res.json()
+      if (result.indexing?.requested && !result.indexing?.ok) {
+        setIndexingError(result.indexing.error || '알 수 없는 오류')
+      } else {
+        router.push(selectedBlogId ? `/blogs/${selectedBlogId}` : '/dashboard')
+      }
+    }
   }
 
   const generateMeta = async () => {
@@ -164,6 +172,40 @@ function EditorContent({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-4">
+      {/* Google Indexing 실패 팝업 */}
+      {indexingError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">글은 발행되었지만, 색인 요청에 실패했습니다</h3>
+                <p className="text-sm text-gray-500 mt-1">Google Indexing API 오류: {indexingError}</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 space-y-1.5">
+              <p className="font-medium text-gray-700">해결 방법:</p>
+              <p>1. <strong>블로그 설정 &gt; 레이아웃 &gt; 분석 &amp; 추적 &gt; GSC</strong>에서 Google 계정이 연결되어 있는지 확인하세요.</p>
+              <p>2. 연결이 해제되었다면 다시 연결한 후 글을 재발행하세요.</p>
+              <p>3. Google Search Console에서 해당 사이트가 등록되어 있어야 합니다.</p>
+              <p>4. 문제가 계속되면 연결을 해제 후 다시 연결해 보세요.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setIndexingError(null); router.push(selectedBlogId ? `/blogs/${selectedBlogId}` : '/dashboard') }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                확인 (목록으로 이동)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
           {isReviewMode ? '검수 글 수정' : '글 편집'}

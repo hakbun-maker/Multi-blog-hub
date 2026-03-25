@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { submitUrlToGoogle } from '@/lib/google/indexing-api'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -46,7 +47,39 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+
+  // 글 발행 시 Google Indexing API 자동 호출
+  let indexing: { requested: boolean; ok?: boolean; error?: string } = { requested: false }
+
+  if (status === 'published' && data) {
+    try {
+      const { data: blog } = await supabase
+        .from('blogs')
+        .select('slug, custom_domain, layout_config')
+        .eq('id', data.blog_id)
+        .single()
+
+      if (blog) {
+        const tracking = (blog.layout_config as Record<string, unknown>)?.tracking as Record<string, unknown> | undefined
+        if (tracking?.gsc_auto_index) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+          const blogBase = blog.custom_domain
+            ? `https://${blog.custom_domain}`
+            : `${appUrl}/blog/${blog.slug}`
+          const postUrl = `${blogBase}/${data.slug}`
+
+          const result = await submitUrlToGoogle(user.id, postUrl)
+          indexing = { requested: true, ok: result.ok, error: result.error }
+          if (!result.ok) console.error('Google Indexing 실패:', result.error)
+        }
+      }
+    } catch (e) {
+      console.error('Google Indexing 처리 중 오류:', e)
+      indexing = { requested: true, ok: false, error: 'Indexing API 호출 중 오류 발생' }
+    }
+  }
+
+  return NextResponse.json({ data, indexing })
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
