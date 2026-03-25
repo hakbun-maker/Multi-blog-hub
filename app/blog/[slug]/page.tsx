@@ -81,9 +81,9 @@ function AdSlotRenderer({ code, className }: { code: string; className?: string 
   useEffect(() => {
     if (!code || !containerRef.current) return
     const container = containerRef.current
-    container.innerHTML = code
+    // 광고 내부 요소가 부모 폭을 넘지 않도록 강제
+    container.innerHTML = `<style>.ad-wrap *{max-width:100%!important;box-sizing:border-box!important;}</style><div class="ad-wrap">${code}</div>`
 
-    // dangerouslySetInnerHTML은 script를 실행하지 않으므로 수동 실행
     const scripts = container.querySelectorAll('script')
     scripts.forEach(oldScript => {
       const newScript = document.createElement('script')
@@ -96,7 +96,7 @@ function AdSlotRenderer({ code, className }: { code: string; className?: string 
   }, [code])
 
   if (!code) return null
-  return <div ref={containerRef} className={className} />
+  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%' }} />
 }
 
 export default function PublicBlogPage({ params }: { params: { slug: string } }) {
@@ -245,7 +245,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
   const isMagazine = cfg.layout.preset === 'magazine'
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height, maxWidth: '100vw', overflowX: 'hidden' }}>
 
       {/* 공지 바 */}
       {cfg.header.notice_bar.enabled && cfg.header.notice_bar.text && (
@@ -288,20 +288,20 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
 
       {/* 상단 광고 배너 (가로 100%) */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
-        <div className="w-full bg-gray-50 py-2">
+        <div className="relative w-full bg-gray-50 py-2 overflow-hidden">
           <AdSlotRenderer code={cfg.ads.top_banner.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 글 목록 */}
-      <main className="flex-1">
+      <main className="flex-1 w-full overflow-hidden">
         <div
-          className={`mx-auto px-4 py-8 ${hasSidebar ? 'flex gap-8' : ''}`}
+          className={`mx-auto px-4 py-8 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`}
           style={{ maxWidth: cfg.layout.max_width }}
         >
-          {/* 좌측 사이드바 (스크롤 고정) */}
+          {/* 좌측 사이드바 (스크롤 고정, 모바일 숨김) */}
           {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-            <aside className="w-64 flex-shrink-0">
+            <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-4 space-y-4">
                 {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
                   <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
@@ -367,7 +367,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
                           </div>
                         </div>
                         {thumbnail && (
-                          <div className="w-40 flex-shrink-0">
+                          <div className="w-24 sm:w-40 flex-shrink-0">
                             <img src={thumbnail} alt="" className="w-full h-full object-cover" />
                           </div>
                         )}
@@ -379,9 +379,9 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
             )}
           </div>
 
-          {/* 우측 사이드바 (스크롤 고정) */}
+          {/* 우측 사이드바 (스크롤 고정, 모바일 숨김) */}
           {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-            <aside className="w-64 flex-shrink-0">
+            <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-4 space-y-4">
                 {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
                   <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
@@ -392,9 +392,9 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         </div>
       </main>
 
-      {/* 하단 광고 (가로 100%) */}
+      {/* 하단 광고 (데스크톱만 표시, 모바일 숨김) */}
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
-        <div className="w-full bg-gray-50 py-2">
+        <div className="hidden lg:block w-full bg-gray-50 py-2">
           <AdSlotRenderer code={cfg.ads.footer_ad.code} className="w-full text-center" />
         </div>
       )}
@@ -404,7 +404,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         <div className="mx-auto px-4 py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
-            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
               {cfg.footer.column_data.map((col, idx) => (
                 <div key={idx}>
                   {col.title && <h4 className="font-semibold mb-3 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}

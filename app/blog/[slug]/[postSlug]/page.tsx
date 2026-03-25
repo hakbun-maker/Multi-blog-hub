@@ -74,7 +74,7 @@ function AdSlotRenderer({ code, className }: { code: string; className?: string 
   useEffect(() => {
     if (!code || !containerRef.current) return
     const container = containerRef.current
-    container.innerHTML = code
+    container.innerHTML = `<style>.ad-wrap *{max-width:100%!important;box-sizing:border-box!important;}</style><div class="ad-wrap">${code}</div>`
 
     const scripts = container.querySelectorAll('script')
     scripts.forEach(oldScript => {
@@ -88,7 +88,7 @@ function AdSlotRenderer({ code, className }: { code: string; className?: string 
   }, [code])
 
   if (!code) return null
-  return <div ref={containerRef} className={className} />
+  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%' }} />
 }
 
 // ─── 본문 중간 광고 삽입 헬퍼 ───
@@ -256,7 +256,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
     : []
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif` }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, maxWidth: '100vw', overflowX: 'hidden' }}>
 
       {/* 공지 바 */}
       {cfg.header.notice_bar.enabled && cfg.header.notice_bar.text && (
@@ -296,16 +296,16 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
 
       {/* 상단 광고 배너 (가로 100%) */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
-        <div className="w-full bg-gray-50 py-2">
+        <div className="relative w-full bg-gray-50 py-2 overflow-hidden">
           <AdSlotRenderer code={cfg.ads.top_banner.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 본문 영역 */}
-      <div className={`flex-1 ${hasSidebar ? 'flex gap-8' : ''} mx-auto px-4`} style={{ maxWidth: cfg.layout.max_width }}>
-        {/* 좌측 사이드바 (스크롤 고정) */}
+      <div className={`flex-1 w-full overflow-hidden ${hasSidebar ? 'lg:flex lg:gap-8' : ''} mx-auto px-4`} style={{ maxWidth: cfg.layout.max_width }}>
+        {/* 좌측 사이드바 (스크롤 고정, 모바일/태블릿 숨김) */}
         {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="w-64 flex-shrink-0 py-10">
+          <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
             <div className="sticky top-4 space-y-4">
               {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
                 <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
@@ -331,16 +331,16 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
             </span>
           </div>
 
-          {/* 제목 아래 광고 */}
+          {/* 제목 아래 광고 (모바일 숨김) */}
           {cfg.ads.below_title.enabled && cfg.ads.below_title.code && (
-            <div className="mb-6">
+            <div className="hidden lg:block mb-6">
               <AdSlotRenderer code={cfg.ads.below_title.code} />
             </div>
           )}
 
           {/* 본문 HTML (in_article 광고 포함) */}
           <div
-            className="prose prose-gray max-w-none"
+            className="prose prose-gray max-w-none overflow-hidden [&_img]:max-w-full [&_iframe]:max-w-full [&_ins]:max-w-full"
             dangerouslySetInnerHTML={{ __html: contentHtml }}
           />
 
@@ -357,9 +357,9 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
           )}
         </article>
 
-        {/* 우측 사이드바 (스크롤 고정) */}
+        {/* 우측 사이드바 (스크롤 고정, 모바일/태블릿 숨김) */}
         {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="w-64 flex-shrink-0 py-10">
+          <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
             <div className="sticky top-4 space-y-4">
               {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
                 <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
@@ -369,9 +369,9 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         )}
       </div>
 
-      {/* 하단 광고 (가로 100%) */}
+      {/* 하단 광고 (데스크톱만 표시, 모바일 숨김) */}
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
-        <div className="w-full bg-gray-50 py-2">
+        <div className="hidden lg:block w-full bg-gray-50 py-2">
           <AdSlotRenderer code={cfg.ads.footer_ad.code} className="w-full text-center" />
         </div>
       )}
@@ -402,7 +402,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         <div className="mx-auto px-4 py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
-            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            <div className={`grid gap-8 mb-8 ${cfg.footer.columns === 1 ? 'grid-cols-1' : cfg.footer.columns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
               {cfg.footer.column_data.map((col, idx) => (
                 <div key={idx}>
                   {col.title && <h4 className="font-semibold mb-3 text-sm" style={{ color: cfg.footer.text_color }}>{col.title}</h4>}
