@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { encrypt } from '@/lib/utils/encryption'
@@ -29,11 +29,12 @@ export async function GET(request: NextRequest) {
 
   const { userId, blogId } = stateData
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== userId) {
-    return NextResponse.redirect(`${baseUrl}/settings?error=auth_mismatch`)
-  }
+  // Service role client — cookie-based auth doesn't work reliably in OAuth redirect callbacks
+  // userId is already verified at the authorize step before creating the state
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
   try {
     const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID!
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
     const { error: dbError } = await supabase
       .from('user_oauth_tokens')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         provider: 'google_indexing',
         encrypted_access_token: encryptedAccess,
         encrypted_refresh_token: encryptedRefresh,

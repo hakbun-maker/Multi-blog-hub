@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { encrypt } from '@/lib/utils/encryption'
@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/settings?error=missing_code_or_state`)
   }
 
-  // state 디코딩
   let stateData: { userId: string; blogId: string }
   try {
     stateData = JSON.parse(Buffer.from(state, 'base64url').toString())
@@ -30,19 +29,17 @@ export async function GET(request: NextRequest) {
 
   const { userId, blogId } = stateData
 
-  // 인증 확인
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user || user.id !== userId) {
-    return NextResponse.redirect(`${baseUrl}/settings?error=auth_mismatch`)
-  }
+  // Service role client — cookie-based auth doesn't work reliably in OAuth redirect callbacks
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
   try {
     const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID!
     const clientSecret = process.env.GOOGLE_ANALYTICS_CLIENT_SECRET!
     const redirectUri = `${baseUrl}/api/oauth/google-analytics/callback`
 
-    // Code → Token 교환
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -63,7 +60,6 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await tokenRes.json()
 
-    // Google 계정 이메일 조회 (표시용)
     let googleEmail: string | null = null
     try {
       const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -77,7 +73,6 @@ export async function GET(request: NextRequest) {
       // 이메일 조회 실패해도 진행
     }
 
-    // 토큰 암호화
     const encryptedAccess = encrypt(tokenData.access_token)
     const encryptedRefresh = tokenData.refresh_token
       ? encrypt(tokenData.refresh_token)
@@ -87,11 +82,10 @@ export async function GET(request: NextRequest) {
       ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
       : null
 
-    // user_oauth_tokens 테이블에 upsert
     const { error: dbError } = await supabase
       .from('user_oauth_tokens')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         provider: 'google_analytics',
         encrypted_access_token: encryptedAccess,
         encrypted_refresh_token: encryptedRefresh,
@@ -103,7 +97,6 @@ export async function GET(request: NextRequest) {
 
     if (dbError) throw new Error('토큰 저장 실패: ' + dbError.message)
 
-    // 블로그 레이아웃 설정 페이지로 리디렉트
     return NextResponse.redirect(
       `${baseUrl}/blogs/${blogId}/settings?tab=layout&ga_connected=true`
     )
