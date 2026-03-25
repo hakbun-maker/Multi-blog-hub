@@ -5,50 +5,41 @@ import { encrypt } from '@/lib/utils/encryption'
 
 export async function GET(request: NextRequest) {
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').trim()
-  const debug: Record<string, unknown> = { step: 'start', baseUrl }
 
   const code = request.nextUrl.searchParams.get('code')
   const state = request.nextUrl.searchParams.get('state')
   const error = request.nextUrl.searchParams.get('error')
 
   if (error) {
-    return NextResponse.json({ step: 'google_error', error })
+    return NextResponse.redirect(
+      `${baseUrl}/settings?error=${encodeURIComponent(error)}`
+    )
   }
 
   if (!code || !state) {
-    return NextResponse.json({ step: 'missing_params', hasCode: !!code, hasState: !!state })
+    return NextResponse.redirect(`${baseUrl}/settings?error=missing_code_or_state`)
   }
 
   let stateData: { userId: string; blogId: string }
   try {
     stateData = JSON.parse(Buffer.from(state, 'base64url').toString())
-  } catch (e) {
-    return NextResponse.json({ step: 'invalid_state', error: String(e) })
+  } catch {
+    return NextResponse.redirect(`${baseUrl}/settings?error=invalid_state`)
   }
 
   const { userId, blogId } = stateData
-  debug.userId = userId
-  debug.blogId = blogId
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  debug.hasSupabaseUrl = !!supabaseUrl
-  debug.hasServiceKey = !!serviceKey
-
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({ ...debug, step: 'missing_env' })
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey)
+  // Service role client — cookie-based auth doesn't work reliably in OAuth redirect callbacks
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
   try {
     const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID!
     const clientSecret = process.env.GOOGLE_ANALYTICS_CLIENT_SECRET!
     const redirectUri = `${baseUrl}/api/oauth/google-indexing/callback`
-    debug.redirectUri = redirectUri
 
-    // Step 1: Token exchange
-    debug.step = 'token_exchange'
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -62,17 +53,13 @@ export async function GET(request: NextRequest) {
     })
 
     if (!tokenRes.ok) {
-      const errText = await tokenRes.text()
-      return NextResponse.json({ ...debug, step: 'token_exchange_failed', status: tokenRes.status, error: errText })
+      const err = await tokenRes.text()
+      console.error('Google Indexing token exchange error:', err)
+      throw new Error('Google 토큰 교환 실패')
     }
 
     const tokenData = await tokenRes.json()
-    debug.step = 'token_ok'
-    debug.hasAccessToken = !!tokenData.access_token
-    debug.hasRefreshToken = !!tokenData.refresh_token
-    debug.expiresIn = tokenData.expires_in
 
-    // Step 2: Email fetch
     let googleEmail: string | null = null
     try {
       const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -83,23 +70,19 @@ export async function GET(request: NextRequest) {
         googleEmail = userInfo.email || null
       }
     } catch {
-      // ignore
+      // 이메일 조회 실패해도 진행
     }
-    debug.googleEmail = googleEmail
 
-    // Step 3: Encrypt
-    debug.step = 'encrypting'
     const encryptedAccess = encrypt(tokenData.access_token)
-    const encryptedRefresh = tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null
-    debug.step = 'encrypted'
+    const encryptedRefresh = tokenData.refresh_token
+      ? encrypt(tokenData.refresh_token)
+      : null
 
     const expiresAt = tokenData.expires_in
       ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
       : null
 
-    // Step 4: DB upsert
-    debug.step = 'db_upsert'
-    const { data: dbData, error: dbError } = await supabase
+    const { error: dbError } = await supabase
       .from('user_oauth_tokens')
       .upsert({
         user_id: userId,
@@ -112,35 +95,16 @@ export async function GET(request: NextRequest) {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,provider' })
 
-    if (dbError) {
-      return NextResponse.json({ ...debug, step: 'db_error', dbError })
-    }
+    if (dbError) throw new Error('토큰 저장 실패: ' + dbError.message)
 
-    debug.step = 'success'
-    debug.dbData = dbData
-
-    // Step 5: Verify it was saved
-    const { data: verifyData, error: verifyError } = await supabase
-      .from('user_oauth_tokens')
-      .select('id, user_id, provider, google_account_id, connected_at, updated_at')
-      .eq('user_id', userId)
-      .eq('provider', 'google_indexing')
-      .single()
-
-    debug.verify = verifyError ? { error: verifyError } : verifyData
-
-    // DEBUG MODE: Return JSON instead of redirect
-    return NextResponse.json({
-      ...debug,
-      message: 'SUCCESS! 토큰 저장 완료. 이 메시지가 보이면 디버그 모드입니다.',
-      redirectWouldBe: `${baseUrl}/blogs/${blogId}/settings?tab=layout&gsc_connected=true`,
-    })
+    return NextResponse.redirect(
+      `${baseUrl}/blogs/${blogId}/settings?tab=layout&gsc_connected=true`
+    )
   } catch (err) {
-    return NextResponse.json({
-      ...debug,
-      step: 'catch_error',
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    })
+    const message = err instanceof Error ? err.message : 'OAuth 콜백 처리 실패'
+    console.error('Google Indexing OAuth callback error:', message)
+    return NextResponse.redirect(
+      `${baseUrl}/blogs/${blogId}/settings?tab=layout&error=${encodeURIComponent(message)}`
+    )
   }
 }
