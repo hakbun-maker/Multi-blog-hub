@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID
   if (!clientId) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').trim()
     return NextResponse.redirect(
       `${baseUrl}/blogs/${blogId}/settings?tab=layout&error=${encodeURIComponent('GOOGLE_ANALYTICS_CLIENT_ID 환경변수가 설정되지 않았습니다.')}`
     )
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').trim()
   const redirectUri = `${baseUrl}/api/oauth/google-analytics/callback`
 
   // CSRF 방지를 위한 state 생성
