@@ -41,10 +41,15 @@ export default async function sitemap({ params }: { params: { slug: string } }):
     .eq('status', 'published')
     .order('published_at', { ascending: false })
 
+  const latestPost = posts?.[0]
+  const blogLastModified = latestPost?.published_at
+    ? new Date(latestPost.published_at)
+    : new Date(blog.created_at)
+
   const entries: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
+      lastModified: blogLastModified,
       changeFrequency: 'daily',
       priority: 1.0,
     },

@@ -1,10 +1,15 @@
-'use client'
-
-import { useEffect, useRef, useState } from 'react'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
 import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
+import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
+import AdSlotServer from '@/components/blog-public/AdSlotServer'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+
+// ─── 타입 ───
 
 interface Blog {
   id: string
@@ -26,7 +31,15 @@ interface Post {
   view_count: number | null
 }
 
-// ─── 레이아웃 설정 병합 ───
+interface RelatedPost {
+  id: string
+  title: string
+  slug: string
+  published_at: string
+  view_count: number | null
+}
+
+// ─── 유틸 ───
 
 function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutConfig {
   if (!saved) return { ...DEFAULT_LAYOUT_CONFIG }
@@ -40,13 +53,7 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
   }
 }
 
-const HEADER_HEIGHT: Record<string, string> = {
-  compact: 'py-2',
-  normal: 'py-3',
-  tall: 'py-5',
-}
-
-function getFontUrl(font: string): string | null {
+function getFontLink(font: string): string | null {
   switch (font) {
     case 'Pretendard':
       return 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css'
@@ -59,6 +66,31 @@ function getFontUrl(font: string): string | null {
   }
 }
 
+function extractFirstImage(html?: string): string | null {
+  if (!html) return null
+  const match = html.match(/<img[^>]+src="([^"]+)"/)
+  return match?.[1] ?? null
+}
+
+function stripHtml(html?: string): string {
+  if (!html) return ''
+  return html.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ').trim()
+}
+
+function injectInArticleAd(html: string, adCode: string): string {
+  const marker = '</p>'
+  const idx = html.indexOf(marker)
+  if (idx === -1) return html
+  const insertPos = idx + marker.length
+  return html.slice(0, insertPos) + `<div class="my-6">${adCode}</div>` + html.slice(insertPos)
+}
+
+const HEADER_HEIGHT: Record<string, string> = {
+  compact: 'py-2',
+  normal: 'py-3',
+  tall: 'py-5',
+}
+
 const SNS_LABELS: Record<string, string> = {
   instagram: 'Instagram',
   youtube: 'YouTube',
@@ -68,195 +100,101 @@ const SNS_LABELS: Record<string, string> = {
   blog: 'Blog',
 }
 
-function AdSlotRenderer({ code, className }: { code: string; className?: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
+// ─── 데이터 패치 (서버) ───
 
-  useEffect(() => {
-    if (!code || !containerRef.current) return
-    const container = containerRef.current
-    container.innerHTML = `<style>.ad-wrap *{max-width:100%!important;box-sizing:border-box!important;}</style><div class="ad-wrap">${code}</div>`
+async function fetchPostData(slug: string, postSlug: string) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
-    const scripts = container.querySelectorAll('script')
-    scripts.forEach(oldScript => {
-      const newScript = document.createElement('script')
-      Array.from(oldScript.attributes).forEach(attr => {
-        newScript.setAttribute(attr.name, attr.value)
-      })
-      newScript.textContent = oldScript.textContent
-      oldScript.parentNode?.replaceChild(newScript, oldScript)
-    })
-  }, [code])
+  const { data: blog } = await supabase
+    .from('blogs')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single()
 
-  if (!code) return null
-  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%' }} />
-}
+  if (!blog) return null
 
-// ─── 본문 중간 광고 삽입 헬퍼 ───
-// 첫 번째 </p> 이후에 광고 코드를 삽입
-function injectInArticleAd(html: string, adCode: string): string {
-  const marker = '</p>'
-  const idx = html.indexOf(marker)
-  if (idx === -1) return html
-  const insertPos = idx + marker.length
-  return html.slice(0, insertPos) + `<div class="my-6">${adCode}</div>` + html.slice(insertPos)
-}
+  const { data: post } = await supabase
+    .from('posts')
+    .select('id, title, slug, content_html, keyword, seo_title, meta_description, published_at, view_count')
+    .eq('blog_id', blog.id)
+    .eq('slug', postSlug)
+    .eq('status', 'published')
+    .single()
 
-export default function PublicPostPage({ params }: { params: { slug: string; postSlug: string } }) {
-  const [blog, setBlog] = useState<Blog | null>(null)
-  const [post, setPost] = useState<Post | null>(null)
-  const [allPosts, setAllPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  if (!post) return null
 
-  useEffect(() => {
-    const decodedPostSlug = decodeURIComponent(params.postSlug)
-    fetch(`/api/public/blog?slug=${encodeURIComponent(params.slug)}`)
-      .then(res => {
-        if (!res.ok) { setNotFound(true); setLoading(false); return null }
-        return res.json()
-      })
-      .then(data => {
-        if (!data) return
-        setBlog(data.blog)
-        setAllPosts(data.posts ?? [])
-        const found = data.posts.find((p: Post) => p.slug === decodedPostSlug)
-        if (!found) { setNotFound(true) } else { setPost(found) }
-        setLoading(false)
-      })
-  }, [params.slug, params.postSlug])
+  const cfg = mergeConfig((blog as Blog).layout_config)
+  let relatedPosts: RelatedPost[] = []
 
-  // ─── 트래킹 코드 삽입 ───
-  useEffect(() => {
-    if (!blog?.layout_config?.tracking) return
-    const { ga4_id, gsc_code, naver_code, kakao_pixel, custom_head } = blog.layout_config.tracking
-    const injected: HTMLElement[] = []
-
-    if (ga4_id) {
-      const s1 = document.createElement('script')
-      s1.src = `https://www.googletagmanager.com/gtag/js?id=${ga4_id}`
-      s1.async = true
-      document.head.appendChild(s1)
-      injected.push(s1)
-      const s2 = document.createElement('script')
-      s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga4_id}');`
-      document.head.appendChild(s2)
-      injected.push(s2)
-    }
-
-    if (gsc_code) {
-      const meta = document.createElement('meta')
-      meta.name = 'google-site-verification'
-      meta.content = gsc_code
-      document.head.appendChild(meta)
-      injected.push(meta)
-    }
-
-    if (naver_code) {
-      const meta = document.createElement('meta')
-      meta.name = 'naver-site-verification'
-      meta.content = naver_code
-      document.head.appendChild(meta)
-      injected.push(meta)
-    }
-
-    if (kakao_pixel) {
-      const s = document.createElement('script')
-      s.innerHTML = `!function(e,t){if(!e.kakaoPixel){var n=function(){n.q.push(arguments)};n.q=[],e.kakaoPixel=n;var a=t.createElement("script");a.async=1,a.src="//t1.daumcdn.net/kas/static/kp.js";var i=t.getElementsByTagName("script")[0];i.parentNode.insertBefore(a,i)}}(window,document);kakaoPixel('${kakao_pixel}');kakaoPixel('${kakao_pixel}').pageView();`
-      document.head.appendChild(s)
-      injected.push(s)
-    }
-
-    if (custom_head) {
-      const div = document.createElement('div')
-      div.innerHTML = custom_head
-      Array.from(div.children).forEach(child => {
-        document.head.appendChild(child)
-        injected.push(child as HTMLElement)
-      })
-    }
-
-    // AdSense 기본 스크립트 로드
-    const adsensePubId = blog?.layout_config?.ads?.adsense_pub_id
-    if (adsensePubId) {
-      const pubId = adsensePubId.startsWith('ca-pub-') ? adsensePubId : `ca-${adsensePubId}`
-      const s = document.createElement('script')
-      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`
-      s.async = true
-      s.crossOrigin = 'anonymous'
-      document.head.appendChild(s)
-      injected.push(s)
-    }
-
-    return () => {
-      injected.forEach(el => {
-        try { el.parentNode?.removeChild(el) } catch { /* ignore */ }
-      })
-    }
-  }, [blog])
-
-  // ─── 폰트 로딩 ───
-  useEffect(() => {
-    if (!blog?.layout_config?.layout?.font) return
-    const url = getFontUrl(blog.layout_config.layout.font)
-    if (!url) return
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = url
-    document.head.appendChild(link)
-    return () => { try { document.head.removeChild(link) } catch { /* ignore */ } }
-  }, [blog])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">로딩 중...</div>
-      </div>
-    )
+  if (cfg.related_posts.enabled) {
+    const orderCol = cfg.related_posts.type === 'popular' ? 'view_count' : 'published_at'
+    const { data: related } = await supabase
+      .from('posts')
+      .select('id, title, slug, published_at, view_count')
+      .eq('blog_id', blog.id)
+      .eq('status', 'published')
+      .neq('id', post.id)
+      .order(orderCol, { ascending: false })
+      .limit(cfg.related_posts.count)
+    relatedPosts = (related ?? []) as RelatedPost[]
   }
 
-  if (notFound || !blog || !post) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-gray-500">
-        <p className="text-6xl font-bold text-gray-200 mb-4">404</p>
-        <p>글을 찾을 수 없습니다.</p>
-        <Link href={`/blog/${params.slug}`} className="mt-4 text-blue-600 hover:underline text-sm">
-          블로그로 돌아가기
-        </Link>
-      </div>
-    )
-  }
+  return { blog: blog as Blog, post: post as Post, relatedPosts }
+}
 
+// ─── 메인 페이지 (서버 컴포넌트) ───
+
+export default async function PublicPostPage({ params }: { params: { slug: string; postSlug: string } }) {
+  const decodedPostSlug = decodeURIComponent(params.postSlug)
+  const data = await fetchPostData(params.slug, decodedPostSlug)
+  if (!data) notFound()
+
+  const { blog, post, relatedPosts } = data
   const cfg = mergeConfig(blog.layout_config)
   const color = blog.color ?? '#3b82f6'
-  const date = new Date(post.published_at).toLocaleDateString('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  })
+  const fontLink = getFontLink(cfg.layout.font)
+  const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const tags = post.keyword ? post.keyword.split(',').map(t => t.trim()).filter(Boolean) : []
 
-  // 본문 중간 광고 삽입
   let contentHtml = post.content_html || ''
   if (cfg.ads.in_article.enabled && cfg.ads.in_article.code) {
     contentHtml = injectInArticleAd(contentHtml, cfg.ads.in_article.code)
   }
 
   const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
-
-  // 관련글 계산
   const relatedPostsCfg = cfg.related_posts
-  const relatedPosts = relatedPostsCfg.enabled
-    ? allPosts
-        .filter(p => p.id !== post.id)
-        .sort((a, b) => {
-          if (relatedPostsCfg.type === 'popular') {
-            return (b.view_count ?? 0) - (a.view_count ?? 0)
-          }
-          return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
-        })
-        .slice(0, relatedPostsCfg.count)
-    : []
+  const postUrl = `${APP_URL}/blog/${blog.slug}/${decodedPostSlug}`
+  const thumbnail = extractFirstImage(post.content_html)
+  const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.seo_title || post.title,
+    description,
+    url: postUrl,
+    datePublished: post.published_at,
+    author: { '@type': 'Organization', name: blog.name },
+    publisher: { '@type': 'Organization', name: blog.name },
+    ...(thumbnail ? { image: thumbnail } : {}),
+    ...(tags.length > 0 ? { keywords: tags.join(', ') } : {}),
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, maxWidth: '100vw', overflowX: 'hidden' }}>
+
+      {/* JSON-LD 구조화 데이터 */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* 폰트 로드 */}
+      {fontLink && <link rel="stylesheet" href={fontLink} />}
+
+      {/* 트래킹 스크립트 (클라이언트) */}
+      <BlogTrackingScripts tracking={cfg.tracking} adsensePubId={cfg.ads.adsense_pub_id} />
 
       {/* 공지 바 */}
       {cfg.header.notice_bar.enabled && cfg.header.notice_bar.text && (
@@ -265,7 +203,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         </div>
       )}
 
-      {/* 상단 네비 */}
+      {/* 헤더 */}
       <header
         className={`border-b border-gray-100 ${cfg.header.sticky ? 'sticky top-0 z-10 backdrop-blur' : ''}`}
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
@@ -281,7 +219,6 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
             <span className="font-medium">{blog.name}</span>
           </Link>
 
-          {/* 네비게이션 메뉴 */}
           {cfg.header.nav_items.length > 0 && (
             <nav className="flex gap-4 ml-auto">
               {cfg.header.nav_items.map((item, idx) => (
@@ -294,34 +231,31 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
         </div>
       </header>
 
-      {/* 상단 광고 배너 (가로 100%) */}
+      {/* 상단 광고 */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
         <div className="relative w-full bg-gray-50 py-2 overflow-hidden">
-          <AdSlotRenderer code={cfg.ads.top_banner.code} className="w-full text-center" />
+          <AdSlotServer code={cfg.ads.top_banner.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 본문 영역 */}
-      <div className={`flex-1 w-full overflow-hidden ${hasSidebar ? 'lg:flex lg:gap-8' : ''} mx-auto px-4`} style={{ maxWidth: cfg.layout.max_width }}>
-        {/* 좌측 사이드바 (스크롤 고정, 모바일/태블릿 숨김) */}
+      <div className={`flex-1 w-full overflow-hidden mx-auto px-4 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`} style={{ maxWidth: cfg.layout.max_width }}>
+
         {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
           <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
             <div className="sticky top-4 space-y-4">
               {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
-                <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
+                <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
               )}
             </div>
           </aside>
         )}
 
-        {/* 글 본문 */}
         <article className="flex-1 min-w-0 py-10" style={{ fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height }}>
-          {/* 제목 */}
           <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
             {post.seo_title || post.title}
           </h1>
 
-          {/* 메타 정보 */}
           <div className="flex items-center gap-4 text-sm text-gray-400 mb-8 pb-6 border-b border-gray-100">
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />{date}
@@ -331,20 +265,17 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
             </span>
           </div>
 
-          {/* 제목 아래 광고 (모바일 숨김) */}
           {cfg.ads.below_title.enabled && cfg.ads.below_title.code && (
             <div className="hidden lg:block mb-6">
-              <AdSlotRenderer code={cfg.ads.below_title.code} />
+              <AdSlotServer code={cfg.ads.below_title.code} />
             </div>
           )}
 
-          {/* 본문 HTML (in_article 광고 포함) */}
           <div
             className="prose prose-gray max-w-none overflow-hidden [&_img]:max-w-full [&_iframe]:max-w-full [&_ins]:max-w-full"
             dangerouslySetInnerHTML={{ __html: contentHtml }}
           />
 
-          {/* 태그 */}
           {tags.length > 0 && (
             <div className="mt-10 pt-6 border-t border-gray-100 flex items-center gap-2 flex-wrap">
               <Tag className="w-3.5 h-3.5 text-gray-400" />
@@ -357,26 +288,25 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
           )}
         </article>
 
-        {/* 우측 사이드바 (스크롤 고정, 모바일/태블릿 숨김) */}
         {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
           <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
             <div className="sticky top-4 space-y-4">
               {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
-                <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
+                <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
               )}
             </div>
           </aside>
         )}
       </div>
 
-      {/* 하단 광고 (데스크톱만 표시, 모바일 숨김) */}
+      {/* 하단 광고 */}
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
         <div className="hidden lg:block w-full bg-gray-50 py-2">
-          <AdSlotRenderer code={cfg.ads.footer_ad.code} className="w-full text-center" />
+          <AdSlotServer code={cfg.ads.footer_ad.code} className="w-full text-center" />
         </div>
       )}
 
-      {/* 최근글 / 추천글 */}
+      {/* 관련글 */}
       {relatedPosts.length > 0 && (
         <div className="mx-auto w-full px-4 py-8 border-t border-gray-100" style={{ maxWidth: cfg.layout.max_width }}>
           <h3 className="text-base font-semibold text-gray-800 mb-4">
@@ -400,7 +330,6 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
       {/* 푸터 */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
         <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
-          {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
             <div className={`grid gap-x-6 gap-y-4 mb-6 ${cfg.footer.columns === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-' + cfg.footer.columns}`}>
               {cfg.footer.column_data.map((col, idx) => (
@@ -409,9 +338,7 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
                   <ul className="space-y-1">
                     {col.items.map((link, linkIdx) => (
                       <li key={linkIdx}>
-                        <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>
-                          {link.label}
-                        </a>
+                        <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>{link.label}</a>
                       </li>
                     ))}
                   </ul>
@@ -420,7 +347,6 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
             </div>
           )}
 
-          {/* SNS 링크 */}
           {cfg.footer.sns.length > 0 && (
             <div className="flex gap-4 mb-4">
               {cfg.footer.sns.map((item, idx) => (
@@ -432,7 +358,6 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
             </div>
           )}
 
-          {/* 저작권 또는 블로그 링크 */}
           {cfg.footer.copyright ? (
             <p className="text-xs opacity-60">{cfg.footer.copyright}</p>
           ) : (
@@ -444,11 +369,6 @@ export default function PublicPostPage({ params }: { params: { slug: string; pos
           )}
         </div>
       </footer>
-
-      {/* 커스텀 body 코드 */}
-      {cfg.tracking.custom_body && (
-        <div dangerouslySetInnerHTML={{ __html: cfg.tracking.custom_body }} />
-      )}
     </div>
   )
 }

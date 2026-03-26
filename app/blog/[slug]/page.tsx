@@ -1,11 +1,15 @@
-'use client'
-
-import { useEffect, useRef, useState } from 'react'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import { Calendar, Eye } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
+import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
+import AdSlotServer from '@/components/blog-public/AdSlotServer'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+
+// ─── 타입 ───
 
 interface Blog {
   id: string
@@ -26,14 +30,14 @@ interface Post {
   content_html?: string
 }
 
-interface CategoryInfo {
+interface Category {
   id: string
   name: string
   slug: string
   sort_order: number
 }
 
-// ─── 레이아웃 설정 병합 헬퍼 ───
+// ─── 유틸 ───
 
 function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutConfig {
   if (!saved) return { ...DEFAULT_LAYOUT_CONFIG }
@@ -47,7 +51,16 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
   }
 }
 
-// ─── 헤더 높이 매핑 ───
+function extractFirstImage(html?: string): string | null {
+  if (!html) return null
+  const match = html.match(/<img[^>]+src="([^"]+)"/)
+  return match?.[1] ?? null
+}
+
+function stripHtml(html?: string): string {
+  if (!html) return ''
+  return html.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ').trim()
+}
 
 const HEADER_HEIGHT: Record<string, string> = {
   compact: 'py-4',
@@ -55,9 +68,16 @@ const HEADER_HEIGHT: Record<string, string> = {
   tall: 'py-12',
 }
 
-// ─── 폰트 로딩 URL 매핑 ───
+const SNS_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  twitter: 'Twitter',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  blog: 'Blog',
+}
 
-function getFontUrl(font: string): string | null {
+function getFontLink(font: string): string | null {
   switch (font) {
     case 'Pretendard':
       return 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css'
@@ -70,198 +90,90 @@ function getFontUrl(font: string): string | null {
   }
 }
 
-// ─── SNS 아이콘 (간단한 텍스트 방식) ───
+// ─── 데이터 패치 (서버) ───
 
-const SNS_LABELS: Record<string, string> = {
-  instagram: 'Instagram',
-  youtube: 'YouTube',
-  twitter: 'Twitter',
-  facebook: 'Facebook',
-  tiktok: 'TikTok',
-  blog: 'Blog',
-}
+async function fetchBlogData(slug: string, categorySlug?: string) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
-// ─── 광고 슬롯 렌더러 ───
+  const { data: blog } = await supabase
+    .from('blogs')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single()
 
-function AdSlotRenderer({ code, className }: { code: string; className?: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  if (!blog) return null
 
-  useEffect(() => {
-    if (!code || !containerRef.current) return
-    const container = containerRef.current
-    // 광고 내부 요소가 부모 폭을 넘지 않도록 강제
-    container.innerHTML = `<style>.ad-wrap *{max-width:100%!important;box-sizing:border-box!important;}</style><div class="ad-wrap">${code}</div>`
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('id, name, slug, sort_order')
+    .eq('blog_id', blog.id)
+    .order('sort_order', { ascending: true })
 
-    const scripts = container.querySelectorAll('script')
-    scripts.forEach(oldScript => {
-      const newScript = document.createElement('script')
-      Array.from(oldScript.attributes).forEach(attr => {
-        newScript.setAttribute(attr.name, attr.value)
-      })
-      newScript.textContent = oldScript.textContent
-      oldScript.parentNode?.replaceChild(newScript, oldScript)
-    })
-  }, [code])
-
-  if (!code) return null
-  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%' }} />
-}
-
-export default function PublicBlogPage({ params }: { params: { slug: string } }) {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const activeCategory = searchParams.get('category') ?? ''
-
-  const [blog, setBlog] = useState<Blog | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [categories, setCategories] = useState<CategoryInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
-
-  useEffect(() => {
-    const url = `/api/public/blog?slug=${encodeURIComponent(params.slug)}${activeCategory ? `&category=${encodeURIComponent(activeCategory)}` : ''}`
-    setLoading(true)
-    fetch(url)
-      .then(res => {
-        if (!res.ok) { setNotFound(true); setLoading(false); return null }
-        return res.json()
-      })
-      .then(data => {
-        if (!data) return
-        setBlog(data.blog)
-        setPosts(data.posts)
-        setCategories(data.categories ?? [])
-        setLoading(false)
-      })
-  }, [params.slug, activeCategory])
-
-  // ─── 트래킹 코드 삽입 ───
-  useEffect(() => {
-    if (!blog?.layout_config?.tracking) return
-    const { ga4_id, gsc_code, naver_code, kakao_pixel, custom_head } = blog.layout_config.tracking
-    const injected: HTMLElement[] = []
-
-    // GA4
-    if (ga4_id) {
-      const s1 = document.createElement('script')
-      s1.src = `https://www.googletagmanager.com/gtag/js?id=${ga4_id}`
-      s1.async = true
-      document.head.appendChild(s1)
-      injected.push(s1)
-
-      const s2 = document.createElement('script')
-      s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga4_id}');`
-      document.head.appendChild(s2)
-      injected.push(s2)
-    }
-
-    // Google Search Console
-    if (gsc_code) {
-      const meta = document.createElement('meta')
-      meta.name = 'google-site-verification'
-      meta.content = gsc_code
-      document.head.appendChild(meta)
-      injected.push(meta)
-    }
-
-    // 네이버 서치어드바이저
-    if (naver_code) {
-      const meta = document.createElement('meta')
-      meta.name = 'naver-site-verification'
-      meta.content = naver_code
-      document.head.appendChild(meta)
-      injected.push(meta)
-    }
-
-    // 카카오 픽셀
-    if (kakao_pixel) {
-      const s = document.createElement('script')
-      s.innerHTML = `!function(e,t){if(!e.kakaoPixel){var n=function(){n.q.push(arguments)};n.q=[],e.kakaoPixel=n;var a=t.createElement("script");a.async=1,a.src="//t1.daumcdn.net/kas/static/kp.js";var i=t.getElementsByTagName("script")[0];i.parentNode.insertBefore(a,i)}}(window,document);kakaoPixel('${kakao_pixel}');kakaoPixel('${kakao_pixel}').pageView();`
-      document.head.appendChild(s)
-      injected.push(s)
-    }
-
-    // 커스텀 head 코드
-    if (custom_head) {
-      const div = document.createElement('div')
-      div.innerHTML = custom_head
-      Array.from(div.children).forEach(child => {
-        document.head.appendChild(child)
-        injected.push(child as HTMLElement)
-      })
-    }
-
-    // AdSense 기본 스크립트 로드
-    const adsensePubId = blog?.layout_config?.ads?.adsense_pub_id
-    if (adsensePubId) {
-      const pubId = adsensePubId.startsWith('ca-pub-') ? adsensePubId : `ca-${adsensePubId}`
-      const s = document.createElement('script')
-      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`
-      s.async = true
-      s.crossOrigin = 'anonymous'
-      document.head.appendChild(s)
-      injected.push(s)
-    }
-
-    // 클린업
-    return () => {
-      injected.forEach(el => {
-        try { el.parentNode?.removeChild(el) } catch { /* ignore */ }
-      })
-    }
-  }, [blog])
-
-  // ─── 폰트 로딩 ───
-  useEffect(() => {
-    if (!blog?.layout_config?.layout?.font) return
-    const url = getFontUrl(blog.layout_config.layout.font)
-    if (!url) return
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = url
-    document.head.appendChild(link)
-    return () => { try { document.head.removeChild(link) } catch { /* ignore */ } }
-  }, [blog])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">로딩 중...</div>
-      </div>
-    )
+  let categoryId: string | null = null
+  if (categorySlug && categories) {
+    const found = categories.find((c: Category) => c.slug === categorySlug)
+    if (found) categoryId = found.id
   }
 
-  if (notFound || !blog) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-gray-500">
-        <p className="text-6xl font-bold text-gray-200 mb-4">404</p>
-        <p>블로그를 찾을 수 없습니다.</p>
-      </div>
-    )
-  }
+  let postsQuery = supabase
+    .from('posts')
+    .select('id, title, slug, meta_description, published_at, view_count, content_html')
+    .eq('blog_id', blog.id)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
 
+  if (categoryId) postsQuery = postsQuery.eq('category_id', categoryId)
+
+  const { data: posts } = await postsQuery
+
+  return { blog: blog as Blog, posts: (posts ?? []) as Post[], categories: (categories ?? []) as Category[] }
+}
+
+// ─── 메인 페이지 (서버 컴포넌트) ───
+
+export default async function PublicBlogPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string }
+  searchParams: { category?: string }
+}) {
+  const data = await fetchBlogData(params.slug, searchParams.category)
+  if (!data) notFound()
+
+  const { blog, posts, categories } = data
   const cfg = mergeConfig(blog.layout_config)
   const color = blog.color ?? '#3b82f6'
+  const activeCategory = searchParams.category ?? ''
+  const fontLink = getFontLink(cfg.layout.font)
 
-  // 첫 번째 이미지 추출 (썸네일용)
-  function extractFirstImage(html?: string): string | null {
-    if (!html) return null
-    const match = html.match(/<img[^>]+src="([^"]+)"/)
-    return match?.[1] ?? null
-  }
-
-  // HTML 태그 제거 (요약용)
-  function stripHtml(html?: string): string {
-    if (!html) return ''
-    return html.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ').trim()
-  }
-
-  // 사이드바 유무
   const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
   const isMagazine = cfg.layout.preset === 'magazine'
+  const blogUrl = `${APP_URL}/blog/${blog.slug}`
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: blog.name,
+    url: blogUrl,
+    ...(blog.description ? { description: blog.description } : {}),
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height, maxWidth: '100vw', overflowX: 'hidden' }}>
+
+      {/* JSON-LD 구조화 데이터 */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* 폰트 로드 */}
+      {fontLink && <link rel="stylesheet" href={fontLink} />}
+
+      {/* 트래킹 스크립트 (클라이언트) */}
+      <BlogTrackingScripts tracking={cfg.tracking} adsensePubId={cfg.ads.adsense_pub_id} />
 
       {/* 공지 바 */}
       {cfg.header.notice_bar.enabled && cfg.header.notice_bar.text && (
@@ -270,7 +182,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         </div>
       )}
 
-      {/* 블로그 헤더 */}
+      {/* 헤더 */}
       <header
         className={`border-b border-gray-200 ${cfg.header.sticky ? 'sticky top-0 z-10 backdrop-blur' : ''}`}
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
@@ -288,8 +200,6 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
             <p className="opacity-70 ml-7">{blog.description}</p>
           )}
           <p className="text-sm opacity-50 mt-2 ml-7">{posts.length}개의 글</p>
-
-          {/* 네비게이션 메뉴 */}
           {cfg.header.nav_items.length > 0 && (
             <nav className="flex gap-4 mt-4 ml-7">
               {cfg.header.nav_items.map((item, idx) => (
@@ -302,86 +212,73 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         </div>
       </header>
 
-      {/* 카테고리 필터 탭 */}
+      {/* 카테고리 필터 */}
       {categories.length > 0 && (
         <div className="border-b border-gray-100" style={{ backgroundColor: cfg.header.bg_color }}>
           <div className="mx-auto px-4" style={{ maxWidth: cfg.layout.max_width }}>
             <div className="flex gap-1 overflow-x-auto py-2 -mb-px scrollbar-hide">
-              <button
-                onClick={() => router.push(`/blog/${blog.slug}`)}
+              <Link
+                href={`/blog/${blog.slug}`}
                 className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
-                  !activeCategory
-                    ? 'font-semibold text-white'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  !activeCategory ? 'font-semibold text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
                 style={!activeCategory ? { backgroundColor: color } : undefined}
               >
                 전체
-              </button>
+              </Link>
               {categories.map(cat => (
-                <button
+                <Link
                   key={cat.id}
-                  onClick={() => router.push(`/blog/${blog.slug}?category=${encodeURIComponent(cat.slug)}`)}
+                  href={`/blog/${blog.slug}?category=${encodeURIComponent(cat.slug)}`}
                   className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
-                    activeCategory === cat.slug
-                      ? 'font-semibold text-white'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    activeCategory === cat.slug ? 'font-semibold text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                   }`}
                   style={activeCategory === cat.slug ? { backgroundColor: color } : undefined}
                 >
                   {cat.name}
-                </button>
+                </Link>
               ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* 상단 광고 배너 (가로 100%) */}
+      {/* 상단 광고 */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
         <div className="relative w-full bg-gray-50 py-2 overflow-hidden">
-          <AdSlotRenderer code={cfg.ads.top_banner.code} className="w-full text-center" />
+          <AdSlotServer code={cfg.ads.top_banner.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 글 목록 */}
       <main className="flex-1 w-full overflow-hidden">
-        <div
-          className={`mx-auto px-4 py-8 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`}
-          style={{ maxWidth: cfg.layout.max_width }}
-        >
-          {/* 좌측 사이드바 (스크롤 고정, 모바일 숨김) */}
+        <div className={`mx-auto px-4 py-8 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`} style={{ maxWidth: cfg.layout.max_width }}>
+
           {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-4 space-y-4">
                 {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
-                  <AdSlotRenderer code={cfg.ads.left_sidebar_ad.code} />
+                  <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
                 )}
               </div>
             </aside>
           )}
 
-          {/* 메인 콘텐츠 */}
           <div className="flex-1 min-w-0">
             {posts.length === 0 ? (
-              <div className="text-center py-20 text-gray-400">
-                아직 발행된 글이 없습니다.
-              </div>
+              <div className="text-center py-20 text-gray-400">아직 발행된 글이 없습니다.</div>
             ) : isMagazine ? (
-              /* 매거진 그리드 레이아웃 */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {posts.map(post => {
                   const thumbnail = extractFirstImage(post.content_html)
                   const excerpt = post.meta_description || stripHtml(post.content_html).slice(0, 100)
-                  const date = new Date(post.published_at).toLocaleDateString('ko-KR', {
-                    year: 'numeric', month: 'long', day: 'numeric',
-                  })
+                  const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
                   return (
                     <Link key={post.id} href={`/blog/${blog.slug}/${post.slug}`}
                       className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
                       {thumbnail && (
                         <div className="w-full h-40">
-                          <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+                          <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" />
                         </div>
                       )}
                       <div className="p-4">
@@ -397,14 +294,11 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
                 })}
               </div>
             ) : (
-              /* 기본 리스트 레이아웃 */
               <div className="space-y-6">
                 {posts.map(post => {
                   const thumbnail = extractFirstImage(post.content_html)
                   const excerpt = post.meta_description || stripHtml(post.content_html).slice(0, 150)
-                  const date = new Date(post.published_at).toLocaleDateString('ko-KR', {
-                    year: 'numeric', month: 'long', day: 'numeric',
-                  })
+                  const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
                   return (
                     <Link key={post.id} href={`/blog/${blog.slug}/${post.slug}`}
                       className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
@@ -419,7 +313,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
                         </div>
                         {thumbnail && (
                           <div className="w-24 sm:w-40 flex-shrink-0">
-                            <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+                            <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" />
                           </div>
                         )}
                       </div>
@@ -430,12 +324,11 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
             )}
           </div>
 
-          {/* 우측 사이드바 (스크롤 고정, 모바일 숨김) */}
           {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-4 space-y-4">
                 {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
-                  <AdSlotRenderer code={cfg.ads.right_sidebar_ad.code} />
+                  <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
                 )}
               </div>
             </aside>
@@ -443,17 +336,16 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
         </div>
       </main>
 
-      {/* 하단 광고 (데스크톱만 표시, 모바일 숨김) */}
+      {/* 하단 광고 */}
       {cfg.ads.footer_ad.enabled && cfg.ads.footer_ad.code && (
         <div className="hidden lg:block w-full bg-gray-50 py-2">
-          <AdSlotRenderer code={cfg.ads.footer_ad.code} className="w-full text-center" />
+          <AdSlotServer code={cfg.ads.footer_ad.code} className="w-full text-center" />
         </div>
       )}
 
       {/* 푸터 */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
         <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
-          {/* 푸터 컬럼 */}
           {cfg.footer.column_data.length > 0 && (
             <div className={`grid gap-x-6 gap-y-4 mb-6 ${cfg.footer.columns === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-' + cfg.footer.columns}`}>
               {cfg.footer.column_data.map((col, idx) => (
@@ -462,9 +354,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
                   <ul className="space-y-1">
                     {col.items.map((link, linkIdx) => (
                       <li key={linkIdx}>
-                        <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>
-                          {link.label}
-                        </a>
+                        <a href={link.url} className="text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.footer.text_color }}>{link.label}</a>
                       </li>
                     ))}
                   </ul>
@@ -472,8 +362,6 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
               ))}
             </div>
           )}
-
-          {/* SNS 링크 */}
           {cfg.footer.sns.length > 0 && (
             <div className="flex gap-4 mb-4">
               {cfg.footer.sns.map((item, idx) => (
@@ -484,8 +372,6 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
               ))}
             </div>
           )}
-
-          {/* 저작권 */}
           {cfg.footer.copyright ? (
             <p className="text-xs opacity-60">{cfg.footer.copyright}</p>
           ) : (
@@ -495,11 +381,6 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
           )}
         </div>
       </footer>
-
-      {/* 커스텀 body 코드 */}
-      {cfg.tracking.custom_body && (
-        <div dangerouslySetInnerHTML={{ __html: cfg.tracking.custom_body }} />
-      )}
     </div>
   )
 }
