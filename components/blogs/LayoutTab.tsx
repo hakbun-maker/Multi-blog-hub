@@ -1312,6 +1312,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                     <div>
                       <p className="text-xs font-medium text-gray-700">사이트맵 제출</p>
                       <p className="text-[11px] text-gray-400">GSC에 sitemap.xml을 즉시 제출합니다.</p>
+                      <p className="text-[11px] text-amber-500 mt-0.5">※ GSC 반영까지 수일~수주 소요될 수 있습니다.</p>
                     </div>
                     <button
                       type="button"
