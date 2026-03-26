@@ -192,18 +192,18 @@ export default async function PublicBlogPage({
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
       >
         <div className={`mx-auto px-4 ${HEADER_HEIGHT[cfg.header.height] ?? 'py-8'}`} style={{ maxWidth: cfg.layout.max_width }}>
-          <div className="flex items-center gap-3 mb-2">
-            {cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? (
-              <img src={cfg.header.logo_image_url} alt={blog.name} className="h-10 w-10 object-contain rounded-md" />
-            ) : (
+          {cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? (
+            <img src={cfg.header.logo_image_url} alt={blog.name} className="h-20 w-auto max-w-[260px] object-contain mb-3" />
+          ) : (
+            <div className="flex items-center gap-3 mb-2">
               <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }} />
-            )}
-            <h1 className="text-2xl font-bold">{blog.name}</h1>
-          </div>
-          {blog.description && (
-            <p className="opacity-70 ml-7">{blog.description}</p>
+              <h1 className="text-2xl font-bold">{blog.name}</h1>
+            </div>
           )}
-          <p className="text-sm opacity-50 mt-2 ml-7">{posts.length}개의 글</p>
+          {blog.description && (
+            <p className={`opacity-70 ${cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? '' : 'ml-7'}`}>{blog.description}</p>
+          )}
+          <p className={`text-sm opacity-50 mt-2 ${cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? '' : 'ml-7'}`}>{posts.length}개의 글</p>
           {cfg.header.nav_items.length > 0 && (
             <nav className="flex gap-4 mt-4 ml-7">
               {cfg.header.nav_items.map((item, idx) => (

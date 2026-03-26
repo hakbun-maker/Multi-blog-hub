@@ -22,15 +22,15 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   if (!blog) return {}
 
-  const tracking = (blog.layout_config as Record<string, unknown>)?.tracking as Record<string, string> | undefined
-  const verification: Record<string, string> = {}
+  const lc = blog.layout_config as Record<string, unknown> | null
+  const tracking = lc?.tracking as Record<string, string> | undefined
+  const header = lc?.header as Record<string, string | null> | undefined
+  const logoImageUrl = header?.logo_image_url || null
+  const faviconUrl = header?.favicon_url || null
 
-  if (tracking?.gsc_code) {
-    verification.google = tracking.gsc_code
-  }
-  if (tracking?.naver_code) {
-    verification.other = tracking.naver_code
-  }
+  const verification: Record<string, string> = {}
+  if (tracking?.gsc_code) verification.google = tracking.gsc_code
+  if (tracking?.naver_code) verification.other = tracking.naver_code
 
   const url = `${APP_URL}/blog/${params.slug}`
 
@@ -38,17 +38,22 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     title: blog.name,
     description: blog.description || undefined,
     verification,
+    ...(faviconUrl ? {
+      icons: { icon: faviconUrl, apple: faviconUrl },
+    } : {}),
     openGraph: {
       type: 'website',
       title: blog.name,
       description: blog.description || undefined,
       url,
       siteName: blog.name,
+      ...(logoImageUrl ? { images: [{ url: logoImageUrl, width: 1200, height: 630, alt: blog.name }] } : {}),
     },
     twitter: {
-      card: 'summary',
+      card: logoImageUrl ? 'summary_large_image' : 'summary',
       title: blog.name,
       description: blog.description || undefined,
+      ...(logoImageUrl ? { images: [logoImageUrl] } : {}),
     },
     alternates: {
       canonical: url,

@@ -18,6 +18,7 @@ export interface LayoutConfig {
   header: {
     logo_type: 'text' | 'image'
     logo_image_url: string | null
+    favicon_url: string | null
     bg_color: string
     text_color: string
     sticky: boolean
@@ -73,6 +74,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   header: {
     logo_type: 'text',
     logo_image_url: null,
+    favicon_url: null,
     bg_color: '#ffffff',
     text_color: '#111111',
     sticky: true,
@@ -744,8 +746,21 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
               placeholder="https://example.com/logo.png"
               className="text-sm"
             />
+            <p className="text-[11px] text-gray-400">블로그 헤더 및 SNS 공유 이미지(og:image)로 사용됩니다.</p>
           </div>
         )}
+
+        {/* 파비콘 */}
+        <div className="space-y-1">
+          <Label className="text-xs">파비콘 URL</Label>
+          <Input
+            value={config.header.favicon_url ?? ''}
+            onChange={e => updateHeader({ favicon_url: e.target.value || null })}
+            placeholder="https://example.com/favicon.ico"
+            className="text-sm"
+          />
+          <p className="text-[11px] text-gray-400">브라우저 탭에 표시될 아이콘 (16×16 또는 32×32 ICO/PNG)</p>
+        </div>
 
         {/* 색상 */}
         <div className="flex gap-6">
