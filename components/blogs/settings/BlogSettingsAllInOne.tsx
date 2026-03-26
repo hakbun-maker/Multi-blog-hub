@@ -181,6 +181,9 @@ export function BlogSettingsAllInOne() {
               blogSlug={selectedBlog.slug}
               initialConfig={selectedBlog.layout_config as Record<string, unknown> | null}
               onSuccess={() => {}}
+              onConfigSaved={(cfg) => {
+                setBlogs(prev => prev.map(b => b.id === selectedBlogId ? { ...b, layout_config: cfg as unknown as Record<string, unknown> } : b))
+              }}
             />
           )}
 

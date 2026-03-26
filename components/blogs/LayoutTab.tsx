@@ -332,9 +332,10 @@ interface LayoutTabProps {
   customDomain?: string | null
   initialConfig: Partial<LayoutConfig> | null | undefined
   onSuccess: (msg: string) => void
+  onConfigSaved?: (config: LayoutConfig) => void
 }
 
-export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfig, onSuccess }: LayoutTabProps) {
+export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfig, onSuccess, onConfigSaved }: LayoutTabProps) {
   const [config, setConfig] = useState<LayoutConfig>(() => mergeConfig(initialConfig))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -346,6 +347,8 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
   const [gaCreating, setGaCreating] = useState(false)
   const [gscConnected, setGscConnected] = useState(false)
   const [gscEmail, setGscEmail] = useState<string | null>(null)
+  const [sitemapSubmitting, setSitemapSubmitting] = useState(false)
+  const [sitemapResult, setSitemapResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [snippetPickerSlot, setSnippetPickerSlot] = useState<string | null>(null)
   const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
   const [snippetsLoading, setSnippetsLoading] = useState(false)
@@ -419,6 +422,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
         throw new Error(data.error || '저장 실패')
       }
       onSuccess('레이아웃 설정이 저장되었습니다.')
+      onConfigSaved?.(config)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.'
       setError(message)
@@ -496,6 +500,31 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
     } catch {
       setError('Google Indexing 연결 해제에 실패했습니다.')
     }
+  }
+
+  const handleSubmitSitemap = async () => {
+    setSitemapSubmitting(true)
+    setSitemapResult(null)
+    try {
+      const res = await fetch('/api/gsc/submit-sitemap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSitemapResult({ ok: true, message: `사이트맵 제출 완료: ${data.sitemapUrl}` })
+      } else if (data.needsReconnect) {
+        setSitemapResult({ ok: false, message: 'Google 계정을 재연결해주세요. (아래 연결 해제 후 재연결)' })
+      } else if (data.needsProperty) {
+        setSitemapResult({ ok: false, message: 'GSC에 속성을 먼저 추가하고 소유권 확인을 완료해주세요.' })
+      } else {
+        setSitemapResult({ ok: false, message: data.error || '사이트맵 제출 실패' })
+      }
+    } catch {
+      setSitemapResult({ ok: false, message: '네트워크 오류가 발생했습니다.' })
+    }
+    setSitemapSubmitting(false)
   }
 
   // ─── 네비게이션 아이템 관리 ───
@@ -1217,9 +1246,10 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
               <p>1. <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Search Console</a>에 로그인합니다.</p>
               <p>2. <strong>속성 추가</strong> → <strong>URL 접두어</strong>에 블로그 주소를 입력합니다.</p>
               {blogSlug && (() => {
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
                 const blogUrl = customDomain
                   ? `https://${customDomain}`
-                  : `${window.location.origin}/blog/${blogSlug}`
+                  : `${appUrl}/blog/${blogSlug}`
                 return (
                   <div className="flex items-center gap-2 bg-white border rounded px-2 py-1.5 my-1">
                     <code className="text-[11px] text-gray-700 flex-1 truncate">
@@ -1278,6 +1308,29 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                       config.tracking.gsc_auto_index ? 'translate-x-[18px]' : 'translate-x-[2px]'
                     }`} />
                   </button>
+                </div>
+
+                {/* 사이트맵 제출 */}
+                <div className="pt-1 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-700">사이트맵 제출</p>
+                      <p className="text-[11px] text-gray-400">GSC에 sitemap.xml을 즉시 제출합니다.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSubmitSitemap}
+                      disabled={sitemapSubmitting}
+                      className="text-xs px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                    >
+                      {sitemapSubmitting ? '제출 중...' : '제출하기'}
+                    </button>
+                  </div>
+                  {sitemapResult && (
+                    <p className={`text-[11px] mt-1.5 ${sitemapResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                      {sitemapResult.ok ? '✓ ' : '✗ '}{sitemapResult.message}
+                    </p>
+                  )}
                 </div>
               </>
             ) : (

@@ -148,7 +148,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
 
       {/* ═══ LayoutTab ═══ */}
       {activeTab === 'layout' && (
-        <LayoutTab blogId={params.id} blogSlug={blogSlug} customDomain={blogCustomDomain} initialConfig={layoutConfig} onSuccess={showSuccess} />
+        <LayoutTab blogId={params.id} blogSlug={blogSlug} customDomain={blogCustomDomain} initialConfig={layoutConfig} onSuccess={showSuccess} onConfigSaved={setLayoutConfig} />
       )}
 
       {/* ═══ LanguageTab ═══ */}

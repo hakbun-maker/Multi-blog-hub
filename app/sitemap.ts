@@ -9,17 +9,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // 활성 블로그 조회
+  // 커스텀 도메인 없는 활성 블로그만 (커스텀 도메인 블로그는 자체 sitemap 보유)
   const { data: blogs } = await supabase
     .from('blogs')
     .select('slug, created_at')
     .eq('is_active', true)
+    .is('custom_domain', null)
 
-  // 발행글 조회
+  // 커스텀 도메인 없는 블로그의 발행글만
+  const blogSlugs = (blogs ?? []).map(b => b.slug)
+  if (blogSlugs.length === 0) return []
+
   const { data: posts } = await supabase
     .from('posts')
-    .select('slug, published_at, blog_id, blogs!inner(slug)')
+    .select('slug, published_at, blog_id, blogs!inner(slug, custom_domain)')
     .eq('status', 'published')
+    .is('blogs.custom_domain', null)
     .order('published_at', { ascending: false })
 
   const entries: MetadataRoute.Sitemap = []
