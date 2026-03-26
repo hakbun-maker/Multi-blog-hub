@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { Calendar, Eye } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
@@ -93,7 +94,8 @@ function getFontLink(font: string): string | null {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchBlogData(slug: string, categorySlug?: string) {
-  const supabase = createClient(
+  const supabase = createClient()
+  const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
@@ -107,7 +109,7 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
 
   if (!blog) return null
 
-  const { data: categories } = await supabase
+  const { data: categories } = await adminClient
     .from('categories')
     .select('id, name, slug, sort_order')
     .eq('blog_id', blog.id)
