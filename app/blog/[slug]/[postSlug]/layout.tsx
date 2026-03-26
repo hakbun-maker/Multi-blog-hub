@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
@@ -22,7 +22,10 @@ function stripHtml(html?: string): string {
 }
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const supabase = createClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   // 블로그 조회
   const { data: blog } = await supabase

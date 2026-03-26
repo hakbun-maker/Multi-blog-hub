@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
@@ -9,7 +9,10 @@ interface LayoutProps {
 }
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const supabase = createClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
   const { data: blog } = await supabase
     .from('blogs')
     .select('name, description, layout_config')

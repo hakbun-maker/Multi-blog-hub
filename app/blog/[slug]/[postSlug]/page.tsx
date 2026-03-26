@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
@@ -103,7 +103,10 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchPostData(slug: string, postSlug: string) {
-  const supabase = createClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   const { data: blog } = await supabase
     .from('blogs')
