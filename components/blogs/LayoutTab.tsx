@@ -514,10 +514,6 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
       const data = await res.json()
       if (res.ok) {
         setSitemapResult({ ok: true, message: `사이트맵 제출 완료: ${data.sitemapUrl}` })
-      } else if (data.needsReconnect) {
-        setSitemapResult({ ok: false, message: 'Google 계정을 재연결해주세요. (아래 연결 해제 후 재연결)' })
-      } else if (data.needsProperty) {
-        setSitemapResult({ ok: false, message: 'GSC에 속성을 먼저 추가하고 소유권 확인을 완료해주세요.' })
       } else {
         setSitemapResult({ ok: false, message: data.error || '사이트맵 제출 실패' })
       }

@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (!token) {
-    return NextResponse.json({ error: 'Google 연결이 필요합니다. 먼저 Google 계정을 연결해주세요.' }, { status: 400 })
+    return NextResponse.json({ error: 'Google 계정이 연결되지 않았습니다.' }, { status: 400 })
   }
 
   let accessToken = decrypt(token.encrypted_access_token)
@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
   // 토큰 만료 시 갱신
   if (token.token_expires_at && new Date(token.token_expires_at) <= new Date()) {
     if (!token.encrypted_refresh_token) {
-      return NextResponse.json({ error: '토큰이 만료되었습니다. Google 계정을 재연결해주세요.' }, { status: 400 })
+      return NextResponse.json({ error: '토큰이 만료되었습니다. Google Indexing 연결을 해제하고 다시 연결해주세요.' }, { status: 400 })
     }
     const newToken = await refreshAccessToken(user.id, decrypt(token.encrypted_refresh_token))
     if (!newToken) {
-      return NextResponse.json({ error: '토큰 갱신 실패. Google 계정을 재연결해주세요.' }, { status: 400 })
+      return NextResponse.json({ error: '토큰 갱신 실패. Google Indexing 연결을 해제하고 다시 연결해주세요.' }, { status: 400 })
     }
     accessToken = newToken
   }
@@ -97,24 +97,44 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  if (res.status === 403) {
-    return NextResponse.json({
-      error: 'Google Indexing 연결을 재설정해주세요. (webmasters 권한 필요)',
-      needsReconnect: true,
-    }, { status: 403 })
-  }
-
   if (!res.ok) {
     const errText = await res.text()
-    console.error('GSC Sitemaps API error:', errText)
-    // 404 = 사이트가 GSC에 아직 등록 안 됨
+    console.error(`GSC Sitemaps API error (${res.status}):`, errText)
+
+    let parsed: Record<string, unknown> = {}
+    try { parsed = JSON.parse(errText) } catch { /* ignore */ }
+    const message = (parsed?.error as Record<string, unknown>)?.message as string ?? ''
+
+    if (res.status === 403) {
+      // API 미활성화
+      if (message.includes('has not been used') || message.includes('disabled')) {
+        return NextResponse.json({
+          error: 'Google Cloud 프로젝트에서 Search Console API가 활성화되지 않았습니다. Google Cloud Console → API 및 서비스 → Search Console API를 활성화해주세요.',
+          errorType: 'api_not_enabled',
+        }, { status: 403 })
+      }
+      // 스코프 부족
+      if (message.includes('insufficient') || message.includes('scope')) {
+        return NextResponse.json({
+          error: 'Google Indexing 연결 권한이 부족합니다. 위의 "연결 해제" 버튼을 눌러 Google Indexing 연결을 끊은 후 다시 연결해주세요.',
+          errorType: 'insufficient_scope',
+        }, { status: 403 })
+      }
+      // 사이트 미등록/권한 없음
+      return NextResponse.json({
+        error: `Google Search Console에 "${siteUrl}" 속성이 없거나 접근 권한이 없습니다. GSC에서 속성을 추가하고 소유권 확인을 완료한 후 다시 시도해주세요.`,
+        errorType: 'no_gsc_property',
+      }, { status: 403 })
+    }
+
     if (res.status === 404) {
       return NextResponse.json({
-        error: 'GSC에 사이트 속성이 없습니다. Google Search Console에서 먼저 속성을 추가하고 소유권을 확인해주세요.',
-        needsProperty: true,
+        error: `Google Search Console에 "${siteUrl}" 속성이 등록되어 있지 않습니다. GSC에서 속성을 추가하고 소유권을 확인해주세요.`,
+        errorType: 'no_gsc_property',
       }, { status: 404 })
     }
-    return NextResponse.json({ error: `사이트맵 제출 실패 (${res.status})` }, { status: 500 })
+
+    return NextResponse.json({ error: `사이트맵 제출 실패 (${res.status}): ${message || errText}` }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, sitemapUrl })
