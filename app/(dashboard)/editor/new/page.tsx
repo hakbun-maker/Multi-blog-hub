@@ -146,7 +146,7 @@ export default function EditorNewPage() {
   const handlePipelineComplete = useCallback(async (states: Record<string, BlogPipelineState>) => {
     setAiResults(states)
     const blogIds = Object.keys(states)
-    if (blogIds.length) setActiveBlogTab(blogIds[0])
+    setActiveBlogTab(prev => prev ?? (blogIds.length ? blogIds[0] : null))
 
     // 자동 발행 모드
     if (autoPublish) {
@@ -314,7 +314,7 @@ export default function EditorNewPage() {
           <AIGeneratePanel ref={aiPanelRef} blogs={blogs} onPipelineComplete={handlePipelineComplete} />
 
           {/* ── 파이프라인 완료 후: 생성 결과 영역 ── */}
-          {pipelineDone && hasAiResults && !autoPublish && (
+          {hasAiResults && !autoPublish && (
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
               {/* 헤더: 제목 + 전체 발행 */}
               <div className="flex items-center justify-between">
@@ -346,6 +346,12 @@ export default function EditorNewPage() {
               </div>
 
               {/* 활성 블로그의 결과 */}
+              {activeResult && activeResult.step !== 'done' && activeResult.step !== 'idle' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-8 flex items-center justify-center gap-3 text-gray-500">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                  <span className="text-sm">{activeResult.stepMessage || '재생성 중...'}</span>
+                </div>
+              )}
               {activeResult && activeResult.step === 'done' && (
                 <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
                   {/* 개별 액션 버튼 */}

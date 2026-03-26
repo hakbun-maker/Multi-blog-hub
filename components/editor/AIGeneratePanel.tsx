@@ -129,7 +129,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
         body: JSON.stringify({
           keyword: keywords.join(', '),
           relatedKeywords: mergedRelated,
-          blogIds: selectedBlogIds,
+          blogIds: targetIds,
           imageCount: 0,
         }),
       })
