@@ -3,11 +3,10 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Save, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Save, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import LayoutTab from '@/components/blogs/LayoutTab'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
-import { FeatureGate } from '@/components/plan/FeatureGate'
 import { SNSSettingsPanel } from '@/components/monetize/sns/SNSSettingsPanel'
 import { AffiliateSettingsPanel } from '@/components/monetize/affiliate/AffiliateSettingsPanel'
 import { LanguageSelector } from '@/components/blogs/settings/language/LanguageSelector'
@@ -17,11 +16,17 @@ import { BasicInfoForm } from '@/components/blogs/settings/BasicInfoForm'
 import { CategoriesManager } from '@/components/blogs/settings/CategoriesManager'
 import { AICharacterForm } from '@/components/blogs/settings/AICharacterForm'
 import { TABS, type SettingsTab } from '@/components/blogs/settings/constants'
+import { usePlanContext } from '@/components/plan/PlanContext'
+import { UpgradeModal } from '@/components/plan/UpgradeModal'
+import { PLAN_LABELS } from '@/lib/plan/constants'
 import type { BlogLanguage } from '@/types/monetize'
+import type { PlanId } from '@/types/plan'
 
 function BlogSettingsContent({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { isAtLeast, planId, loading: planLoading } = usePlanContext()
+
   const tabFromUrl = searchParams.get('tab') as SettingsTab | null
   const [activeTab, setActiveTab] = useState<SettingsTab>(
     tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'basic'
@@ -29,6 +34,30 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; targetPlan: PlanId; message: string; featureName: string } | null>(null)
+
+  // If tab from URL is locked, redirect to basic once plan is loaded
+  useEffect(() => {
+    if (planLoading) return
+    const tab = TABS.find(t => t.id === activeTab)
+    if (tab?.minPlan && !isAtLeast(tab.minPlan)) {
+      setActiveTab('basic')
+    }
+  }, [planLoading, isAtLeast, activeTab])
+
+  const handleTabClick = (tabId: SettingsTab) => {
+    const tab = TABS.find(t => t.id === tabId)
+    if (tab?.minPlan && !isAtLeast(tab.minPlan)) {
+      setUpgradeModal({
+        open: true,
+        targetPlan: tab.minPlan,
+        message: `${tab.featureName ?? tab.label} 기능은 ${PLAN_LABELS[tab.minPlan]} 플랜부터 사용할 수 있어요.`,
+        featureName: tab.featureName ?? tab.label,
+      })
+      return
+    }
+    setActiveTab(tabId)
+  }
 
   // Minimal blog data needed for header, layout tab, and language tab
   const [blogName, setBlogName] = useState('')
@@ -115,16 +144,22 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       {/* SettingsTabNav */}
       <div className="border-b border-gray-200 overflow-x-auto">
         <div className="flex gap-0 min-w-max">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === t.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+          {TABS.map(t => {
+            const locked = !!t.minPlan && !isAtLeast(t.minPlan)
+            return (
+              <button key={t.id} onClick={() => handleTabClick(t.id)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === t.id
+                    ? 'border-blue-600 text-blue-600'
+                    : locked
+                      ? 'border-transparent text-gray-300 hover:text-gray-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}>
+                {locked && <Lock className="w-3 h-3 text-gray-300" />}
+                {t.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -132,7 +167,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
       {activeTab === 'basic' && (
         <BasicInfoForm
           blogId={params.id}
-          onLanguageTabClick={() => setActiveTab('language')}
+          onLanguageTabClick={() => handleTabClick('language')}
         />
       )}
 
@@ -169,16 +204,24 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
 
       {/* ═══ SNSTab ═══ */}
       {activeTab === 'sns' && (
-        <FeatureGate featureKey="sns_auto_deploy" minPlan="pro" featureName="SNS 자동배포">
-          <SNSSettingsPanel blogId={params.id} />
-        </FeatureGate>
+        <SNSSettingsPanel blogId={params.id} />
       )}
 
       {/* ═══ MonetizeTab ═══ */}
       {activeTab === 'monetize' && (
-        <FeatureGate featureKey="coupang_affiliate" minPlan="pro" featureName="제휴마케팅 연동">
-          <AffiliateSettingsPanel blogId={params.id} />
-        </FeatureGate>
+        <AffiliateSettingsPanel blogId={params.id} />
+      )}
+
+      {/* 플랜 업그레이드 모달 */}
+      {upgradeModal && (
+        <UpgradeModal
+          open={upgradeModal.open}
+          onOpenChange={(open) => setUpgradeModal(open ? upgradeModal : null)}
+          currentPlan={planId}
+          targetPlan={upgradeModal.targetPlan}
+          message={upgradeModal.message}
+          featureName={upgradeModal.featureName}
+        />
       )}
     </div>
   )
