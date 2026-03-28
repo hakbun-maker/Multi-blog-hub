@@ -109,11 +109,11 @@ export function PostsTab({ posts, blogId, blogSlug, categories }: PostsTabProps)
             <div key={post.id}
               className={`grid gap-4 px-3 py-3 items-center rounded-lg hover:bg-gray-50 transition-colors min-w-[520px] ${gridCols}`}>
               {postUrl ? (
-                <Link href={postUrl} target="_blank"
+                <a href={postUrl} target="_blank" rel="noopener noreferrer"
                   className="text-sm text-gray-800 truncate font-medium hover:text-blue-600 hover:underline flex items-center gap-1">
                   {post.title || '(제목 없음)'}
                   <ExternalLink className="w-3 h-3 flex-shrink-0 text-gray-400" />
-                </Link>
+                </a>
               ) : (
                 <p className="text-sm text-gray-800 truncate font-medium">{post.title || '(제목 없음)'}</p>
               )}

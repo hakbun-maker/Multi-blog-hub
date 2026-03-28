@@ -447,11 +447,11 @@ export default function BlogsPage() {
                           </td>
                           <td className="px-4 py-3 min-w-[200px]">
                             {post.status === 'published' && blog?.slug && post.slug ? (
-                              <Link href={`/blog/${blog.slug}/${post.slug}`} target="_blank"
+                              <a href={`/blog/${blog.slug}/${post.slug}`} target="_blank" rel="noopener noreferrer"
                                 className="text-gray-900 line-clamp-1 hover:text-blue-600 hover:underline inline-flex items-center gap-1">
                                 {post.title}
                                 <ExternalLink className="w-3 h-3 flex-shrink-0 text-gray-400" />
-                              </Link>
+                              </a>
                             ) : (
                               <span className="text-gray-900 line-clamp-1">{post.title}</span>
                             )}

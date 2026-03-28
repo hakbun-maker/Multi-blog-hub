@@ -65,6 +65,7 @@ export interface LayoutConfig {
     kakao_pixel: string
     custom_head: string
     custom_body: string
+    sitemap_submitted_at: string
   }
 }
 
@@ -115,6 +116,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
     kakao_pixel: '',
     custom_head: '',
     custom_body: '',
+    sitemap_submitted_at: '',
   },
   related_posts: {
     enabled: false,
@@ -515,7 +517,17 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
       })
       const data = await res.json()
       if (res.ok) {
+        const now = new Date().toISOString()
         setSitemapResult({ ok: true, message: `사이트맵 제출 완료: ${data.sitemapUrl}` })
+        // 제출 시각 저장 (config에 반영 + DB 저장)
+        const updatedConfig = { ...config, tracking: { ...config.tracking, sitemap_submitted_at: now } }
+        setConfig(updatedConfig)
+        await fetch(`/api/blogs/${blogId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layoutConfig: updatedConfig }),
+        })
+        onConfigSaved?.(updatedConfig)
       } else {
         setSitemapResult({ ok: false, message: data.error || '사이트맵 제출 실패' })
       }
@@ -1329,15 +1341,36 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                       <p className="text-[11px] text-gray-400">GSC에 sitemap.xml을 즉시 제출합니다.</p>
                       <p className="text-[11px] text-amber-500 mt-0.5">※ GSC 반영까지 수일~수주 소요될 수 있습니다.</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleSubmitSitemap}
-                      disabled={sitemapSubmitting}
-                      className="text-xs px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors whitespace-nowrap"
-                    >
-                      {sitemapSubmitting ? '제출 중...' : '제출하기'}
-                    </button>
+                    {config.tracking.sitemap_submitted_at ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-green-600 font-medium whitespace-nowrap">
+                          ✓ 제출완료
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleSubmitSitemap}
+                          disabled={sitemapSubmitting}
+                          className="text-[11px] text-gray-400 hover:text-blue-600 underline whitespace-nowrap"
+                        >
+                          {sitemapSubmitting ? '제출 중...' : '재제출'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSubmitSitemap}
+                        disabled={sitemapSubmitting}
+                        className="text-xs px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                      >
+                        {sitemapSubmitting ? '제출 중...' : '제출하기'}
+                      </button>
+                    )}
                   </div>
+                  {config.tracking.sitemap_submitted_at && !sitemapResult && (
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      마지막 제출: {new Date(config.tracking.sitemap_submitted_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  )}
                   {sitemapResult && (
                     <p className={`text-[11px] mt-1.5 ${sitemapResult.ok ? 'text-green-600' : 'text-red-500'}`}>
                       {sitemapResult.ok ? '✓ ' : '✗ '}{sitemapResult.message}
