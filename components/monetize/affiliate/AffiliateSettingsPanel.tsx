@@ -240,7 +240,7 @@ export function AffiliateSettingsPanel({ blogId }: { blogId: string }) {
             <p className="text-xs text-gray-600 mb-3">
               Amazon Product Advertising API 접근 권한이 필요합니다.{' '}
               <a
-                href="https://associates.amazon.com"
+                href="https://affiliate-program.amazon.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
