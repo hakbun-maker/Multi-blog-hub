@@ -339,7 +339,7 @@ interface LayoutTabProps {
   onConfigSaved?: (config: LayoutConfig) => void
 }
 
-export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfig, onSuccess, onConfigSaved }: LayoutTabProps) {
+export default function LayoutTab({ blogId, blogSlug, customDomain: customDomainProp, initialConfig, onSuccess, onConfigSaved }: LayoutTabProps) {
   const [config, setConfig] = useState<LayoutConfig>(() => mergeConfig(initialConfig))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -358,6 +358,23 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
   const [snippetPickerSlot, setSnippetPickerSlot] = useState<string | null>(null)
   const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
   const [snippetsLoading, setSnippetsLoading] = useState(false)
+  const [customDomain, setCustomDomain] = useState<string | null>(customDomainProp ?? null)
+
+  // prop이 업데이트되면 반영
+  useEffect(() => {
+    if (customDomainProp) setCustomDomain(customDomainProp)
+  }, [customDomainProp])
+
+  // 직접 DB에서 custom_domain 조회 (prop이 없을 때 fallback)
+  useEffect(() => {
+    if (customDomain) return
+    fetch(`/api/blogs/${blogId}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.data?.custom_domain) setCustomDomain(res.data.custom_domain)
+      })
+      .catch(() => {})
+  }, [blogId, customDomain])
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
