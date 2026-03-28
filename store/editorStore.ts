@@ -40,6 +40,7 @@ interface EditorStore {
   pipelineGlobalStep: PipelineStep
   autoPublish: boolean
   useExpertMode: boolean
+  useToc: boolean
 
   // 직접 작성 모드 (현재 편집 중인 글)
   currentPostId: string | null
@@ -68,6 +69,7 @@ interface EditorStore {
   setPipelineGlobalStep: (step: PipelineStep) => void
   setAutoPublish: (v: boolean) => void
   setUseExpertMode: (v: boolean) => void
+  setUseToc: (v: boolean) => void
   resetPipeline: () => void
   resetEditor: () => void
 }
@@ -83,6 +85,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   pipelineGlobalStep: 'idle',
   autoPublish: typeof window !== 'undefined' ? localStorage.getItem('ai_auto_publish') === 'true' : false,
   useExpertMode: typeof window !== 'undefined' ? localStorage.getItem('ai_expert_mode') === 'true' : false,
+  useToc: typeof window !== 'undefined' ? localStorage.getItem('ai_use_toc') !== 'false' : true,
   currentPostId: null,
   title: '',
   content: '',
@@ -122,6 +125,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setUseExpertMode: (useExpertMode) => {
     if (typeof window !== 'undefined') localStorage.setItem('ai_expert_mode', String(useExpertMode))
     set({ useExpertMode })
+  },
+  setUseToc: (useToc) => {
+    if (typeof window !== 'undefined') localStorage.setItem('ai_use_toc', String(useToc))
+    set({ useToc })
   },
   resetPipeline: () => set({ pipelineStates: {}, pipelineGlobalStep: 'idle', isGenerating: false }),
   resetEditor: () => set({

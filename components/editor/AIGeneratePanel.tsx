@@ -51,6 +51,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
     pipelineGlobalStep, setPipelineGlobalStep,
     autoPublish, setAutoPublish,
     useExpertMode, setUseExpertMode,
+    useToc, setUseToc,
     resetPipeline,
   } = useEditorStore()
 
@@ -257,6 +258,35 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
 
       if (abortRef.current) throw new Error('__abort__')
 
+      // Step 5: 목차 삽입 (useToc ON인 경우)
+      const tocEnabled = useEditorStore.getState().useToc
+      if (tocEnabled) {
+        for (const post of posts) {
+          const state = useEditorStore.getState().pipelineStates[post.blogId]
+          const html = state?.htmlContent || post.htmlContent
+          const h2Matches = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)
+          if (h2Matches && h2Matches.length >= 2) {
+            const tocItems = h2Matches.map((m: string, i: number) => {
+              const text = m.replace(/<[^>]+>/g, '').trim()
+              return `<li><a href="#toc-${i}" style="color:#2563eb;text-decoration:none;">${text}</a></li>`
+            })
+            const tocHtml = `<nav style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin-bottom:24px;"><p style="font-weight:600;margin-bottom:8px;font-size:15px;">목차</p><ol style="margin:0;padding-left:20px;line-height:1.8;">${tocItems.join('')}</ol></nav>`
+            // 각 H2에 id 추가
+            let idx = 0
+            const htmlWithIds = html.replace(/<h2([^>]*)>/gi, (_match: string, attrs: string) => {
+              return `<h2${attrs} id="toc-${idx++}">`
+            })
+            // 첫 번째 H2 앞에 목차 삽입
+            const firstH2 = htmlWithIds.indexOf('<h2')
+            const finalHtml = firstH2 >= 0
+              ? htmlWithIds.slice(0, firstH2) + tocHtml + htmlWithIds.slice(firstH2)
+              : tocHtml + htmlWithIds
+            setPipelineState(post.blogId, { htmlContent: finalHtml })
+            post.htmlContent = finalHtml
+          }
+        }
+      }
+
       // 완료
       setPipelineGlobalStep('done')
       for (const post of posts) {
@@ -319,8 +349,8 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
         <BlogMultiSelect blogs={blogs} selectedIds={selectedBlogIds} onToggle={toggleBlogId} />
       </div>
 
-      {/* 이미지 수 + 자동발행 + 전문글 작성 */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* 이미지 수 + 자동발행 + 전문글 작성 + 목차 생성 */}
+      <div className="grid grid-cols-4 gap-4">
         <div className="space-y-1.5">
           <Label>이미지 수</Label>
           <input type="number" min={0} max={10} value={imageCount}
@@ -341,6 +371,13 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           <div className="flex items-center gap-2 mt-1">
             <Switch checked={useExpertMode} onCheckedChange={setUseExpertMode} disabled={isGenerating} />
             <span className="text-xs text-gray-500">{useExpertMode ? '뉴스 참고' : '일반 모드'}</span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>목차 생성</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <Switch checked={useToc} onCheckedChange={setUseToc} disabled={isGenerating} />
+            <span className="text-xs text-gray-500">{useToc ? 'ON' : 'OFF'}</span>
           </div>
         </div>
       </div>
