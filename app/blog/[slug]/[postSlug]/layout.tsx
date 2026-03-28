@@ -1,5 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
+import { unstable_noStore as noStore } from 'next/cache'
 import type { Metadata } from 'next'
+
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -21,35 +25,29 @@ function stripHtml(html?: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ').trim()
 }
 
-export const dynamic = 'force-dynamic'
-
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: fetchNoCache } },
-  )
+  noStore()
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
 
   // 블로그 조회
-  const { data: blog } = await supabase
-    .from('blogs')
-    .select('id, name, slug')
-    .eq('slug', params.slug)
-    .eq('is_active', true)
-    .single()
-
+  const blogRes = await fetch(
+    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(params.slug)}&is_active=eq.true&select=id,name,slug&limit=1`,
+    { headers, cache: 'no-store' },
+  )
+  const blogs = await blogRes.json()
+  const blog = blogs?.[0]
   if (!blog) return {}
 
   // 글 조회
-  const { data: post } = await supabase
-    .from('posts')
-    .select('title, seo_title, meta_description, content_html, published_at, keyword')
-    .eq('blog_id', blog.id)
-    .eq('slug', params.postSlug)
-    .eq('status', 'published')
-    .single()
-
+  const postRes = await fetch(
+    `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&slug=eq.${encodeURIComponent(params.postSlug)}&status=eq.published&select=title,seo_title,meta_description,content_html,published_at,keyword&limit=1`,
+    { headers, cache: 'no-store' },
+  )
+  const posts = await postRes.json()
+  const post = posts?.[0]
   if (!post) return {}
 
   const title = post.seo_title || post.title

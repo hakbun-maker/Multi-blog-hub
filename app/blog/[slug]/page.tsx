@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { unstable_noStore as noStore } from 'next/cache'
 import Link from 'next/link'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Calendar, Eye } from 'lucide-react'
@@ -8,6 +9,8 @@ import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -95,32 +98,28 @@ function getFontLink(font: string): string | null {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchBlogData(slug: string, categorySlug?: string) {
-  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
-  const supabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: fetchNoCache } },
-  )
-  const adminClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { global: { fetch: fetchNoCache } },
-  )
+  noStore()
 
-  const { data: blog } = await supabase
-    .from('blogs')
-    .select('*')
-    .eq('slug', slug)
-    .eq('is_active', true)
-    .single()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
 
+  // 블로그 조회 (direct fetch)
+  const blogRes = await fetch(
+    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=*&limit=1`,
+    { headers, cache: 'no-store' },
+  )
+  const blogs = await blogRes.json()
+  const blog = blogs?.[0]
   if (!blog) return null
 
-  const { data: categories } = await adminClient
-    .from('categories')
-    .select('id, name, slug, sort_order')
-    .eq('blog_id', blog.id)
-    .order('sort_order', { ascending: true })
+  // 카테고리 조회 (service role)
+  const catRes = await fetch(
+    `${supabaseUrl}/rest/v1/categories?blog_id=eq.${blog.id}&select=id,name,slug,sort_order&order=sort_order.asc`,
+    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' },
+  )
+  const categories = (await catRes.json()) as Category[]
 
   let categoryId: string | null = null
   if (categorySlug && categories) {
@@ -128,18 +127,14 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
     if (found) categoryId = found.id
   }
 
-  let postsQuery = supabase
-    .from('posts')
-    .select('id, title, slug, meta_description, published_at, view_count, content_html')
-    .eq('blog_id', blog.id)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
+  // 포스트 조회 (direct fetch)
+  let postsUrl = `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&status=eq.published&select=id,title,slug,meta_description,published_at,view_count,content_html&order=published_at.desc`
+  if (categoryId) postsUrl += `&category_id=eq.${categoryId}`
 
-  if (categoryId) postsQuery = postsQuery.eq('category_id', categoryId)
+  const postsRes = await fetch(postsUrl, { headers, cache: 'no-store' })
+  const posts = (await postsRes.json()) as Post[]
 
-  const { data: posts } = await postsQuery
-
-  return { blog: blog as Blog, posts: (posts ?? []) as Post[], categories: (categories ?? []) as Category[] }
+  return { blog: blog as Blog, posts: posts ?? [], categories: categories ?? [] }
 }
 
 // ─── 메인 페이지 (서버 컴포넌트) ───

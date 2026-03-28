@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
+import { unstable_noStore as noStore } from 'next/cache'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
 import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
@@ -8,6 +8,8 @@ import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -105,30 +107,28 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchPostData(slug: string, postSlug: string) {
-  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: fetchNoCache } },
+  noStore()
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+
+  // 블로그 조회
+  const blogRes = await fetch(
+    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=*&limit=1`,
+    { headers, cache: 'no-store' },
   )
-
-  const { data: blog } = await supabase
-    .from('blogs')
-    .select('*')
-    .eq('slug', slug)
-    .eq('is_active', true)
-    .single()
-
+  const blogs = await blogRes.json()
+  const blog = blogs?.[0]
   if (!blog) return null
 
-  const { data: post } = await supabase
-    .from('posts')
-    .select('id, title, slug, content_html, keyword, seo_title, meta_description, published_at, view_count')
-    .eq('blog_id', blog.id)
-    .eq('slug', postSlug)
-    .eq('status', 'published')
-    .single()
-
+  // 포스트 조회
+  const postRes = await fetch(
+    `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&slug=eq.${encodeURIComponent(postSlug)}&status=eq.published&select=id,title,slug,content_html,keyword,seo_title,meta_description,published_at,view_count&limit=1`,
+    { headers, cache: 'no-store' },
+  )
+  const posts = await postRes.json()
+  const post = posts?.[0]
   if (!post) return null
 
   const cfg = mergeConfig((blog as Blog).layout_config)
@@ -136,15 +136,11 @@ async function fetchPostData(slug: string, postSlug: string) {
 
   if (cfg.related_posts.enabled) {
     const orderCol = cfg.related_posts.type === 'popular' ? 'view_count' : 'published_at'
-    const { data: related } = await supabase
-      .from('posts')
-      .select('id, title, slug, published_at, view_count')
-      .eq('blog_id', blog.id)
-      .eq('status', 'published')
-      .neq('id', post.id)
-      .order(orderCol, { ascending: false })
-      .limit(cfg.related_posts.count)
-    relatedPosts = (related ?? []) as RelatedPost[]
+    const relatedRes = await fetch(
+      `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&status=eq.published&id=neq.${post.id}&select=id,title,slug,published_at,view_count&order=${orderCol}.desc&limit=${cfg.related_posts.count}`,
+      { headers, cache: 'no-store' },
+    )
+    relatedPosts = (await relatedRes.json()) as RelatedPost[]
   }
 
   return { blog: blog as Blog, post: post as Post, relatedPosts }
