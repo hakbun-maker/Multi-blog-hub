@@ -110,7 +110,7 @@ const KEYWORD_PROVIDERS: ProviderDef[] = [
     needsSecret: true,
     secretPlaceholder: 'Client Secret',
     secretLabel: 'Client Secret',
-    note: '네이버 검색 트렌드, 연관 키워드, 블로그 검색 데이터를 분석합니다.\n\n[발급 조건] 네이버 개발자 계정 (일반 네이버 계정으로 가입 가능, 무료)\n[발급 순서] ① developers.naver.com 가입 ② Application > 애플리케이션 등록 ③ 사용 API: 검색 선택 ④ Client ID + Client Secret 복사\n[참고] 일일 25,000건 무료 호출 가능합니다.',
+    note: '네이버 검색 트렌드, 연관 키워드, 블로그 검색, 뉴스 기사 데이터를 분석합니다.\nAI 글 생성 시 "전문글 작성" 모드를 켜면 키워드 관련 최신 뉴스 기사를 검색하여 AI가 전문성 있는 글을 작성하는 데 활용됩니다.\n\n[발급 조건] 네이버 개발자 계정 (일반 네이버 계정으로 가입 가능, 무료)\n[발급 순서] ① developers.naver.com 가입 ② Application > 애플리케이션 등록 ③ 사용 API: 검색 선택 ④ Client ID + Client Secret 복사\n[참고] 일일 25,000건 무료 호출 가능합니다.',
     guide: 'https://developers.naver.com/apps',
   },
   {

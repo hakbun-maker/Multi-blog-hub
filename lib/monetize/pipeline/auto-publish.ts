@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateMonetizePost } from '../engines/ai-writer'
 import { runQualityCheck } from '../engines/quality-checker'
+import { fetchNaverNewsForUser } from '@/lib/utils/naver-news'
 
 export interface PublishResult {
   postId: string
@@ -61,10 +62,15 @@ export async function runAutoPublishPipeline(): Promise<PublishResult[]> {
         }
       }
 
+      // 1.5. 네이버 뉴스 기사 검색 (키가 있으면 자동 활용)
+      const kw = p.keywords?.keyword || ''
+      const searchKeywords = [kw, ...clusterKeywords.slice(0, 2)]
+      const newsArticles = await fetchNaverNewsForUser(supabase, p.blogs?.user_id, searchKeywords)
+
       // 2. AI Writing (L1→L2→L3)
       const writeResult = await generateMonetizePost({
         scheduledPostId: p.id,
-        keyword: p.keywords?.keyword || '',
+        keyword: kw,
         intentType: p.keywords?.intent_type || p.intent_type || 'INFO',
         blogGrade: p.blogs?.grade || 'C',
         adCategory: p.blogs?.primary_ad_category || null,
@@ -72,6 +78,7 @@ export async function runAutoPublishPipeline(): Promise<PublishResult[]> {
         aiApiKey: apiKey.encrypted_key,
         characterConfig: p.blogs?.ai_character_config || undefined,
         clusterKeywords,
+        newsArticles: newsArticles.length > 0 ? newsArticles : undefined,
       })
 
       // 3. Quality Check (A or B based on keyword_type)

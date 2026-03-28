@@ -14,6 +14,7 @@ export interface WritingContext {
     persona?: string
   }
   clusterKeywords?: string[]
+  newsArticles?: { title: string; description: string }[]
 }
 
 /** L1: PASONA × Intent 가중치 기반 본문 생성 프롬프트 */
@@ -32,6 +33,7 @@ ${ctx.adCategory ? `광고 카테고리: ${ctx.adCategory}` : ''}
 ${ctx.characterConfig?.persona ? `페르소나: ${ctx.characterConfig.persona}` : ''}
 ${ctx.characterConfig?.tone ? `어조: ${ctx.characterConfig.tone}` : ''}
 ${ctx.clusterKeywords?.length ? `관련 키워드: ${ctx.clusterKeywords.join(', ')}` : ''}
+${ctx.newsArticles?.length ? `\n## 참고 뉴스 기사\n아래 뉴스 기사의 핵심 내용을 참고하되, 그대로 복사하지 말고 전문적 관점에서 재구성하세요:\n${ctx.newsArticles.map((a, i) => `${i + 1}. ${a.title} - ${a.description}`).join('\n')}` : ''}
 
 ## PASONA 구조 (가중치 기반)
 각 섹션을 아래 비율로 작성하세요:

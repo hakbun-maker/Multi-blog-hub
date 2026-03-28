@@ -48,6 +48,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
     pipelineStates, setPipelineState,
     pipelineGlobalStep, setPipelineGlobalStep,
     autoPublish, setAutoPublish,
+    useExpertMode, setUseExpertMode,
     resetPipeline,
   } = useEditorStore()
 
@@ -116,6 +117,29 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       }
       setRelatedKeywords(mergedRelated)
 
+      // Step 1.5: 전문글 작성 모드 - 뉴스 기사 검색
+      let newsArticles: { title: string; description: string }[] = []
+      const expertMode = useEditorStore.getState().useExpertMode
+      if (expertMode) {
+        for (const blog of selectedBlogs) {
+          setPipelineState(blog.id, { stepMessage: '뉴스 기사 검색 중...' })
+        }
+        try {
+          const newsRes = await fetch('/api/naver/news', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keywords }),
+          })
+          const newsData = await newsRes.json()
+          if (newsRes.ok && newsData.articles?.length) {
+            newsArticles = newsData.articles
+          }
+        } catch {
+          // 뉴스 검색 실패는 무시하고 계속 진행
+        }
+        if (abortRef.current) throw new Error('__abort__')
+      }
+
       // Step 2: 블로그별 글 작성
       setPipelineGlobalStep('writing')
       for (const blog of selectedBlogs) {
@@ -131,6 +155,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           relatedKeywords: mergedRelated,
           blogIds: targetIds,
           imageCount: 0,
+          newsArticles: newsArticles.length > 0 ? newsArticles : undefined,
         }),
       })
       const writeData = await writeRes.json()
@@ -292,14 +317,14 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
         <BlogMultiSelect blogs={blogs} selectedIds={selectedBlogIds} onToggle={toggleBlogId} />
       </div>
 
-      {/* 이미지 수 + 자동발행 토글 */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* 이미지 수 + 자동발행 + 전문글 작성 */}
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
-          <Label>이미지 수: {imageCount}개</Label>
-          <input type="range" min={0} max={4} value={imageCount}
-            onChange={e => setImageCount(Number(e.target.value))}
+          <Label>이미지 수</Label>
+          <input type="number" min={0} max={10} value={imageCount}
+            onChange={e => setImageCount(Math.max(0, Math.min(10, Number(e.target.value))))}
             disabled={isGenerating}
-            className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600" />
+            className="w-20 h-9 px-2 border border-gray-300 rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <p className="text-xs text-gray-400">소제목(H2) 기준 배치</p>
         </div>
         <div className="space-y-1.5">
@@ -307,6 +332,13 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           <div className="flex items-center gap-2 mt-1">
             <Switch checked={autoPublish} onCheckedChange={setAutoPublish} disabled={isGenerating} />
             <span className="text-xs text-gray-500">{autoPublish ? 'ON: 즉시 발행' : 'OFF: 검토 후'}</span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>전문글 작성</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <Switch checked={useExpertMode} onCheckedChange={setUseExpertMode} disabled={isGenerating} />
+            <span className="text-xs text-gray-500">{useExpertMode ? '뉴스 참고' : '일반 모드'}</span>
           </div>
         </div>
       </div>

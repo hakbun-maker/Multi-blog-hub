@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateMonetizePost } from '@/lib/monetize/engines/ai-writer'
+import { fetchNaverNewsForUser } from '@/lib/utils/naver-news'
 
 export async function POST(request: Request) {
   const supabase = createClient()
@@ -54,9 +55,14 @@ export async function POST(request: Request) {
       }
     }
 
+    // 네이버 뉴스 기사 검색 (키가 있으면 자동으로 활용)
+    const keyword = postAny.keywords?.keyword || ''
+    const searchKeywords = [keyword, ...clusterKeywords.slice(0, 2)]
+    const newsArticles = await fetchNaverNewsForUser(supabase, user.id, searchKeywords)
+
     const result = await generateMonetizePost({
       scheduledPostId,
-      keyword: postAny.keywords?.keyword || '',
+      keyword,
       intentType: postAny.keywords?.intent_type || postAny.intent_type || 'INFO',
       blogGrade: postAny.blogs?.grade || 'C',
       adCategory: postAny.blogs?.primary_ad_category || null,
@@ -64,6 +70,7 @@ export async function POST(request: Request) {
       aiApiKey: apiKey.encrypted_key,
       characterConfig: postAny.blogs?.ai_character_config || undefined,
       clusterKeywords,
+      newsArticles: newsArticles.length > 0 ? newsArticles : undefined,
     })
 
     return NextResponse.json({ data: result })

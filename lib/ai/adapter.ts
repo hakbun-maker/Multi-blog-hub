@@ -42,6 +42,7 @@ export interface GeneratePostParams {
   imageCount?: number
   blogId: string
   targetLength?: 'short' | 'medium' | 'long'
+  newsArticles?: { title: string; description: string }[]
 }
 
 export interface GeneratedPost {
@@ -135,14 +136,20 @@ export function buildPrompt(params: GeneratePostParams): string {
     characterPrompt ? `\n${characterPrompt}` : '',
   ].filter(Boolean).join('\n')
 
-  return `${sections}
+  // 뉴스 기사 참고 섹션
+  const newsSection = params.newsArticles?.length
+    ? `\n## 참고 뉴스 기사 (전문성 있는 글 작성을 위한 참고 자료)\n아래 뉴스 기사의 핵심 내용을 참고하되, 그대로 복사하지 말고 전문적 관점에서 재구성하세요:\n${params.newsArticles.map((a, i) => `${i + 1}. ${a.title} - ${a.description}`).join('\n')}\n`
+    : ''
 
+  return `${sections}
+${newsSection}
 다음 조건으로 블로그 글을 작성하세요:
 - 주제 키워드: ${keyword}
 - 연관 키워드: ${relatedKeywords.join(', ') || '없음'}
 - 목표 길이: ${lengthMap[targetLength]}
 - 형식: 마크다운 (제목 #, 소제목 ##)
 - SEO를 위해 키워드를 자연스럽게 포함
+${params.newsArticles?.length ? '- 참고 뉴스 기사의 핵심 정보를 활용하여 전문성 있고 신뢰할 수 있는 글 작성' : ''}
 
 반드시 유효한 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력:
 - content 필드의 줄바꿈은 반드시 \\n으로 이스케이프

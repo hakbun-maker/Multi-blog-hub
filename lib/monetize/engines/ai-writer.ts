@@ -29,6 +29,7 @@ export async function generateMonetizePost(params: {
   aiModel?: string
   characterConfig?: { name?: string; tone?: string; style?: string; persona?: string }
   clusterKeywords?: string[]
+  newsArticles?: { title: string; description: string }[]
 }): Promise<WriteResult> {
   const supabase = createClient()
   const model = params.aiModel || (params.blogGrade === 'S' ? 'claude-opus-4-6' : 'claude-sonnet-4-20250514')
@@ -41,6 +42,7 @@ export async function generateMonetizePost(params: {
     language: params.language,
     characterConfig: params.characterConfig,
     clusterKeywords: params.clusterKeywords,
+    newsArticles: params.newsArticles,
   }
 
   // Update status to writing

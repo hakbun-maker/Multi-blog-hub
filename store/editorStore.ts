@@ -39,6 +39,7 @@ interface EditorStore {
   pipelineStates: Record<string, BlogPipelineState>
   pipelineGlobalStep: PipelineStep
   autoPublish: boolean
+  useExpertMode: boolean
 
   // 직접 작성 모드 (현재 편집 중인 글)
   currentPostId: string | null
@@ -66,6 +67,7 @@ interface EditorStore {
   setPipelineState: (blogId: string, state: Partial<BlogPipelineState>) => void
   setPipelineGlobalStep: (step: PipelineStep) => void
   setAutoPublish: (v: boolean) => void
+  setUseExpertMode: (v: boolean) => void
   resetPipeline: () => void
   resetEditor: () => void
 }
@@ -80,6 +82,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   pipelineStates: {},
   pipelineGlobalStep: 'idle',
   autoPublish: typeof window !== 'undefined' ? localStorage.getItem('ai_auto_publish') === 'true' : false,
+  useExpertMode: typeof window !== 'undefined' ? localStorage.getItem('ai_expert_mode') === 'true' : false,
   currentPostId: null,
   title: '',
   content: '',
@@ -115,6 +118,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setAutoPublish: (autoPublish) => {
     if (typeof window !== 'undefined') localStorage.setItem('ai_auto_publish', String(autoPublish))
     set({ autoPublish })
+  },
+  setUseExpertMode: (useExpertMode) => {
+    if (typeof window !== 'undefined') localStorage.setItem('ai_expert_mode', String(useExpertMode))
+    set({ useExpertMode })
   },
   resetPipeline: () => set({ pipelineStates: {}, pipelineGlobalStep: 'idle', isGenerating: false }),
   resetEditor: () => set({
