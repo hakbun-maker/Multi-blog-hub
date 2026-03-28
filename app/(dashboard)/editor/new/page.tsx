@@ -395,8 +395,9 @@ export default function EditorNewPage() {
                     </nav>
                   )}
 
-                  {/* 본문 편집 */}
+                  {/* 본문 편집 — key로 탭 전환 시 에디터 완전 재마운트 (CTA 등 콘텐츠 손실 방지) */}
                   <PostEditor
+                    key={activeBlogTab}
                     content={activeResult.htmlContent}
                     onChange={html => updateAiResult(activeBlogTab!, { htmlContent: html })}
                     articleTitle={activeResult.title}
