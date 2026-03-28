@@ -35,6 +35,8 @@ export interface AICharacterConfig {
   linkedBlogIds?: string[]
 }
 
+export type BlogLanguage = 'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'
+
 export interface GeneratePostParams {
   keyword: string
   relatedKeywords?: string[]
@@ -43,6 +45,7 @@ export interface GeneratePostParams {
   blogId: string
   targetLength?: 'short' | 'medium' | 'long'
   newsArticles?: { title: string; description: string }[]
+  language?: BlogLanguage
 }
 
 export interface GeneratedPost {
@@ -113,10 +116,21 @@ function buildCharacterSections(config: AICharacterConfig): string {
   return sections.join('\n\n')
 }
 
+// 언어별 설정
+const LANG_CONFIG: Record<string, { name: string; lengthMap: Record<string, string>; cultureHint: string }> = {
+  ko: { name: '한국어', lengthMap: { short: '500~800자', medium: '1200~1800자', long: '2500~3500자' }, cultureHint: '' },
+  en: { name: 'English', lengthMap: { short: '300~500 words', medium: '800~1200 words', long: '1500~2500 words' }, cultureHint: 'Write naturally for an English-speaking audience. Use Western cultural references, idioms, and expressions.' },
+  ja: { name: '日本語', lengthMap: { short: '500~800文字', medium: '1200~1800文字', long: '2500~3500文字' }, cultureHint: '日本語のネイティブ読者向けに自然な日本語で書いてください。日本の文化的な文脈や表現を使用してください。' },
+  de: { name: 'Deutsch', lengthMap: { short: '300~500 Wörter', medium: '800~1200 Wörter', long: '1500~2500 Wörter' }, cultureHint: 'Schreiben Sie natürlich für ein deutschsprachiges Publikum. Verwenden Sie deutsche kulturelle Referenzen und Ausdrücke.' },
+  pt_br: { name: 'Português (BR)', lengthMap: { short: '300~500 palavras', medium: '800~1200 palavras', long: '1500~2500 palavras' }, cultureHint: 'Escreva naturalmente para um público brasileiro. Use referências culturais e expressões do Brasil.' },
+  es: { name: 'Español', lengthMap: { short: '300~500 palabras', medium: '800~1200 palabras', long: '1500~2500 palabras' }, cultureHint: 'Escribe de forma natural para un público hispanohablante. Usa referencias culturales y expresiones en español.' },
+}
+
 // 공통 프롬프트 빌더
 export function buildPrompt(params: GeneratePostParams): string {
-  const { keyword, relatedKeywords = [], characterConfig = {}, targetLength = 'medium' } = params
-  const lengthMap = { short: '500~800자', medium: '1200~1800자', long: '2500~3500자' }
+  const { keyword, relatedKeywords = [], characterConfig = {}, targetLength = 'medium', language = 'ko' } = params
+  const langCfg = LANG_CONFIG[language] ?? LANG_CONFIG.ko
+  const isKorean = language === 'ko'
 
   // 신규 필드가 있으면 새 방식, 없으면 레거시 방식
   const hasNewFields = !!(characterConfig.nickname || characterConfig.honorificStyle || characterConfig.introPattern)
@@ -141,25 +155,39 @@ export function buildPrompt(params: GeneratePostParams): string {
     ? `\n## 참고 뉴스 기사 (전문성 있는 글 작성을 위한 참고 자료)\n아래 뉴스 기사의 핵심 내용을 참고하되, 그대로 복사하지 말고 전문적 관점에서 재구성하세요:\n${params.newsArticles.map((a, i) => `${i + 1}. ${a.title} - ${a.description}`).join('\n')}\n`
     : ''
 
+  // 언어 강제 지시 (비한국어)
+  const langDirective = isKorean ? '' : `
+## CRITICAL LANGUAGE REQUIREMENT
+You MUST write the ENTIRE blog post in ${langCfg.name}. This is non-negotiable.
+- The title MUST be in ${langCfg.name}
+- The content MUST be entirely in ${langCfg.name}
+- The tags MUST be in ${langCfg.name}
+- The seoTitle and seoDescription MUST be in ${langCfg.name}
+- Do NOT use Korean (한국어) anywhere in the output
+- Do NOT translate from Korean — write directly in ${langCfg.name} as a native speaker would
+${langCfg.cultureHint}
+`
+
   return `${sections}
-${newsSection}
+${newsSection}${langDirective}
 다음 조건으로 블로그 글을 작성하세요:
 - 주제 키워드: ${keyword}
 - 연관 키워드: ${relatedKeywords.join(', ') || '없음'}
-- 목표 길이: ${lengthMap[targetLength]}
+- 목표 길이: ${langCfg.lengthMap[targetLength]}
 - 형식: 마크다운 (제목 #, 소제목 ##)
 - SEO를 위해 키워드를 자연스럽게 포함
+${!isKorean ? `- 작성 언어: ${langCfg.name} (반드시 이 언어로만 작성)` : ''}
 ${params.newsArticles?.length ? '- 참고 뉴스 기사의 핵심 정보를 활용하여 전문성 있고 신뢰할 수 있는 글 작성' : ''}
 
 반드시 유효한 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력:
 - content 필드의 줄바꿈은 반드시 \\n으로 이스케이프
 - 큰따옴표는 \\"로 이스케이프
 {
-  "title": "글 제목",
-  "content": "마크다운 본문 전체 (줄바꿈은 \\n으로)",
-  "tags": ["태그1", "태그2", "태그3"],
-  "seoTitle": "SEO 메타 제목 (60자 이내)",
-  "seoDescription": "SEO 메타 설명 (160자 이내)"
+  "title": "${isKorean ? '글 제목' : `Title in ${langCfg.name}`}",
+  "content": "${isKorean ? '마크다운 본문 전체 (줄바꿈은 \\n으로)' : `Full markdown body in ${langCfg.name} (newlines as \\\\n)`}",
+  "tags": ["${isKorean ? '태그1", "태그2", "태그3' : `tag1 in ${langCfg.name}", "tag2", "tag3`}"],
+  "seoTitle": "${isKorean ? 'SEO 메타 제목 (60자 이내)' : `SEO meta title in ${langCfg.name} (under 60 chars)`}",
+  "seoDescription": "${isKorean ? 'SEO 메타 설명 (160자 이내)' : `SEO meta description in ${langCfg.name} (under 160 chars)`}"
 }`
 }
 

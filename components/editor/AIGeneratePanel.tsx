@@ -15,6 +15,8 @@ interface Blog {
   name: string
   color: string | null
   ai_provider: string | null
+  blog_type?: string | null
+  language?: string | null
 }
 
 interface AIGeneratePanelProps {
@@ -195,7 +197,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
             const promptRes = await fetch('/api/ai/generate-meta', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: post.title, htmlContent: post.htmlContent, mode: 'image-prompt' }),
+              body: JSON.stringify({ title: post.title, htmlContent: post.htmlContent, mode: 'image-prompt', language: blogs.find(b => b.id === post.blogId)?.language ?? 'ko' }),
             })
             const promptData = await promptRes.json()
             const imagePrompt = promptData.imagePrompt || `Blog illustration for: ${post.title}`
@@ -238,7 +240,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           const metaRes = await fetch('/api/ai/generate-meta', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: post.title, htmlContent: post.htmlContent }),
+            body: JSON.stringify({ title: post.title, htmlContent: post.htmlContent, language: blogs.find(b => b.id === post.blogId)?.language ?? 'ko' }),
           })
           const metaData = await metaRes.json()
           if (metaRes.ok) {

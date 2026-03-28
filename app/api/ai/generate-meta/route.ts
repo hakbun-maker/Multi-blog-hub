@@ -8,11 +8,11 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const { title, htmlContent, mode, language } = await request.json() as {
+  const { title, htmlContent, mode, language = 'ko' } = await request.json() as {
     title?: string
     htmlContent?: string
     mode?: 'meta' | 'image-prompt'
-    language?: 'ko' | 'en'
+    language?: string
   }
 
   // 사용자의 활성 AI 키 조회
@@ -39,20 +39,34 @@ export async function POST(request: Request) {
   try {
     const adapter = await createAIAdapter(row.provider, apiKey)
 
+    // 언어별 문화권 힌트 (이미지 생성 시 활용)
+    const isKorean = !language || language === 'ko'
+    const cultureMap: Record<string, string> = {
+      ko: 'Korean cultural context, Korean settings and aesthetics',
+      en: 'Western/international cultural context, diverse modern settings',
+      ja: 'Japanese cultural context, Japanese settings and aesthetics',
+      de: 'German/European cultural context, European settings',
+      pt_br: 'Brazilian cultural context, Brazilian settings and aesthetics',
+      es: 'Hispanic/Latin cultural context, Spanish-speaking world settings',
+    }
+    const langNameMap: Record<string, string> = {
+      ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', pt_br: 'Português', es: 'Español',
+    }
+    const cultureHint = cultureMap[language] ?? cultureMap.ko
+    const langName = langNameMap[language] ?? '한국어'
+
     if (mode === 'image-prompt') {
-      // 이미지 프롬프트 + SEO 메타 동시 생성
-      const lang = language === 'ko' ? '한국어' : 'English'
       const contentSummary = htmlContent
-        ? `\n\n본문 요약: ${htmlContent.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 500)}`
+        ? `\n\nContent summary: ${htmlContent.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 500)}`
         : ''
       const prompt = `You are an expert at blog SEO and image generation prompts. Given the topic "${title}"${contentSummary}, generate the following in JSON format:
 
-1. "imagePrompt": A single descriptive sentence in ${lang} for generating a high-quality blog illustration image that captures the core message of the article. Include composition, lighting, colors, and mood details. The image should visually represent the main theme and key takeaway.
-2. "imageTitle": 이 이미지의 SEO 친화적인 제목 (한국어, 30자 이내). 글의 핵심 주제를 담되 "관련 이미지" 같은 단순한 표현 대신 구체적으로.
-3. "altText": 이미지 대체 텍스트 (한국어, 50자 이내). 시각장애인이 이해할 수 있도록 이미지 내용을 구체적으로 묘사.
-4. "caption": 이미지 아래 표시될 설명 (한국어, 40자 이내). 독자의 이해를 돕는 간결한 설명.
+1. "imagePrompt": A single descriptive sentence in English for generating a high-quality blog illustration image. IMPORTANT: The image must reflect ${cultureHint}. Do NOT use Korean-specific imagery unless the blog language is Korean. Include composition, lighting, colors, and mood details appropriate for the target culture.
+2. "imageTitle": SEO-friendly image title in ${langName} (under 30 chars). Be specific about the topic.
+3. "altText": Image alt text in ${langName} (under 50 chars). Describe the image content concretely.
+4. "caption": Image caption in ${langName} (under 40 chars). Brief description to help reader understanding.
 
-반드시 JSON만 응답하세요:
+Respond only in JSON:
 {"imagePrompt": "...", "imageTitle": "...", "altText": "...", "caption": "..."}`
 
       const text = await adapter.generateText(prompt)
@@ -69,7 +83,6 @@ export async function POST(request: Request) {
         })
       }
 
-      // JSON 파싱 실패 시 텍스트만 반환
       const imagePrompt = text.trim().replace(/^["']|["']$/g, '')
       return NextResponse.json({ imagePrompt })
     }
@@ -77,13 +90,21 @@ export async function POST(request: Request) {
     // 메타 생성 모드 (기본) - generateText로 JSON 응답
     const plainText = (htmlContent ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1000)
 
-    const prompt = `다음 블로그 글의 SEO 메타 정보와 태그를 생성해주세요.
+    const prompt = isKorean
+      ? `다음 블로그 글의 SEO 메타 정보와 태그를 생성해주세요.
 
 제목: "${title}"
 본문 요약: ${plainText.slice(0, 500)}
 
 반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 포함하지 마세요:
 {"seoTitle": "SEO 메타 제목 (60자 이내)", "seoDescription": "SEO 메타 설명 (160자 이내)", "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"]}`
+      : `Generate SEO meta information and tags for the following blog post. ALL output must be in ${langName}.
+
+Title: "${title}"
+Content summary: ${plainText.slice(0, 500)}
+
+Respond ONLY in JSON format. All values must be in ${langName}:
+{"seoTitle": "SEO meta title in ${langName} (under 60 chars)", "seoDescription": "SEO meta description in ${langName} (under 160 chars)", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]}`
 
     const text = await adapter.generateText(prompt)
 

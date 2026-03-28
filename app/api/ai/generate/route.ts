@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   // 블로그 정보 조회 (AI 공급자 + 캐릭터 설정)
   const { data: blogs, error: blogsError } = await supabase
     .from('blogs')
-    .select('id, name, ai_provider, ai_character_config')
+    .select('id, name, ai_provider, ai_character_config, language')
     .in('id', blogIds)
     .eq('user_id', user.id)
 
@@ -67,6 +67,7 @@ export async function POST(request: Request) {
         imageCount,
         blogId: blog.id,
         newsArticles,
+        language: blog.language ?? 'ko',
       }))
     })
   )
