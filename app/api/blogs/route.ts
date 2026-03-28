@@ -59,5 +59,22 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Google Indexing OAuth가 연결되어 있으면 새 블로그를 GSC에 자동 등록
+  try {
+    const { registerBlogToGSC } = await import('@/lib/google/gsc-site')
+    const result = await registerBlogToGSC(user.id, {
+      id: data.id,
+      slug: data.slug,
+      custom_domain: data.custom_domain,
+    })
+    if (result.ok) {
+      console.log(`GSC auto-register on blog create: ${data.slug}`)
+    }
+  } catch (e) {
+    // GSC 등록 실패해도 블로그 생성은 성공으로 처리
+    console.error('GSC auto-register on blog create error (non-blocking):', e)
+  }
+
   return NextResponse.json({ data }, { status: 201 })
 }

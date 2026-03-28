@@ -353,6 +353,8 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
   const [gscEmail, setGscEmail] = useState<string | null>(null)
   const [sitemapSubmitting, setSitemapSubmitting] = useState(false)
   const [sitemapResult, setSitemapResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [gscRegistering, setGscRegistering] = useState(false)
+  const [gscRegisterResult, setGscRegisterResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [snippetPickerSlot, setSnippetPickerSlot] = useState<string | null>(null)
   const [snippets, setSnippets] = useState<{ id: string; name: string; content: string; type: string }[]>([])
   const [snippetsLoading, setSnippetsLoading] = useState(false)
@@ -504,6 +506,35 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
     } catch {
       setError('Google Indexing 연결 해제에 실패했습니다.')
     }
+  }
+
+  const handleGscRegisterSite = async () => {
+    setGscRegistering(true)
+    setGscRegisterResult(null)
+    try {
+      const res = await fetch('/api/gsc/register-site', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setGscRegisterResult({ ok: true, message: 'GSC에 사이트가 등록되고, 자동 색인과 사이트맵이 설정되었습니다.' })
+        // 자동 색인이 활성화되었으므로 config 업데이트
+        const now = new Date().toISOString()
+        const updatedConfig = {
+          ...config,
+          tracking: { ...config.tracking, gsc_auto_index: true, sitemap_submitted_at: now },
+        }
+        setConfig(updatedConfig)
+        onConfigSaved?.(updatedConfig)
+      } else {
+        setGscRegisterResult({ ok: false, message: data.error || 'GSC 사이트 등록 실패' })
+      }
+    } catch {
+      setGscRegisterResult({ ok: false, message: '네트워크 오류가 발생했습니다.' })
+    }
+    setGscRegistering(false)
   }
 
   const handleSubmitSitemap = async () => {
@@ -1315,6 +1346,27 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                     연결 해제
                   </button>
                 </div>
+                {/* GSC 사이트 등록 */}
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">GSC 사이트 등록</p>
+                    <p className="text-[11px] text-gray-400">이 블로그를 Google Search Console에 속성으로 등록합니다.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGscRegisterSite}
+                    disabled={gscRegistering}
+                    className="text-xs px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                  >
+                    {gscRegistering ? '등록 중...' : '등록/갱신'}
+                  </button>
+                </div>
+                {gscRegisterResult && (
+                  <p className={`text-[11px] -mt-1 ${gscRegisterResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                    {gscRegisterResult.ok ? '✓ ' : '✗ '}{gscRegisterResult.message}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-between py-1">
                   <div>
                     <p className="text-xs font-medium text-gray-700">글 발행 시 자동 색인 요청</p>
@@ -1396,13 +1448,13 @@ export default function LayoutTab({ blogId, blogSlug, customDomain, initialConfi
                   Google 계정 연결하기 (Indexing API)
                 </button>
                 <p className="text-[11px] text-gray-400 text-center">
-                  연결하면 글 발행 시 Google에 자동으로 색인 요청을 보낼 수 있습니다.
+                  연결하면 모든 블로그가 GSC에 자동 등록되고, 글 발행 시 자동 색인됩니다.
                 </p>
                 <div className="text-[11px] text-gray-400 bg-white rounded p-2 space-y-0.5 leading-relaxed">
                   <p>위 GSC 확인 코드는 <strong>사이트 소유권 인증</strong> 용도이고,</p>
-                  <p>이 연결은 <strong>Google Indexing API</strong> 권한을 부여합니다.</p>
-                  <p>연결 후 토글을 켜면, 글을 발행할 때마다 Google에</p>
-                  <p>해당 URL을 즉시 제출하여 <strong>빠른 검색 노출</strong>을 유도합니다.</p>
+                  <p>이 연결은 <strong>Google Indexing API + Search Console</strong> 권한을 부여합니다.</p>
+                  <p>연결 시 모든 블로그가 <strong>GSC에 자동 등록</strong>되며,</p>
+                  <p>새 블로그 생성 시에도 자동으로 등록됩니다.</p>
                 </div>
               </div>
             )}

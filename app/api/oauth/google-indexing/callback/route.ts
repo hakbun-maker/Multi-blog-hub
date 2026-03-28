@@ -97,6 +97,17 @@ export async function GET(request: NextRequest) {
 
     if (dbError) throw new Error('토큰 저장 실패: ' + dbError.message)
 
+    // 모든 블로그를 GSC에 자동 등록 + 사이트맵 제출
+    try {
+      const { registerAllBlogsToGSC } = await import('@/lib/google/gsc-site')
+      const { results } = await registerAllBlogsToGSC(userId)
+      const ok = results.filter(r => r.ok).length
+      const fail = results.filter(r => !r.ok).length
+      console.log(`GSC auto-register: ${ok} success, ${fail} failed out of ${results.length} blogs`)
+    } catch (e) {
+      console.error('GSC auto-register error (non-blocking):', e)
+    }
+
     return NextResponse.redirect(
       `${baseUrl}/blogs/${blogId}/settings?tab=layout&gsc_connected=true`
     )
