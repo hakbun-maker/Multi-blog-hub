@@ -105,9 +105,11 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchPostData(slug: string, postSlug: string) {
+  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: fetchNoCache } },
   )
 
   const { data: blog } = await supabase

@@ -95,13 +95,16 @@ function getFontLink(font: string): string | null {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchBlogData(slug: string, categorySlug?: string) {
+  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: fetchNoCache } },
   )
   const adminClient = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { global: { fetch: fetchNoCache } },
   )
 
   const { data: blog } = await supabase

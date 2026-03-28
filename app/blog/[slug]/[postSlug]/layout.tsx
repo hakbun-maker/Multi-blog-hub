@@ -21,10 +21,14 @@ function stripHtml(html?: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ').trim()
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
+  const fetchNoCache: typeof fetch = (url, options) => fetch(url, { ...options, cache: 'no-store' })
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: fetchNoCache } },
   )
 
   // 블로그 조회
