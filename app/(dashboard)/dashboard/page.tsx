@@ -9,6 +9,17 @@ const BLOG_COLORS = [
   '#ef4444','#06b6d4','#84cc16','#f97316',
 ]
 
+const BLOG_TYPE_LABELS: Record<string, string> = {
+  legal: '법률', finance: '금융', medical: '의료', 'it-tech': 'IT', education: '교육',
+  'beauty-fashion': '뷰티', food: '음식', travel: '여행', parenting: '육아', lifestyle: '라이프',
+  'real-estate': '부동산', business: '비즈니스', entertainment: '엔터', sports: '스포츠', pets: '반려동물',
+  automotive: '자동차', interior: '인테리어', news: '뉴스', science: '과학', other: '기타',
+}
+
+const LANG_LABELS: Record<string, string> = {
+  ko: '한국어', en: 'EN', ja: '日本語', de: 'DE', pt_br: 'PT', es: 'ES',
+}
+
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -99,13 +110,19 @@ export default async function DashboardPage() {
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-900 truncate">{blog.name}</p>
                             <p className="text-xs text-gray-400 truncate">{blog.subdomain ?? blog.custom_domain ?? blog.slug}</p>
-                            <div className="flex gap-3 mt-2 text-xs text-gray-500">
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <FileText className="w-3 h-3" />발행 {published}개
                               </span>
                               <span className="flex items-center gap-1">
                                 <Eye className="w-3 h-3" />조회 {views.toLocaleString()}
                               </span>
+                              {blog.blog_type && BLOG_TYPE_LABELS[blog.blog_type] && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium text-[10px]">{BLOG_TYPE_LABELS[blog.blog_type]}</span>
+                              )}
+                              {blog.language && blog.language !== 'ko' && LANG_LABELS[blog.language] && (
+                                <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium text-[10px]">{LANG_LABELS[blog.language]}</span>
+                              )}
                             </div>
                           </div>
                         </div>

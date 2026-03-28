@@ -23,7 +23,7 @@ export default function EditorNewPage() {
   const initKeyword = searchParams.get('keyword') ?? ''
 
   const [mode, setMode] = useState<EditorMode>(initKeyword ? 'ai' : 'manual')
-  const [blogs, setBlogs] = useState<{ id: string; name: string; color: string | null; ai_provider: string | null }[]>([])
+  const [blogs, setBlogs] = useState<{ id: string; name: string; color: string | null; ai_provider: string | null; blog_type?: string | null; language?: string | null }[]>([])
   const [snippetOpen, setSnippetOpen] = useState(false)
   const [draftOpen, setDraftOpen] = useState(false)
   const [publishing, setPublishing] = useState(false)
