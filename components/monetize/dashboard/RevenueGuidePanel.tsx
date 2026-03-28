@@ -196,7 +196,7 @@ ${result.tips.map(tip => `- ${tip}`).join('\n')}
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">API 비용</p>
-                    <p className="text-sm font-bold text-red-600">-₩{(result.monthlyCostEstimate ?? 0).toLocaleString()}</p>
+                    <p className="text-sm font-bold text-red-600">₩{(result.monthlyCostEstimate ?? 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">순수익</p>
