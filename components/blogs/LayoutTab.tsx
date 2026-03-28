@@ -190,10 +190,10 @@ function Section({ title, defaultOpen, children }: { title: string; defaultOpen?
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${open ? 'bg-indigo-50 hover:bg-indigo-100 border-b border-indigo-100' : 'bg-slate-100 hover:bg-slate-200'}`}
+        className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${open ? 'bg-indigo-100 hover:bg-indigo-200 border-b border-indigo-200' : 'bg-slate-300 hover:bg-slate-400'}`}
       >
-        <span className={`text-sm font-semibold ${open ? 'text-indigo-800' : 'text-slate-700'}`}>{title}</span>
-        {open ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+        <span className={`text-sm font-semibold ${open ? 'text-indigo-900' : 'text-slate-800'}`}>{title}</span>
+        {open ? <ChevronUp className="w-4 h-4 text-indigo-600" /> : <ChevronDown className="w-4 h-4 text-slate-600" />}
       </button>
       {open && <div className="p-4 space-y-4 bg-indigo-50/20">{children}</div>}
     </div>
