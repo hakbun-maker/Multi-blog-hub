@@ -21,6 +21,7 @@ interface Blog {
   name: string
   slug: string
   color?: string
+  blog_type?: string | null
   layout_config?: Partial<LayoutConfig> | null
 }
 
@@ -177,6 +178,16 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const thumbnail = extractFirstImage(post.content_html)
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
 
+  const BLOG_TYPE_SECTION: Record<string, string> = {
+    legal: 'Legal', finance: 'Finance', medical: 'Health & Medical', 'it-tech': 'Technology',
+    education: 'Education', 'beauty-fashion': 'Beauty & Fashion', food: 'Food & Cooking',
+    travel: 'Travel', parenting: 'Parenting', lifestyle: 'Lifestyle', 'real-estate': 'Real Estate',
+    business: 'Business', entertainment: 'Entertainment', sports: 'Sports', pets: 'Pets',
+    automotive: 'Automotive', interior: 'Interior Design', news: 'News', science: 'Science',
+  }
+
+  const articleSection = blog.blog_type ? BLOG_TYPE_SECTION[blog.blog_type] : undefined
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -188,6 +199,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
     publisher: { '@type': 'Organization', name: blog.name },
     ...(thumbnail ? { image: thumbnail } : {}),
     ...(tags.length > 0 ? { keywords: tags.join(', ') } : {}),
+    ...(articleSection ? { articleSection } : {}),
   }
 
   return (
@@ -209,7 +221,8 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         </div>
       )}
 
-      {/* 헤더 */}
+      {/* 헤더 — AdSense 문맥 분석 제외 */}
+      {/* google_ad_section_start(weight=ignore) */}
       <header
         className={`border-b border-gray-100 ${cfg.header.sticky ? 'sticky top-0 z-10 backdrop-blur' : ''}`}
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
@@ -236,6 +249,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
           )}
         </div>
       </header>
+      {/* google_ad_section_end */}
 
       {/* 상단 광고 */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
@@ -274,9 +288,10 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
             </div>
           )}
 
+          {/* Google AdSense Section Targeting: 본문 콘텐츠 영역 강조 */}
           <div
             className="prose prose-gray max-w-none overflow-hidden [&_img]:max-w-full [&_iframe]:max-w-full [&_ins]:max-w-full"
-            dangerouslySetInnerHTML={{ __html: contentHtml }}
+            dangerouslySetInnerHTML={{ __html: `<!-- google_ad_section_start -->${contentHtml}<!-- google_ad_section_end -->` }}
           />
 
           {tags.length > 0 && (
@@ -329,7 +344,8 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         </div>
       )}
 
-      {/* 푸터 */}
+      {/* 푸터 — AdSense 문맥 분석 제외 */}
+      {/* google_ad_section_start(weight=ignore) */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
         <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {cfg.footer.column_data.length > 0 && (
@@ -371,6 +387,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
           )}
         </div>
       </footer>
+      {/* google_ad_section_end */}
     </div>
   )
 }

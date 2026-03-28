@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   // 블로그 조회
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug')
+    .select('id, name, slug, blog_type')
     .eq('slug', params.slug)
     .eq('is_active', true)
     .single()
@@ -62,8 +62,34 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   const thumbnail = extractFirstImage(post.content_html)
   const url = `${APP_URL}/blog/${blog.slug}/${params.postSlug}`
 
-  const keywords = post.keyword
+  const BLOG_TYPE_KW: Record<string, string[]> = {
+    legal: ['법률', '법률상담', 'legal'],
+    finance: ['금융', '재테크', 'finance'],
+    medical: ['의료', '건강', 'medical', 'health'],
+    'it-tech': ['IT', '기술', 'technology'],
+    education: ['교육', '학습', 'education'],
+    'beauty-fashion': ['뷰티', '패션', 'beauty', 'fashion'],
+    food: ['음식', '맛집', '요리', 'food'],
+    travel: ['여행', 'travel'],
+    parenting: ['육아', '자녀교육', 'parenting'],
+    lifestyle: ['라이프스타일', 'lifestyle'],
+    'real-estate': ['부동산', '부동산투자', 'real estate'],
+    business: ['비즈니스', '경영', 'business'],
+    entertainment: ['엔터테인먼트', 'entertainment'],
+    sports: ['스포츠', 'sports'],
+    pets: ['반려동물', '펫', 'pets'],
+    automotive: ['자동차', 'automotive'],
+    interior: ['인테리어', '홈데코', 'interior'],
+    news: ['뉴스', 'news'],
+    science: ['과학', 'science'],
+  }
+
+  const postKeywords = post.keyword
     ? post.keyword.split(',').map((k: string) => k.trim()).filter(Boolean)
+    : []
+  const typeKeywords = blog.blog_type ? (BLOG_TYPE_KW[blog.blog_type] ?? []) : []
+  const keywords = [...postKeywords, ...typeKeywords].length > 0
+    ? [...postKeywords, ...typeKeywords]
     : undefined
 
   return {
