@@ -1,4 +1,5 @@
 import { unstable_noStore as noStore } from 'next/cache'
+import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -28,26 +29,32 @@ function stripHtml(html?: string): string {
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
   noStore()
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
+  )
 
   // 블로그 조회
-  const blogRes = await fetch(
-    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(params.slug)}&is_active=eq.true&select=id,name,slug&limit=1`,
-    { headers, cache: 'no-store' },
-  )
-  const blogs = await blogRes.json()
-  const blog = blogs?.[0]
+  const { data: blog } = await supabase
+    .from('blogs')
+    .select('id, name, slug')
+    .eq('slug', params.slug)
+    .eq('is_active', true)
+    .single()
+
   if (!blog) return {}
 
   // 글 조회
-  const postRes = await fetch(
-    `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&slug=eq.${encodeURIComponent(params.postSlug)}&status=eq.published&select=title,seo_title,meta_description,content_html,published_at,keyword&limit=1`,
-    { headers, cache: 'no-store' },
-  )
-  const posts = await postRes.json()
-  const post = posts?.[0]
+  const { data: post } = await supabase
+    .from('posts')
+    .select('title, seo_title, meta_description, content_html, published_at, keyword')
+    .eq('blog_id', blog.id)
+    .eq('slug', params.postSlug)
+    .eq('status', 'published')
+    .single()
+
   if (!post) return {}
 
   const title = post.seo_title || post.title

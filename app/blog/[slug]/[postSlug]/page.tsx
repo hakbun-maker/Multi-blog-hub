@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js'
+import { ArrowLeft, Calendar, Tag } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
@@ -32,7 +33,6 @@ interface Post {
   seo_title?: string
   meta_description?: string
   published_at: string
-  view_count: number | null
 }
 
 interface RelatedPost {
@@ -40,7 +40,6 @@ interface RelatedPost {
   title: string
   slug: string
   published_at: string
-  view_count: number | null
 }
 
 // ─── 유틸 ───
@@ -109,38 +108,45 @@ const SNS_LABELS: Record<string, string> = {
 async function fetchPostData(slug: string, postSlug: string) {
   noStore()
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
-
-  // 블로그 조회
-  const blogRes = await fetch(
-    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=*&limit=1`,
-    { headers, cache: 'no-store' },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
-  const blogs = await blogRes.json()
-  const blog = blogs?.[0]
+
+  const { data: blog } = await supabase
+    .from('blogs')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single()
+
   if (!blog) return null
 
-  // 포스트 조회
-  const postRes = await fetch(
-    `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&slug=eq.${encodeURIComponent(postSlug)}&status=eq.published&select=id,title,slug,content_html,keyword,seo_title,meta_description,published_at,view_count&limit=1`,
-    { headers, cache: 'no-store' },
-  )
-  const posts = await postRes.json()
-  const post = posts?.[0]
+  const { data: post } = await supabase
+    .from('posts')
+    .select('id, title, slug, content_html, keyword, seo_title, meta_description, published_at')
+    .eq('blog_id', blog.id)
+    .eq('slug', postSlug)
+    .eq('status', 'published')
+    .single()
+
   if (!post) return null
 
   const cfg = mergeConfig((blog as Blog).layout_config)
   let relatedPosts: RelatedPost[] = []
 
   if (cfg.related_posts.enabled) {
-    const orderCol = cfg.related_posts.type === 'popular' ? 'view_count' : 'published_at'
-    const relatedRes = await fetch(
-      `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&status=eq.published&id=neq.${post.id}&select=id,title,slug,published_at,view_count&order=${orderCol}.desc&limit=${cfg.related_posts.count}`,
-      { headers, cache: 'no-store' },
-    )
-    relatedPosts = (await relatedRes.json()) as RelatedPost[]
+    const { data: related } = await supabase
+      .from('posts')
+      .select('id, title, slug, published_at')
+      .eq('blog_id', blog.id)
+      .eq('status', 'published')
+      .neq('id', post.id)
+      .order('published_at', { ascending: false })
+      .limit(cfg.related_posts.count)
+    relatedPosts = (related ?? []) as RelatedPost[]
   }
 
   return { blog: blog as Blog, post: post as Post, relatedPosts }
@@ -260,9 +266,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />{date}
             </span>
-            <span className="flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5" />{(post.view_count ?? 0).toLocaleString()}회
-            </span>
           </div>
 
           {cfg.ads.below_title.enabled && cfg.ads.below_title.code && (
@@ -319,7 +322,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{p.title}</p>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span>{new Date(p.published_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</span>
-                  <span>{(p.view_count ?? 0).toLocaleString()}회</span>
                 </div>
               </Link>
             ))}

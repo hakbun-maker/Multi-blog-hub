@@ -1,8 +1,8 @@
-import { notFound } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
+import { createClient } from '@supabase/supabase-js'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { Calendar, Eye } from 'lucide-react'
+import { Calendar } from 'lucide-react'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
@@ -31,7 +31,6 @@ interface Post {
   slug: string
   meta_description?: string
   published_at: string
-  view_count: number | null
   content_html?: string
 }
 
@@ -100,41 +99,60 @@ function getFontLink(font: string): string | null {
 async function fetchBlogData(slug: string, categorySlug?: string) {
   noStore()
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
-
-  // 블로그 조회 (direct fetch)
-  const blogRes = await fetch(
-    `${supabaseUrl}/rest/v1/blogs?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=*&limit=1`,
-    { headers, cache: 'no-store' },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
-  const blogs = await blogRes.json()
-  const blog = blogs?.[0]
+
+  // 카테고리용 service role 클라이언트
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
+  )
+
+  // 블로그 조회
+  const { data: blog } = await supabase
+    .from('blogs')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single()
+
   if (!blog) return null
 
-  // 카테고리 조회 (service role)
-  const catRes = await fetch(
-    `${supabaseUrl}/rest/v1/categories?blog_id=eq.${blog.id}&select=id,name,slug,sort_order&order=sort_order.asc`,
-    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, cache: 'no-store' },
-  )
-  const categories = (await catRes.json()) as Category[]
+  // 카테고리 조회 (service role for RLS)
+  const { data: catData } = await supabaseAdmin
+    .from('categories')
+    .select('id, name, slug, sort_order')
+    .eq('blog_id', blog.id)
+    .order('sort_order', { ascending: true })
+
+  const categories = (catData ?? []) as Category[]
 
   let categoryId: string | null = null
-  if (categorySlug && categories) {
+  if (categorySlug && categories.length) {
     const found = categories.find((c: Category) => c.slug === categorySlug)
     if (found) categoryId = found.id
   }
 
-  // 포스트 조회 (direct fetch)
-  let postsUrl = `${supabaseUrl}/rest/v1/posts?blog_id=eq.${blog.id}&status=eq.published&select=id,title,slug,meta_description,published_at,view_count,content_html&order=published_at.desc`
-  if (categoryId) postsUrl += `&category_id=eq.${categoryId}`
+  // 포스트 조회
+  let query = supabase
+    .from('posts')
+    .select('id, title, slug, meta_description, published_at, content_html')
+    .eq('blog_id', blog.id)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
 
-  const postsRes = await fetch(postsUrl, { headers, cache: 'no-store' })
-  const posts = (await postsRes.json()) as Post[]
+  if (categoryId) query = query.eq('category_id', categoryId)
 
-  return { blog: blog as Blog, posts: posts ?? [], categories: categories ?? [] }
+  const { data: postsData } = await query
+  const posts = (postsData ?? []) as Post[]
+
+  return { blog: blog as Blog, posts, categories }
 }
 
 // ─── 메인 페이지 (서버 컴포넌트) ───
@@ -290,7 +308,6 @@ export default async function PublicBlogPage({
                         {excerpt && <p className="text-sm text-gray-500 mb-2 line-clamp-2">{excerpt}</p>}
                         <div className="flex items-center gap-3 text-xs text-gray-400">
                           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{date}</span>
-                          <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{(post.view_count ?? 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </Link>
@@ -312,7 +329,6 @@ export default async function PublicBlogPage({
                           {excerpt && <p className="text-sm text-gray-500 mb-3 line-clamp-2">{excerpt}</p>}
                           <div className="flex items-center gap-4 text-xs text-gray-400">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{date}</span>
-                            <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{(post.view_count ?? 0).toLocaleString()}</span>
                           </div>
                         </div>
                         {thumbnail && (
