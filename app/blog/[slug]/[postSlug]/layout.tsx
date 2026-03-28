@@ -1,10 +1,8 @@
-import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
-export const dynamic = 'force-dynamic'
-export const fetchCache = 'force-no-store'
-export const revalidate = 0
+// ISR: 1시간마다 백그라운드 갱신
+export const revalidate = 3600
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -27,13 +25,9 @@ function stripHtml(html?: string): string {
 }
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  noStore()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
 
   // 블로그 조회

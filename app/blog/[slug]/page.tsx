@@ -1,4 +1,3 @@
-import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -8,9 +7,8 @@ import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
-export const dynamic = 'force-dynamic'
-export const fetchCache = 'force-no-store'
-export const revalidate = 0
+// ISR: 30분마다 백그라운드 갱신 (새 글 반영을 위해 글 페이지보다 짧게)
+export const revalidate = 1800
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -97,21 +95,15 @@ function getFontLink(font: string): string | null {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchBlogData(slug: string, categorySlug?: string) {
-  noStore()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
 
   // 카테고리용 service role 클라이언트
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
 
   // 블로그 조회

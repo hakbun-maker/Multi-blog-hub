@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { unstable_noStore as noStore } from 'next/cache'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { ArrowLeft, Calendar, Tag } from 'lucide-react'
@@ -8,9 +7,8 @@ import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
-export const dynamic = 'force-dynamic'
-export const fetchCache = 'force-no-store'
-export const revalidate = 0
+// ISR: 1시간마다 백그라운드 갱신 (크롤러/방문자에게 캐시된 빠른 응답 제공)
+export const revalidate = 3600
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -107,13 +105,9 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchPostData(slug: string, postSlug: string) {
-  noStore()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
 
   const { data: blog } = await supabase

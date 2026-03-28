@@ -29,6 +29,19 @@ export async function middleware(request: NextRequest) {
 
     if (slug) {
       const pathname = request.nextUrl.pathname
+
+      // robots.txt → 루트 robots.ts가 커스텀 도메인 감지하여 처리
+      if (pathname === '/robots.txt') {
+        return NextResponse.next()
+      }
+
+      // sitemap.xml → 블로그별 sitemap으로 rewrite
+      if (pathname === '/sitemap.xml') {
+        const url = request.nextUrl.clone()
+        url.pathname = `/blog/${slug}/sitemap.xml`
+        return NextResponse.rewrite(url)
+      }
+
       // 이미 /blog/로 시작하면 그대로
       if (!pathname.startsWith('/blog/') && !pathname.startsWith('/api/')) {
         const url = request.nextUrl.clone()

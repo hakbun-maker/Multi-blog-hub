@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 
+// ISR: 30분마다 백그라운드 갱신
+export const revalidate = 1800
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
 interface LayoutProps {
