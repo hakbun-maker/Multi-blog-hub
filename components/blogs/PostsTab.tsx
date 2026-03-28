@@ -30,17 +30,20 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   draft:     { label: '초안', className: 'bg-gray-100 text-gray-500' },
 }
 
-export function PostsTab({ posts, blogId, blogSlug, categories }: PostsTabProps) {
+export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: PostsTabProps) {
   const router = useRouter()
+  const [posts, setPosts] = useState<Post[]>(initialPosts)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all')
 
   const handleDelete = async (postId: string) => {
     if (!confirm('이 글을 삭제하시겠습니까?')) return
     setDeletingId(postId)
-    await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
     setDeletingId(null)
-    router.refresh()
+    if (res.ok) {
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    }
   }
 
   const filteredPosts = filterCategoryId === 'all'
