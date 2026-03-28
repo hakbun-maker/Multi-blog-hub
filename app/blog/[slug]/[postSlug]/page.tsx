@@ -7,6 +7,8 @@ import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
+export const dynamic = 'force-dynamic'
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
 // ─── 타입 ───
