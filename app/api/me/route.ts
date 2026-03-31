@@ -6,8 +6,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const { data } = await supabase.from('users').select('id, email, name').eq('id', user.id).single()
-  return NextResponse.json({ data: data ?? { email: user.email, name: null } })
+  const { data } = await supabase
+    .from('users')
+    .select('id, email, name, display_name, phone, country')
+    .eq('id', user.id)
+    .single()
+
+  const auth_provider = user.app_metadata?.provider ?? 'email'
+
+  return NextResponse.json({
+    data: data ?? { email: user.email, name: null, display_name: null, phone: null, country: 'KR' },
+    auth_provider,
+  })
 }
 
 export async function PATCH(request: Request) {
@@ -15,10 +25,22 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
-  const { name } = await request.json()
+  const body = await request.json()
+  const { name, display_name, phone, country } = body
+
+  const updateFields: Record<string, string | null> = {}
+  if (name !== undefined) updateFields.name = name
+  if (display_name !== undefined) updateFields.display_name = display_name
+  if (phone !== undefined) updateFields.phone = phone
+  if (country !== undefined) updateFields.country = country
+
+  if (Object.keys(updateFields).length === 0) {
+    return NextResponse.json({ error: '변경할 필드가 없습니다.' }, { status: 400 })
+  }
+
   const { data, error } = await supabase
     .from('users')
-    .update({ name })
+    .update(updateFields)
     .eq('id', user.id)
     .select()
     .single()
