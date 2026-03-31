@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Fetch blogs
     let blogsQuery = supabase
       .from('blogs')
-      .select('id, name, grade, category, is_warned, daily_limit')
+      .select('id, name, grade, primary_ad_category, language, is_warned, daily_quota')
       .eq('user_id', user.id)
 
     if (body.category) {
@@ -80,6 +80,26 @@ export async function POST(request: NextRequest) {
         { error: '사용 가능한 블로그가 없습니다' },
         { status: 400 }
       )
+    }
+
+    // Fetch postsScheduledToday for each blog (target date = tomorrow)
+    const blogIds = blogs.map(b => b.id)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStr = tomorrow.toISOString().split('T')[0]
+
+    const { data: dailyCounts } = await supabase
+      .from('scheduled_posts')
+      .select('blog_id')
+      .in('blog_id', blogIds)
+      .eq('scheduled_date', tomorrowStr)
+      .not('status', 'eq', 'rejected')
+
+    const dailyCountMap = new Map<string, number>()
+    if (dailyCounts) {
+      for (const row of dailyCounts) {
+        dailyCountMap.set(row.blog_id, (dailyCountMap.get(row.blog_id) ?? 0) + 1)
+      }
     }
 
     // Convert DB data to app types
@@ -105,9 +125,11 @@ export async function POST(request: NextRequest) {
       id: b.id,
       name: b.name,
       grade: b.grade,
-      category: b.category,
+      category: b.primary_ad_category ?? undefined,
+      language: b.language ?? undefined,
       isWarned: b.is_warned,
-      dailyLimit: b.daily_limit,
+      dailyLimit: b.daily_quota ?? 3,
+      postsScheduledToday: dailyCountMap.get(b.id) ?? 0,
     }))
 
     // Run distribution preview

@@ -5,6 +5,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/cron/keyword-discover",
+      "schedule": "0 20 * * *"
+    },
+    {
       "path": "/api/cron/monetize-publish",
       "schedule": "0 21 * * *"
     }

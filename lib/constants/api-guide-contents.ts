@@ -195,4 +195,36 @@ export const API_GUIDE_CONTENTS: Record<string, ApiGuideContent> = {
       '계정이 활성 상태로 유지되어야 API가 작동합니다.',
     ],
   },
+  google_trends: {
+    title: 'Google Trends API',
+    steps: [
+      '현재 Google Trends RSS 피드를 기본으로 사용하므로 API 키가 없어도 기본 기능은 동작합니다.',
+      '고급 기능(상세 트렌드 분석)을 위해 SerpAPI 키를 등록할 수 있습니다.',
+      'https://serpapi.com/ 에서 계정 생성',
+      'Dashboard에서 API Key 복사',
+      '위 입력란에 API Key 붙여넣기',
+    ],
+    signupUrl: 'https://serpapi.com/google-trends-api',
+    cost: 'SerpAPI 무료 플랜: 월 100회 검색 제공. 유료 플랜은 사용량에 따라 과금',
+    warnings: [
+      'API 키 없이도 Google Trends RSS 피드로 기본 트렌드 수집이 가능합니다.',
+      'SerpAPI 키 등록 시 고급 트렌드 분석 기능을 사용할 수 있습니다.',
+      '무료 플랜의 월별 사용량 제한을 초과하지 않도록 주의하세요.',
+    ],
+  },
+  interpark: {
+    title: '인터파크 티켓',
+    steps: [
+      '현재 네이버 검색을 통해 인터파크 공연 정보를 수집하므로 별도 API 키가 없어도 기본 기능은 동작합니다.',
+      '인터파크 Open API를 사용하려면 별도 제휴가 필요합니다.',
+      '향후 직접 크롤링 기능이 추가될 예정입니다.',
+    ],
+    signupUrl: 'https://ticket.interpark.com/',
+    cost: '기본 기능은 무료 (인터파크 Open API 제휴 시 별도 협의)',
+    warnings: [
+      'API 키 없이도 네이버 검색 기반으로 공연 정보 수집이 가능합니다.',
+      '인터파크 Open API 직접 연동은 제휴 계약이 필요합니다.',
+      '수집한 공연 정보는 인터파크 이용약관을 준수하여 사용해야 합니다.',
+    ],
+  },
 }

@@ -9,6 +9,7 @@ interface KeywordScheduleCardProps {
   blogName: string
   status: string
   intentType?: string | null
+  scheduledTime?: string
   onClick?: () => void
 }
 
@@ -28,6 +29,7 @@ export function KeywordScheduleCard({
   blogName,
   status,
   intentType,
+  scheduledTime,
   onClick,
 }: KeywordScheduleCardProps) {
   return (
@@ -37,6 +39,9 @@ export function KeywordScheduleCard({
     >
       <div className="flex items-center gap-1">
         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[status] || 'bg-gray-300'}`} />
+        {scheduledTime && (
+          <span className="text-gray-500 flex-shrink-0">{scheduledTime.slice(0, 5)}</span>
+        )}
         <span className="font-medium text-gray-800 truncate flex-1">{keyword || '키워드 없음'}</span>
         {grade && <GradeBadge grade={grade} size="sm" />}
       </div>

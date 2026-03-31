@@ -5,7 +5,22 @@ import type { Keyword } from '@/types/monetize'
 
 export const runtime = 'nodejs'
 
+interface PreviewItem {
+  keywordId: string
+  keyword: string
+  keywordGrade: string
+  intentType: string
+  blogId: string
+  blogName: string
+  blogGrade: string
+  scheduledDate: string
+  scheduledTime: string
+  intentFitScore: number
+  reason: string
+}
+
 interface ConfirmRequest {
+  previews?: PreviewItem[]
   keywordIds?: string[]
   category?: string
   excludeWarnedBlogs?: boolean
@@ -30,6 +45,72 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as ConfirmRequest
 
+    // If previews are provided directly, use them (skip engine re-run)
+    if (body.previews && Array.isArray(body.previews) && body.previews.length > 0) {
+      // Validate ownership: all blogIds must belong to the user
+      const blogIds = Array.from(new Set(body.previews.map(p => p.blogId)))
+      const { data: userBlogs } = await supabase
+        .from('blogs')
+        .select('id')
+        .eq('user_id', user.id)
+        .in('id', blogIds)
+
+      const validBlogIds = new Set((userBlogs ?? []).map(b => b.id))
+      const validPreviews = body.previews.filter(p => validBlogIds.has(p.blogId))
+
+      if (validPreviews.length === 0) {
+        return NextResponse.json({ error: '유효한 배분 항목이 없습니다' }, { status: 400 })
+      }
+
+      // Insert scheduled_posts
+      const scheduledPostInserts = validPreviews.map(p => ({
+        blog_id: p.blogId,
+        keyword_id: p.keywordId,
+        scheduled_date: p.scheduledDate,
+        scheduled_time: p.scheduledTime,
+        status: 'pending' as const,
+        writing_mode: 'auto' as const,
+        intent_type: p.intentType,
+        intent_fit_score: p.intentFitScore,
+      }))
+
+      const { error: postsError } = await supabase
+        .from('scheduled_posts')
+        .insert(scheduledPostInserts)
+
+      if (postsError) {
+        return NextResponse.json({ error: `스케줄 저장 실패: ${postsError.message}` }, { status: 500 })
+      }
+
+      // Insert blog_keyword_assignments
+      const now = new Date()
+      const assignmentInserts = validPreviews.map(p => ({
+        blog_id: p.blogId,
+        keyword_id: p.keywordId,
+        assigned_date: now.toISOString().split('T')[0],
+        assigned_time: now.toISOString().split('T')[1].slice(0, 5),
+        assignment_reason: p.reason,
+        is_confirmed: true,
+        intent_type: p.intentType,
+        intent_fit_score: p.intentFitScore,
+      }))
+
+      const { error: assignError } = await supabase
+        .from('blog_keyword_assignments')
+        .insert(assignmentInserts)
+
+      if (assignError) {
+        console.error('[Confirm] Assignment insert error:', assignError)
+      }
+
+      return NextResponse.json({
+        success: true,
+        count: validPreviews.length,
+        assignments: validPreviews,
+      })
+    }
+
+    // Fallback: re-run engine (legacy flow)
     // Fetch keywords
     let keywordsQuery = supabase
       .from('keywords')

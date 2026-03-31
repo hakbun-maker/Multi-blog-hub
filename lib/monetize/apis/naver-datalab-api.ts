@@ -40,6 +40,12 @@ export class NaverDataLabAPI {
     return true
   }
 
+  /** API 키를 직접 전달하여 초기화 (크론/서버 컨텍스트용) */
+  initializeWithKeys(apiKey: string, secretKey: string): void {
+    this.apiKey = apiKey
+    this.secretKey = secretKey
+  }
+
   /** 2년치 트렌드 데이터 조회 */
   async getTrend(keyword: string): Promise<TrendResult> {
     if (!this.apiKey) throw new Error('NaverDataLabAPI not initialized')

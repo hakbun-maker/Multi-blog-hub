@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Grade, KeywordType, IntentType, RevenueScore } from '@/types/monetize'
 import { calculateRevenueScore } from '../utils'
 
@@ -77,9 +78,12 @@ export function scoreKeywords(dataList: KeywordApiData[], keywordType: KeywordTy
     .sort((a, b) => b.revenueScore.total - a.revenueScore.total)
 }
 
-/** Save scored keywords to database */
-export async function saveKeywordsToDb(userId: string, keywords: ScoredKeyword[]): Promise<string[]> {
-  const supabase = createClient()
+/** Save scored keywords to database using a provided supabase client */
+export async function saveKeywordsToDbWithClient(
+  supabase: SupabaseClient,
+  userId: string,
+  keywords: ScoredKeyword[]
+): Promise<string[]> {
   const savedIds: string[] = []
 
   for (const kw of keywords) {
@@ -113,6 +117,12 @@ export async function saveKeywordsToDb(userId: string, keywords: ScoredKeyword[]
   }
 
   return savedIds
+}
+
+/** Save scored keywords to database (session-based client) */
+export async function saveKeywordsToDb(userId: string, keywords: ScoredKeyword[]): Promise<string[]> {
+  const supabase = createClient()
+  return saveKeywordsToDbWithClient(supabase, userId, keywords)
 }
 
 /** Filter keywords by revenue score threshold */

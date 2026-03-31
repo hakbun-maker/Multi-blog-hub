@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid, AlertTriangle, Lock } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid, AlertTriangle, Lock, TrendingUp, Ticket } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { COUNTRIES } from '@/lib/constants/countries'
 import {
@@ -150,13 +150,31 @@ const MONETIZE_PROVIDERS: ProviderDef[] = [
   },
 ]
 
-const ALL_PROVIDERS: ProviderDef[] = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS, ...KEYWORD_PROVIDERS, ...MONETIZE_PROVIDERS]
+const EVENT_PROVIDERS: ProviderDef[] = [
+  {
+    value: 'google_trends',
+    label: 'Google Trends',
+    placeholder: 'SerpAPI Key (선택 사항)',
+    note: 'Google 급상승 검색어를 자동으로 수집합니다. API 키 없이도 Google Trends RSS 피드로 기본 기능이 동작합니다.\n\n[발급 조건] 고급 기능 사용 시 SerpAPI 계정 필요 (무료 플랜 제공)\n[발급 순서] ① serpapi.com 가입 ② Dashboard에서 API Key 복사 ③ 위 입력란에 붙여넣기\n[참고] API 키 미등록 시에도 기본 트렌드 수집이 가능합니다.',
+    guide: 'https://serpapi.com/google-trends-api',
+  },
+  {
+    value: 'interpark',
+    label: '인터파크 티켓',
+    placeholder: 'API Key (선택 사항)',
+    note: '공연/콘서트 일정을 자동으로 수집합니다. 현재 네이버 검색을 통해 인터파크 공연 정보를 수집하므로 별도 API 키 없이도 기본 기능이 동작합니다.\n\n[발급 조건] 인터파크 Open API는 별도 제휴 계약 필요\n[참고] 향후 직접 크롤링 기능이 추가될 예정입니다.',
+    guide: 'https://ticket.interpark.com/',
+  },
+]
+
+const ALL_PROVIDERS: ProviderDef[] = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS, ...KEYWORD_PROVIDERS, ...MONETIZE_PROVIDERS, ...EVENT_PROVIDERS]
 
 const PROVIDER_CATEGORY_LABEL: Record<string, { label: string; badge: string }> = {
   text: { label: '텍스트 생성', badge: 'default' },
   image: { label: '이미지 생성', badge: 'outline' },
   keyword: { label: '키워드 분석', badge: 'secondary' },
   monetize: { label: '수익화', badge: 'destructive' },
+  event: { label: '이벤트 소스', badge: 'secondary' },
 }
 
 function getProviderCategory(provider: string): string {
@@ -164,6 +182,7 @@ function getProviderCategory(provider: string): string {
   if (IMAGE_PROVIDERS.some(p => p.value === provider)) return 'image'
   if (KEYWORD_PROVIDERS.some(p => p.value === provider)) return 'keyword'
   if (MONETIZE_PROVIDERS.some(p => p.value === provider)) return 'monetize'
+  if (EVENT_PROVIDERS.some(p => p.value === provider)) return 'event'
   return 'text'
 }
 
@@ -757,6 +776,35 @@ function SettingsPageInner() {
                               : 'border-border hover:bg-muted'
                           }`}
                         >
+                          {p.label}
+                          {registered && (
+                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 이벤트 소스 (EVENT) */}
+                <div className="space-y-2">
+                  <Label>이벤트 소스 (EVENT)</Label>
+                  <p className="text-xs text-muted-foreground">트렌드 및 공연/콘서트 일정 데이터를 자동 수집합니다. API 키 없이도 기본 기능이 동작합니다.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {EVENT_PROVIDERS.map(p => {
+                      const registered = aiKeys.some(k => k.provider === p.value)
+                      const IconComponent = p.value === 'google_trends' ? TrendingUp : Ticket
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
+                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
+                            selectedProvider === p.value
+                              ? 'bg-cyan-600 text-white border-cyan-600'
+                              : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          <IconComponent className="h-3.5 w-3.5" />
                           {p.label}
                           {registered && (
                             <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />

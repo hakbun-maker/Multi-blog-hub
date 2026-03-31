@@ -18,7 +18,11 @@ interface DistributionState {
   success: boolean
 }
 
-export function DistributionEnginePanel() {
+interface DistributionEnginePanelProps {
+  onConfirmSuccess?: () => void
+}
+
+export function DistributionEnginePanel({ onConfirmSuccess }: DistributionEnginePanelProps = {}) {
   const [blogs, setBlogs] = useState<Blog[]>([])
   const [selectedBlogs, setSelectedBlogs] = useState<Set<string>>(new Set())
   const [state, setState] = useState<DistributionState>({
@@ -115,6 +119,9 @@ export function DistributionEnginePanel() {
         success: true,
       }))
 
+      // Notify parent to refresh calendar
+      if (onConfirmSuccess) onConfirmSuccess()
+
       // Hide success message after 3 seconds
       setTimeout(() => {
         setState((prev) => ({ ...prev, success: false }))
@@ -126,6 +133,13 @@ export function DistributionEnginePanel() {
         confirming: false,
       }))
     }
+  }
+
+  const handleRemovePreview = (keywordId: string) => {
+    setState((prev) => ({
+      ...prev,
+      previews: prev.previews?.filter(p => p.keywordId !== keywordId) || null,
+    }))
   }
 
   const handleCancel = () => {
@@ -187,7 +201,7 @@ export function DistributionEnginePanel() {
         <div className="space-y-3">
           <div className="text-sm font-medium text-gray-700">{previewCount}개 항목 배분 예정</div>
           <div className="max-h-96 overflow-y-auto">
-            <BlogDistributionPreview previews={state.previews} />
+            <BlogDistributionPreview previews={state.previews} onRemove={handleRemovePreview} />
           </div>
         </div>
       )}

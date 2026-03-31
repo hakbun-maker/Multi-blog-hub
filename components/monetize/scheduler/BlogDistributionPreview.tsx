@@ -8,20 +8,13 @@ import type { DistributionPreviewItem } from '@/types/monetize'
 
 interface BlogDistributionPreviewProps {
   previews: DistributionPreviewItem[]
+  onRemove?: (keywordId: string) => void
 }
 
-export function BlogDistributionPreview({ previews }: BlogDistributionPreviewProps) {
-  const handleRemovePreview = async (keywordId: string, blogId: string) => {
-    try {
-      const response = await fetch('/api/monetize/scheduler/entry/' + keywordId, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogId }),
-      })
-      if (!response.ok) throw new Error('Failed to remove preview')
-      // Note: In a real app, you'd need to update the preview state in the parent component
-    } catch (err) {
-      console.error('Failed to remove preview:', err)
+export function BlogDistributionPreview({ previews, onRemove }: BlogDistributionPreviewProps) {
+  const handleRemovePreview = (keywordId: string) => {
+    if (onRemove) {
+      onRemove(keywordId)
     }
   }
 
@@ -73,7 +66,7 @@ export function BlogDistributionPreview({ previews }: BlogDistributionPreviewPro
             <div className="flex items-start gap-2 justify-between">
               <div className="flex-1 text-gray-600">{item.reason}</div>
               <button
-                onClick={() => handleRemovePreview(item.keywordId, item.blogId)}
+                onClick={() => handleRemovePreview(item.keywordId)}
                 className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                 title="Remove from distribution"
               >

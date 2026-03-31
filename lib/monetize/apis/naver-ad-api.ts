@@ -21,7 +21,7 @@ export class NaverAdAPI {
   private DAILY_LIMIT = 1000
   private dailyCount = 0
 
-  /** 사용자 API 키로 초기화 */
+  /** 사용자 API 키로 초기화 (세션 기반 클라이언트 사용) */
   async initialize(userId: string): Promise<boolean> {
     const supabase = createClient()
     const { data } = await supabase
@@ -39,6 +39,15 @@ export class NaverAdAPI {
       customerId: '', // API 키에서 추출
     }
     return true
+  }
+
+  /** API 키를 직접 전달하여 초기화 (크론/서버 컨텍스트용) */
+  initializeWithKeys(apiKey: string, secretKey: string): void {
+    this.config = {
+      apiKey,
+      secretKey,
+      customerId: '',
+    }
   }
 
   /** 키워드 검색량 + 경쟁도 조회 */

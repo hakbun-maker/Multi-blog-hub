@@ -14,6 +14,7 @@ interface ScheduledPostWithKeyword {
   blogName: string
   keywordId: string | null
   keyword: string | null
+  keywordGrade: string | null
   scheduledDate: string
   scheduledTime: string
   status: string
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
         blog_id,
         blogs(name),
         keyword_id,
-        keywords(keyword),
+        keywords(keyword, keyword_grade),
         scheduled_date,
         scheduled_time,
         status,
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
           blogName: postAny.blogs?.name || 'Unknown',
           keywordId: postAny.keyword_id,
           keyword: postAny.keywords?.keyword || null,
+          keywordGrade: postAny.keywords?.keyword_grade || null,
           scheduledDate: post.scheduled_date,
           scheduledTime: post.scheduled_time,
           status: post.status,

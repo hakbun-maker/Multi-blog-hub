@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
 import { NaverDataLabAPI } from '@/lib/monetize/apis/naver-datalab-api'
 import { scoreKeywords, saveKeywordsToDb, filterByScore, getGradeStats, getAverageScore } from '@/lib/monetize/engines/keyword-scorer'
+import type { KeywordApiData } from '@/lib/monetize/engines/keyword-scorer'
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,17 +90,60 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Score event keywords
-    // For event keywords, we assign higher trend scores and shorter trend cycles
+    // Fetch real ad data from Naver Ad API (optional — gracefully degrade if not configured)
+    const naverAdAPI = new NaverAdAPI()
+    let adApiReady = false
+
+    try {
+      adApiReady = await naverAdAPI.initialize(user.id)
+    } catch (error) {
+      console.error('[Event Keywords] Naver Ad API initialization failed:', error)
+    }
+
+    // Build a map of keyword → real ad data for fast lookup
+    const adDataMap = new Map<string, { monthlySearchVolume: number; competitionIndex: string; cpcEstimate: number }>()
+
+    if (adApiReady) {
+      try {
+        const keywordTexts = eventKeywords.map(ek => ek.keyword)
+        const adResults = await naverAdAPI.getKeywordStats(keywordTexts)
+
+        for (const result of adResults) {
+          const totalVolume = NaverAdAPI.getTotalSearchVolume(result)
+
+          // Map Korean competition labels to English for KeywordApiData
+          let competitionIndex: string
+          switch (result.compIdx) {
+            case '높음': competitionIndex = 'HIGH'; break
+            case '중간': competitionIndex = 'MEDIUM'; break
+            case '낮음': competitionIndex = 'LOW'; break
+            default: competitionIndex = 'MEDIUM'
+          }
+
+          adDataMap.set(result.keyword, {
+            monthlySearchVolume: totalVolume,
+            competitionIndex,
+            cpcEstimate: 1500, // Naver Ad API does not return CPC; use default
+          })
+        }
+      } catch (error) {
+        console.error('[Event Keywords] Naver Ad API batch call failed, using defaults:', error)
+      }
+    }
+
+    // Score event keywords using real data where available, fallback to defaults otherwise
     const scoredKeywords = scoreKeywords(
-      eventKeywords.map(ek => ({
-        keyword: ek.keyword,
-        monthlySearchVolume: 5000, // Default estimate for events
-        competitionIndex: 'MEDIUM',
-        cpcEstimate: 1500, // Higher CPC for events
-        trendIndex: 75, // Events have high trend score
-        isSeasonal: false,
-      })),
+      eventKeywords.map((ek): KeywordApiData => {
+        const adData = adDataMap.get(ek.keyword)
+        return {
+          keyword: ek.keyword,
+          monthlySearchVolume: adData?.monthlySearchVolume ?? 5000,
+          competitionIndex: adData?.competitionIndex ?? 'MEDIUM',
+          cpcEstimate: adData?.cpcEstimate ?? 1500,
+          trendIndex: 75, // Events have high trend score by nature
+          isSeasonal: false,
+        }
+      }),
       'event'
     )
 
