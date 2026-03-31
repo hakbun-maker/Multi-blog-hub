@@ -35,10 +35,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
       }
 
-      // sitemap.xml → 블로그별 sitemap으로 rewrite
+      // sitemap.xml → API 라우트로 rewrite (메타데이터 라우트 params 문제 우회)
       if (pathname === '/sitemap.xml') {
         const url = request.nextUrl.clone()
-        url.pathname = `/blog/${slug}/sitemap.xml`
+        url.pathname = `/api/sitemap/${slug}`
         return NextResponse.rewrite(url)
       }
 
