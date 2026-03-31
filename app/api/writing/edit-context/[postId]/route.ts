@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getUserPlanContext, isFeatureEnabled } from '@/lib/plan/server'
 
 /**
  * GET /api/writing/edit-context/[postId]
@@ -18,6 +19,15 @@ export async function GET(
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: '인증 필요' }, { status: 401 })
+  }
+
+  // Plan check: Growth plan or above required
+  const planCtx = await getUserPlanContext()
+  if (!planCtx || !isFeatureEnabled(planCtx, 'auto_writing_pipeline')) {
+    return NextResponse.json(
+      { error: 'plan_required', minPlan: 'growth' },
+      { status: 403 }
+    )
   }
 
   const { postId } = params

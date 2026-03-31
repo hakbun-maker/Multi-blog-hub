@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getUserPlanContext, isFeatureEnabled } from '@/lib/plan/server'
 // Claude API via direct fetch (no SDK dependency)
 
 type ImprovementType = 'pasona' | 'seo' | 'cta'
@@ -38,35 +39,11 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid improvement type' }, { status: 400 })
     }
 
-    // Check plan feature access
-    const { data: userPlan } = await supabase
-      .from('user_plans')
-      .select(
-        `
-        user_id,
-        plan_id,
-        plans (
-          id,
-          plan_features!inner(feature_key, enabled)
-        )
-      `
-      )
-      .eq('user_id', user.id)
-      .single()
-
-    if (!userPlan) {
-      return NextResponse.json({ error: 'Plan not found' }, { status: 403 })
-    }
-
-    // Check if feature is enabled for plan
-    const features = userPlan.plans as any
-    const hasFeature = features.plan_features?.some(
-      (f: any) => f.feature_key === 'auto_writing_pipeline' && f.enabled === 'true'
-    )
-
-    if (!hasFeature) {
+    // Plan check: Growth plan or above required
+    const planCtx = await getUserPlanContext()
+    if (!planCtx || !isFeatureEnabled(planCtx, 'auto_writing_pipeline')) {
       return NextResponse.json(
-        { error: 'Feature not available for your plan' },
+        { error: 'plan_required', minPlan: 'growth' },
         { status: 403 }
       )
     }

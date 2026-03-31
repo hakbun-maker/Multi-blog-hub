@@ -12,7 +12,9 @@ import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
 import { MonetizeEditorHeader } from '@/components/monetize/editor/MonetizeEditorHeader'
 import { MonetizeEditorSidebar } from '@/components/monetize/editor/MonetizeEditorSidebar'
 import { MonetizeEditorActions } from '@/components/monetize/editor/MonetizeEditorActions'
+import { PasonaSectionMarker } from '@/components/monetize/editor/PasonaSectionMarker'
 import type { Grade, IntentType } from '@/types/monetize'
+import { FeatureGate } from '@/components/plan/FeatureGate'
 
 interface EditContext {
   postId: string
@@ -270,6 +272,11 @@ function EditorContent({ params }: { params: { id: string } }) {
             </div>
           )}
 
+          {/* PASONA 구조 마커 (review 모드 전용) */}
+          {isReviewMode && editContext && (
+            <PasonaSectionMarker content={htmlContent} />
+          )}
+
           <PostEditor
             content={htmlContent}
             onChange={(html) => { setHtmlContent(html); triggerAutoSave(html) }}
@@ -301,19 +308,23 @@ function EditorContent({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        {/* 검수 사이드패널 (1/3) */}
+        {/* 검수 사이드패널 (1/3) — Growth+ 전용 */}
         {isReviewMode && editContext && (
-          <div className="col-span-1 space-y-4">
-            <MonetizeEditorSidebar
-              postId={params.id}
-              keyword={editContext.keyword}
-              content={htmlContent}
-            />
-            <MonetizeEditorActions
-              postId={params.id}
-              content={htmlContent}
-              score={editContext.score}
-            />
+          <div className="col-span-1">
+            <FeatureGate featureKey="auto_writing_pipeline" minPlan="growth" featureName="검수 사이드패널" mode="replace">
+              <div className="space-y-4">
+                <MonetizeEditorSidebar
+                  postId={params.id}
+                  keyword={editContext.keyword}
+                  content={htmlContent}
+                />
+                <MonetizeEditorActions
+                  postId={params.id}
+                  content={htmlContent}
+                  score={editContext.score}
+                />
+              </div>
+            </FeatureGate>
           </div>
         )}
       </div>

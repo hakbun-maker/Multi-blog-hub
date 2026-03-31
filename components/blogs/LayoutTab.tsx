@@ -1304,47 +1304,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
 
         {/* GSC */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Google Search Console (확인 코드)</Label>
-          <Input
-            value={config.tracking.gsc_code}
-            onChange={e => updateTracking({ gsc_code: e.target.value })}
-            placeholder="확인 코드 (meta 태그 content 값)"
-            className="text-sm font-mono"
-          />
-          <details className="group">
-            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
-            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
-              <p>1. <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google Search Console</a>에 로그인합니다.</p>
-              <p>2. <strong>속성 추가</strong> → <strong>URL 접두어</strong>에 블로그 주소를 입력합니다.</p>
-              {blogSlug && (() => {
-                const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
-                const blogUrl = customDomain
-                  ? `https://${customDomain}`
-                  : `${appUrl}/blog/${blogSlug}`
-                return (
-                  <div className="flex items-center gap-2 bg-white border rounded px-2 py-1.5 my-1">
-                    <code className="text-[11px] text-gray-700 flex-1 truncate">
-                      {blogUrl}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(blogUrl)
-                      }}
-                      className="text-[10px] text-blue-600 hover:underline whitespace-nowrap"
-                    >
-                      복사
-                    </button>
-                  </div>
-                )
-              })()}
-              <p>3. 확인 방법에서 <strong>&quot;HTML 태그&quot;</strong>를 선택합니다.</p>
-              <p>4. 아래와 같은 메타 태그가 표시됩니다:</p>
-              <code className="block bg-gray-200 px-2 py-1 rounded text-[11px] break-all">&lt;meta name=&quot;google-site-verification&quot; content=&quot;<strong>여기_값</strong>&quot; /&gt;</code>
-              <p>5. <strong>content=&quot;...&quot;</strong> 안의 값만 복사하여 위에 붙여넣으세요.</p>
-              <p className="text-gray-400 pt-1">✓ 입력하면 Google에 블로그 소유권이 확인되어, 검색 노출 현황, 클릭 수, 색인 상태, 크롤링 오류 등을 모니터링할 수 있습니다.</p>
-            </div>
-          </details>
+          <Label className="text-xs font-semibold">Google Search Console</Label>
 
           {/* Google Indexing 연결 & 자동 색인 */}
           <div className="rounded-lg border p-3 space-y-2 bg-gray-50 mt-2">
@@ -1468,8 +1428,7 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
                   연결하면 모든 블로그가 GSC에 자동 등록되고, 글 발행 시 자동 색인됩니다.
                 </p>
                 <div className="text-[11px] text-gray-400 bg-white rounded p-2 space-y-0.5 leading-relaxed">
-                  <p>위 GSC 확인 코드는 <strong>사이트 소유권 인증</strong> 용도이고,</p>
-                  <p>이 연결은 <strong>Google Indexing API + Search Console</strong> 권한을 부여합니다.</p>
+                  <p>Google 계정을 연결하면 <strong>Indexing API + Search Console</strong> 권한이 부여됩니다.</p>
                   <p>연결 시 모든 블로그가 <strong>GSC에 자동 등록</strong>되며,</p>
                   <p>새 블로그 생성 시에도 자동으로 등록됩니다.</p>
                 </div>

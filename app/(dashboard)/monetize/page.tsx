@@ -9,6 +9,7 @@ import { RevenueSummaryCard } from '@/components/monetize/dashboard/RevenueSumma
 import { BlogGradeTable } from '@/components/monetize/dashboard/BlogGradeTable'
 import { RevenueLineChart } from '@/components/monetize/dashboard/RevenueLineChart'
 import { RevenueGuidePanel } from '@/components/monetize/dashboard/RevenueGuidePanel'
+import { MultiDimensionChart } from '@/components/monetize/dashboard/MultiDimensionChart'
 
 type BlogLanguage = 'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'
 
@@ -51,6 +52,7 @@ export default function MonetizePage() {
         </ConsentGate>
         <RevenueLineChart />
         <BlogGradeTable />
+        <MultiDimensionChart />
         <RevenueGuidePanel
           blogCount={blogInfo.count}
           language={blogInfo.language}
