@@ -10,6 +10,7 @@ import {
   Loader2, RefreshCw, Settings2, ChevronRight, Clock,
   CheckCircle, AlertCircle, Circle, Zap, ZapOff,
   Calendar, Music, Trophy, PartyPopper, Palette,
+  Pencil, Trash2, Check, X,
 } from 'lucide-react'
 import { AutoDiscoveryToggle } from '@/components/keywords/AutoDiscoveryToggle'
 import { ApiKeyQuickSetup } from '@/components/keywords/ApiKeyQuickSetup'
@@ -127,6 +128,11 @@ export function ControlCenter() {
   const [refreshing, setRefreshing] = useState(false)
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
   const [runningPipeline, setRunningPipeline] = useState(false)
+  const [blogs, setBlogs] = useState<Array<{ id: string; name: string }>>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editData, setEditData] = useState<{ keyword_text: string; assigned_blog_id: string; assigned_blog_name: string; scheduled_date: string; scheduled_time: string }>({
+    keyword_text: '', assigned_blog_id: '', assigned_blog_name: '', scheduled_date: '', scheduled_time: '',
+  })
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -152,6 +158,13 @@ export function ControlCenter() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  // 블로그 목록 로드 (편집용)
+  useEffect(() => {
+    fetch('/api/blogs').then(r => r.json()).then(json => {
+      setBlogs((json.data ?? []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })))
+    }).catch(() => {})
+  }, [])
+
   // 30초마다 자동 갱신
   useEffect(() => {
     const interval = setInterval(() => fetchData(true), 30000)
@@ -171,6 +184,43 @@ export function ControlCenter() {
     finally {
       setRunningPipeline(false)
     }
+  }
+
+  // 편집 시작
+  const startEditing = (kw: KeywordFlowRow) => {
+    setEditingId(kw.id)
+    setEditData({
+      keyword_text: kw.keyword_text,
+      assigned_blog_id: kw.assigned_blog_name ? blogs.find(b => b.name === kw.assigned_blog_name)?.id ?? '' : '',
+      assigned_blog_name: kw.assigned_blog_name ?? '',
+      scheduled_date: kw.scheduled_date ?? '',
+      scheduled_time: kw.scheduled_time ?? '',
+    })
+  }
+
+  // 편집 저장
+  const saveEdit = async () => {
+    if (!editingId) return
+    const blogName = blogs.find(b => b.id === editData.assigned_blog_id)?.name ?? editData.assigned_blog_name
+    await fetch(`/api/agents/pipeline/${editingId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keyword_text: editData.keyword_text,
+        assigned_blog_id: editData.assigned_blog_id || null,
+        assigned_blog_name: blogName,
+        scheduled_date: editData.scheduled_date || null,
+        scheduled_time: editData.scheduled_time || null,
+      }),
+    })
+    setEditingId(null)
+    fetchData(true)
+  }
+
+  // 삭제
+  const deleteItem = async (id: string) => {
+    await fetch(`/api/agents/pipeline/${id}`, { method: 'DELETE' })
+    fetchData(true)
   }
 
   if (loading) {
@@ -325,14 +375,77 @@ export function ControlCenter() {
                     <th className="text-left py-2 px-2 font-medium hidden sm:table-cell">블로그</th>
                     <th className="text-left py-2 px-2 font-medium hidden md:table-cell">발행예정</th>
                     <th className="text-center py-2 px-1 font-medium">점수</th>
+                    <th className="text-center py-2 px-1 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {keywordFlow.map(kw => {
                     const stageConfig = STAGE_CONFIG[kw.stage] ?? STAGE_CONFIG.discovered
+                    const isEditing = editingId === kw.id
+
+                    if (isEditing) {
+                      return (
+                        <tr key={kw.id} className="border-b border-orange-200 bg-orange-50/50">
+                          <td className="py-2 px-2">
+                            <input
+                              value={editData.keyword_text}
+                              onChange={e => setEditData(prev => ({ ...prev, keyword_text: e.target.value }))}
+                              className="w-full text-sm px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            />
+                          </td>
+                          <td className="text-center py-2 px-1">
+                            <span className="text-xs text-gray-400">{kw.keyword_grade}</span>
+                          </td>
+                          <td className="text-center py-2 px-1">
+                            <span className="text-[10px] text-gray-400">{stageConfig.label}</span>
+                          </td>
+                          <td className="py-2 px-2 hidden sm:table-cell">
+                            <select
+                              value={editData.assigned_blog_id}
+                              onChange={e => setEditData(prev => ({ ...prev, assigned_blog_id: e.target.value }))}
+                              className="w-full text-xs px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            >
+                              <option value="">선택</option>
+                              {blogs.map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-2 px-2 hidden md:table-cell">
+                            <div className="flex gap-1">
+                              <input
+                                type="date"
+                                value={editData.scheduled_date}
+                                onChange={e => setEditData(prev => ({ ...prev, scheduled_date: e.target.value }))}
+                                className="text-xs px-1 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                              />
+                              <input
+                                type="time"
+                                value={editData.scheduled_time}
+                                onChange={e => setEditData(prev => ({ ...prev, scheduled_time: e.target.value }))}
+                                className="text-xs px-1 py-1 border rounded w-20 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                              />
+                            </div>
+                          </td>
+                          <td className="text-center py-2 px-1">
+                            <span className="text-xs text-gray-400">{kw.revenue_score > 0 ? Math.round(kw.revenue_score) : '-'}</span>
+                          </td>
+                          <td className="text-center py-2 px-1">
+                            <div className="flex gap-0.5 justify-center">
+                              <button onClick={saveEdit} className="p-1 text-green-600 hover:bg-green-50 rounded">
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setEditingId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    }
 
                     return (
-                      <tr key={kw.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                      <tr key={kw.id} className="border-b border-gray-50 hover:bg-gray-50/50 group">
                         <td className="py-2 px-2">
                           <div className="flex items-center gap-1.5">
                             {kw.event_title && (
@@ -378,6 +491,16 @@ export function ControlCenter() {
                           <span className="text-xs font-medium text-gray-700">
                             {kw.revenue_score > 0 ? Math.round(kw.revenue_score) : '-'}
                           </span>
+                        </td>
+                        <td className="text-center py-2 px-1">
+                          <div className="flex gap-0.5 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => startEditing(kw)} className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded" title="수정">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => deleteItem(kw.id)} className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="삭제">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )

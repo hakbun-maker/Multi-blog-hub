@@ -5,8 +5,9 @@
 import { getServiceClient, runAgent } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
 import { NaverDataLabAPI } from '@/lib/monetize/apis/naver-datalab-api'
-import { scoreKeywords, filterByScore } from '@/lib/monetize/engines/keyword-scorer'
+import { scoreKeywords } from '@/lib/monetize/engines/keyword-scorer'
 import type { KeywordApiData } from '@/lib/monetize/engines/keyword-scorer'
+import { decrypt } from '@/lib/utils/encryption'
 import type { AgentRunResult } from './types'
 
 export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
@@ -32,17 +33,38 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
       .in('provider', ['naver_ad', 'naver_search'])
       .eq('is_active', true)
 
-    const naverAdKey = apiKeys?.find(k => k.provider === 'naver_ad')
-    const naverSearchKey = apiKeys?.find(k => k.provider === 'naver_search')
+    const naverAdKeyRaw = apiKeys?.find(k => k.provider === 'naver_ad')
+    const naverSearchKeyRaw = apiKeys?.find(k => k.provider === 'naver_search')
+
+    // 복호화
+    let decryptedAdKey: { apiKey: string; secretKey: string } | null = null
+    let decryptedSearchKey: { apiKey: string; secretKey: string } | null = null
+
+    if (naverAdKeyRaw) {
+      try {
+        decryptedAdKey = {
+          apiKey: decrypt(naverAdKeyRaw.encrypted_key),
+          secretKey: naverAdKeyRaw.encrypted_secret ? decrypt(naverAdKeyRaw.encrypted_secret) : '',
+        }
+      } catch { console.error('[Analyst] naver_ad 키 복호화 실패') }
+    }
+    if (naverSearchKeyRaw) {
+      try {
+        decryptedSearchKey = {
+          apiKey: decrypt(naverSearchKeyRaw.encrypted_key),
+          secretKey: naverSearchKeyRaw.encrypted_secret ? decrypt(naverSearchKeyRaw.encrypted_secret) : '',
+        }
+      } catch { console.error('[Analyst] naver_search 키 복호화 실패') }
+    }
 
     // 3. 네이버 광고 API로 검색량/경쟁도 조회
     const keywordTexts = pending.map(p => p.keyword_text)
-    let adDataMap = new Map<string, { volume: number; compIdx: string }>()
+    const adDataMap = new Map<string, { volume: number; compIdx: string }>()
 
-    if (naverAdKey) {
+    if (decryptedAdKey) {
       try {
         const naverAd = new NaverAdAPI()
-        naverAd.initializeWithKeys(naverAdKey.encrypted_key, naverAdKey.encrypted_secret)
+        naverAd.initializeWithKeys(decryptedAdKey.apiKey, decryptedAdKey.secretKey)
         const results = await naverAd.getKeywordStats(keywordTexts.slice(0, 30))
         for (const r of results) {
           adDataMap.set(r.keyword, {
@@ -57,10 +79,10 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
 
     // 4. 트렌드 데이터 조회
     const trendMap = new Map<string, number>()
-    if (naverSearchKey) {
+    if (decryptedSearchKey) {
       try {
         const dataLab = new NaverDataLabAPI()
-        dataLab.initializeWithKeys(naverSearchKey.encrypted_key, naverSearchKey.encrypted_secret)
+        dataLab.initializeWithKeys(decryptedSearchKey.apiKey, decryptedSearchKey.secretKey)
         // 상위 5개만 트렌드 조회 (API 호출 제한)
         for (const kw of keywordTexts.slice(0, 5)) {
           try {

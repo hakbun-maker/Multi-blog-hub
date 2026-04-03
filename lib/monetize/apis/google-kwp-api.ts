@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/utils/encryption'
 
 interface GoogleKeywordResult {
   keyword: string
@@ -24,8 +25,13 @@ export class GoogleKWPAPI {
       .single()
 
     if (!data) return false
-    this.accessToken = data.encrypted_key
-    return true
+    try {
+      this.accessToken = decrypt(data.encrypted_key)
+      return true
+    } catch {
+      console.error('[GoogleKWPAPI] API 키 복호화 실패')
+      return false
+    }
   }
 
   async getKeywordIdeas(keywords: string[], language?: string): Promise<GoogleKeywordResult[]> {

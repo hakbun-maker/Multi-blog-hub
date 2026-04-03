@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { decrypt } from '@/lib/utils/encryption'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,10 +102,18 @@ export class EventAPI {
 
     for (const row of data ?? []) {
       if (row.encrypted_key) {
-        this.apiKeys.set(row.provider, row.encrypted_key)
+        try {
+          this.apiKeys.set(row.provider, decrypt(row.encrypted_key))
+        } catch {
+          console.error(`[EventAPI] ${row.provider} 키 복호화 실패`)
+        }
       }
       if (row.encrypted_secret) {
-        this.secretKeys.set(row.provider, row.encrypted_secret)
+        try {
+          this.secretKeys.set(row.provider, decrypt(row.encrypted_secret))
+        } catch {
+          console.error(`[EventAPI] ${row.provider} 시크릿 복호화 실패`)
+        }
       }
     }
   }

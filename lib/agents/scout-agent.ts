@@ -7,6 +7,7 @@ import { getServiceClient, runAgent } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
 import { EventAPI } from '@/lib/monetize/apis/event-api'
 import { ANNUAL_EVENTS } from '@/lib/monetize/constants'
+import { decrypt } from '@/lib/utils/encryption'
 import type { AgentRunResult } from './types'
 
 /**
@@ -94,12 +95,24 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     // API 키 조회
     const { data: apiKeys } = await supabase
       .from('ai_api_keys')
-      .select('provider, encrypted_key, encrypted_secret')
+      .select('provider, encrypted_key, encrypted_secret, encrypted_extra')
       .eq('user_id', userId)
       .in('provider', ['naver_ad', 'naver_search'])
       .eq('is_active', true)
 
-    const naverAdKey = apiKeys?.find(k => k.provider === 'naver_ad')
+    const naverAdKeyRaw = apiKeys?.find(k => k.provider === 'naver_ad')
+    let naverAdKey: { apiKey: string; secretKey: string; extraKey: string } | null = null
+    if (naverAdKeyRaw) {
+      try {
+        naverAdKey = {
+          apiKey: decrypt(naverAdKeyRaw.encrypted_key),
+          secretKey: naverAdKeyRaw.encrypted_secret ? decrypt(naverAdKeyRaw.encrypted_secret) : '',
+          extraKey: '', // customer ID는 encrypted_extra에 있을 수 있음
+        }
+      } catch (err) {
+        console.error('[Scout] API 키 복호화 실패:', err)
+      }
+    }
 
     // 기존 파이프라인 키워드 (중복 방지)
     const { data: existingPipeline } = await supabase
@@ -113,7 +126,7 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     if (naverAdKey) {
       try {
         const naverAd = new NaverAdAPI()
-        naverAd.initializeWithKeys(naverAdKey.encrypted_key, naverAdKey.encrypted_secret)
+        naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey)
         const results = await naverAd.getKeywordStats(Array.from(allSeeds).slice(0, 20))
 
         const newKeywords = results

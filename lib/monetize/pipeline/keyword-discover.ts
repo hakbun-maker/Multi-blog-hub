@@ -13,6 +13,7 @@ import { EventAPI } from '@/lib/monetize/apis/event-api'
 import { createEventClusters } from '@/lib/monetize/engines/event-cluster-engine'
 import type { EventClusterKeyword } from '@/lib/monetize/engines/event-cluster-engine'
 import { distributeKeywords } from '@/lib/monetize/engines/distribution-engine'
+import { decrypt } from '@/lib/utils/encryption'
 import type { Grade, IntentType } from '@/types/monetize'
 
 // ---------------------------------------------------------------------------
@@ -123,14 +124,35 @@ async function discoverForUser(
   const naverAdAPI = new NaverAdAPI()
   const naverDataLabAPI = new NaverDataLabAPI()
 
-  const naverAdReady = naverAdKey != null
-  const dataLabReady = naverSearchKey != null
+  // API 키 복호화
+  let decryptedAdKey: { apiKey: string; secretKey: string } | null = null
+  let decryptedSearchKey: { apiKey: string; secretKey: string } | null = null
+
+  if (naverAdKey) {
+    try {
+      decryptedAdKey = {
+        apiKey: decrypt(naverAdKey.encrypted_key),
+        secretKey: naverAdKey.encrypted_secret ? decrypt(naverAdKey.encrypted_secret) : '',
+      }
+    } catch { /* decrypt failure */ }
+  }
+  if (naverSearchKey) {
+    try {
+      decryptedSearchKey = {
+        apiKey: decrypt(naverSearchKey.encrypted_key),
+        secretKey: naverSearchKey.encrypted_secret ? decrypt(naverSearchKey.encrypted_secret) : '',
+      }
+    } catch { /* decrypt failure */ }
+  }
+
+  const naverAdReady = decryptedAdKey != null
+  const dataLabReady = decryptedSearchKey != null
 
   if (naverAdReady) {
-    naverAdAPI.initializeWithKeys(naverAdKey!.encrypted_key, naverAdKey!.encrypted_secret)
+    naverAdAPI.initializeWithKeys(decryptedAdKey!.apiKey, decryptedAdKey!.secretKey)
   }
   if (dataLabReady) {
-    naverDataLabAPI.initializeWithKeys(naverSearchKey!.encrypted_key, naverSearchKey!.encrypted_secret)
+    naverDataLabAPI.initializeWithKeys(decryptedSearchKey!.apiKey, decryptedSearchKey!.secretKey)
   }
 
   // -------------------------------------------------------------------------

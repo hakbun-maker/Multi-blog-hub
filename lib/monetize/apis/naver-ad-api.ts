@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/utils/encryption'
 
 interface NaverKeywordResult {
   keyword: string
@@ -33,12 +34,17 @@ export class NaverAdAPI {
       .single()
 
     if (!data) return false
-    this.config = {
-      apiKey: data.encrypted_key,
-      secretKey: data.encrypted_secret || '',
-      customerId: '', // API 키에서 추출
+    try {
+      this.config = {
+        apiKey: decrypt(data.encrypted_key),
+        secretKey: data.encrypted_secret ? decrypt(data.encrypted_secret) : '',
+        customerId: '',
+      }
+      return true
+    } catch {
+      console.error('[NaverAdAPI] API 키 복호화 실패')
+      return false
     }
-    return true
   }
 
   /** API 키를 직접 전달하여 초기화 (크론/서버 컨텍스트용) */

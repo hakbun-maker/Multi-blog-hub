@@ -2,15 +2,14 @@
  * Planner 에이전트 — 키워드를 블로그에 배정하고 스케줄을 결정합니다.
  *
  * 핵심 로직:
- * 1. 키워드의 주제/Intent를 블로그의 카테고리/설명과 매칭
- * 2. 같은 카테고리의 다른 언어 블로그에도 동시 배정 (다국어 확장)
+ * 1. 키워드의 주제를 블로그의 blog_type/카테고리/설명과 매칭
+ * 2. 같은 blog_type의 다른 언어 블로그에도 동시 배정 (다국어 확장)
  * 3. 이벤트 키워드는 D-Day 기반 타임라인으로 기획
  * 4. 블로그별 발행 시간은 모두 다르게 배정
  */
 import { getServiceClient, runAgent } from './agent-runner'
-import { INTENT_BLOG_FIT } from '@/lib/monetize/constants'
 import type { AgentRunResult, EventPhase } from './types'
-import type { Grade, IntentType } from '@/types/monetize'
+import type { IntentType } from '@/types/monetize'
 
 // ─── Blog matching types ────────────────────────────────────────────────────
 
@@ -19,8 +18,83 @@ interface BlogInfo {
   name: string
   description: string | null
   primary_ad_category: string | null
+  blog_type: string | null
   language: string | null
   grade: string | null
+}
+
+// ─── blog_type ↔ 키워드 주제 매핑 (핵심 매칭 로직) ────────────────────────
+
+const BLOG_TYPE_KEYWORDS: Record<string, string[]> = {
+  'entertainment': ['콘서트', '공연', '뮤지컬', '팬미팅', '가수', '아이돌', 'K-POP', '넷플릭스', '영화', '드라마', 'OTT', '음악', '엔터', '코첼라', '페스티벌', '축제', '이벤트', '티켓', '예매', '셀럽'],
+  'medical': ['건강', '의학', '질병', '치료', '병원', '약', '증상', '진단', '수술', '혈당', '혈압', '비타민', '영양', '다이어트', '운동', '노화', '면역', '건강검진', '의료'],
+  'finance': ['주식', '투자', '부동산', '재테크', '연금', '적금', '보험', '세금', 'ETF', '금리', '대출', '자산'],
+  'it-tech': ['AI', '프로그래밍', '코딩', '노트북', '스마트폰', '앱', '소프트웨어', '개발', '클라우드', 'IT', '테크'],
+  'food': ['맛집', '레시피', '요리', '카페', '음식', '배달', '식당', '맛', '메뉴'],
+  'travel': ['여행', '호텔', '항공', '캠핑', '관광', '리조트', '숙소', '비행기', '투어', '명소'],
+  'beauty-fashion': ['화장품', '스킨케어', '메이크업', '뷰티', '피부', '패션', '옷', '코디', '명품', '향수'],
+  'parenting': ['육아', '아기', '어린이', '교육', '임산부', '출산', '유아', '초등', '학습'],
+  'pets': ['강아지', '고양이', '반려동물', '펫', '사료', '동물병원'],
+  'sports': ['축구', '야구', '골프', '등산', '헬스', '수영', 'KBO', 'K리그', '경기', '스포츠'],
+  'real-estate': ['부동산', '아파트', '전세', '월세', '매매', '분양', '인테리어', '이사'],
+  'education': ['공부', '자격증', '영어', '학습', '시험', '토익', '대학', '입시', '독학'],
+  'lifestyle': ['라이프', '일상', '취미', '트렌드', '추천', '후기', '비교', '쇼핑', '선물'],
+  'interior': ['인테리어', '가구', '가전', '청소', '홈리빙', '원룸', '수납'],
+  'automotive': ['자동차', '전기차', '중고차', '운전', '차량', '타이어', '보험'],
+  'news': ['뉴스', '시사', '정치', '경제', '사회'],
+  'science': ['과학', '연구', '기술', '우주', '환경'],
+}
+
+/** 시즌/일반 키워드 주제 추론 (키워드 텍스트에서 가장 적합한 blog_type 추정) */
+function inferBlogType(keywordText: string): string | null {
+  const kw = keywordText.toLowerCase()
+  let bestType: string | null = null
+  let bestCount = 0
+
+  for (const [blogType, keywords] of Object.entries(BLOG_TYPE_KEYWORDS)) {
+    const count = keywords.filter(k => kw.includes(k.toLowerCase())).length
+    if (count > bestCount) {
+      bestCount = count
+      bestType = blogType
+    }
+  }
+
+  // 시즌 키워드 특수 처리: "선물 추천", "이벤트" → lifestyle
+  if (!bestType) {
+    if (kw.includes('선물') || kw.includes('이벤트') || kw.includes('추천')) return 'lifestyle'
+    if (kw.includes('축제') || kw.includes('공연') || kw.includes('콘서트')) return 'entertainment'
+  }
+
+  return bestType
+}
+
+/** 키워드와 블로그의 매칭 점수 계산 */
+function matchScore(keywordText: string, blog: BlogInfo): number {
+  let score = 0
+  const inferredType = inferBlogType(keywordText)
+
+  // 1. blog_type 직접 매칭 (가장 높은 점수)
+  if (inferredType && blog.blog_type === inferredType) {
+    score += 50
+  }
+
+  // 2. blog_type의 키워드가 블로그 설명에 포함
+  if (blog.blog_type && BLOG_TYPE_KEYWORDS[blog.blog_type]) {
+    const typeKeywords = BLOG_TYPE_KEYWORDS[blog.blog_type]
+    const kw = keywordText.toLowerCase()
+    for (const tk of typeKeywords) {
+      if (kw.includes(tk.toLowerCase())) score += 15
+    }
+  }
+
+  // 3. 블로그 설명에 키워드 관련 단어 포함
+  const blogDesc = `${blog.name} ${blog.description ?? ''} ${blog.primary_ad_category ?? ''}`.toLowerCase()
+  const kwWords = keywordText.match(/[가-힣]{2,}/g) ?? []
+  for (const word of kwWords) {
+    if (blogDesc.includes(word)) score += 5
+  }
+
+  return score
 }
 
 // ─── Event Phase Config ─────────────────────────────────────────────────────
@@ -53,54 +127,6 @@ const EVENT_PHASE_CONFIG: Record<string, { dDayOffset: number; intentType: Inten
   ],
 }
 
-// ─── Keyword-Blog Matching ──────────────────────────────────────────────────
-
-/** 키워드의 주제와 블로그의 카테고리/설명을 매칭하여 점수를 계산 */
-function matchScore(keywordText: string, intentType: string | null, blog: BlogInfo): number {
-  let score = 0
-  const kw = keywordText.toLowerCase()
-  const blogDesc = `${blog.name} ${blog.description ?? ''} ${blog.primary_ad_category ?? ''}`.toLowerCase()
-
-  // 1. 카테고리 직접 매칭 (가장 높은 점수)
-  const cat = blog.primary_ad_category?.toLowerCase() ?? ''
-  if (cat && kw.includes(cat)) score += 30
-  if (cat && CATEGORY_KEYWORD_MAP[cat]?.some(ckw => kw.includes(ckw))) score += 25
-
-  // 2. 블로그 설명에 키워드 관련 단어가 포함되어 있는지
-  const kwWords = kw.match(/[가-힣]{2,}/g) ?? []
-  for (const word of kwWords) {
-    if (blogDesc.includes(word)) score += 10
-  }
-
-  // 3. Intent-Grade 적합도
-  const blogGrade = (blog.grade ?? 'C') as Grade
-  const intent = (intentType ?? 'INFO') as IntentType
-  const fitMatrix = INTENT_BLOG_FIT[intent]
-  score += (fitMatrix?.[blogGrade] ?? 1) * 5
-
-  return score
-}
-
-/** 카테고리별 관련 키워드 (매칭 보조) */
-const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
-  tech: ['ai', '노트북', '스마트폰', '앱', '프로그래밍', '코딩', '소프트웨어'],
-  health: ['건강', '다이어트', '운동', '영양', '비타민', '혈당', '혈압', '의학', '질병'],
-  medical: ['건강', '의학', '질병', '치료', '병원', '약', '증상', '진단', '수술'],
-  finance: ['주식', '투자', '부동산', '재테크', '연금', '적금', '보험', '세금'],
-  food: ['맛집', '레시피', '요리', '카페', '음식', '배달'],
-  travel: ['여행', '호텔', '항공', '캠핑', '관광', '리조트'],
-  beauty: ['화장품', '스킨케어', '메이크업', '뷰티', '피부'],
-  fashion: ['옷', '코디', '패션', '명품', '신발', '가방'],
-  parenting: ['육아', '아기', '어린이', '교육', '임산부'],
-  pets: ['강아지', '고양이', '반려동물', '펫'],
-  education: ['공부', '자격증', '영어', '학습', '시험'],
-  entertainment: ['영화', '넷플릭스', '음악', '게임', '웹툰', '공연', 'kpop'],
-  home: ['인테리어', '가구', '가전', '청소', '이사'],
-  auto: ['자동차', '전기차', '중고차', '운전'],
-  sports: ['축구', '야구', '골프', '등산', '헬스', '수영'],
-  culture: ['공연', '전시', '뮤지컬', '클래식', '문화', '예술'],
-}
-
 // ─── Main Agent ─────────────────────────────────────────────────────────────
 
 export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
@@ -110,7 +136,7 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
     let eventPlanned = 0
     let multiLangExpanded = 0
 
-    // 1. scored 단계 키워드 가져오기
+    // 1. scored 단계 키워드
     const { data: scoredKeywords } = await supabase
       .from('keyword_pipeline')
       .select('*')
@@ -121,47 +147,52 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
 
     if (!scoredKeywords || scoredKeywords.length === 0) return { assigned: 0, eventPlanned: 0, multiLangExpanded: 0 }
 
-    // 2. 사용자 블로그 목록 (설명, 카테고리, 언어 포함)
+    // 2. 사용자 블로그 목록 (blog_type 포함!)
     const { data: blogs } = await supabase
       .from('blogs')
-      .select('id, name, description, primary_ad_category, language, grade')
+      .select('id, name, description, primary_ad_category, blog_type, language, grade')
       .eq('user_id', userId)
       .eq('is_active', true)
 
     if (!blogs || blogs.length === 0) return { assigned: 0, eventPlanned: 0, error: 'no_active_blogs' }
 
-    // 3. 블로그를 카테고리별로 그룹화 (다국어 확장용)
-    const blogsByCategory = new Map<string, BlogInfo[]>()
+    // 3. blog_type별 블로그 그룹 (다국어 확장용)
+    const blogsByType = new Map<string, BlogInfo[]>()
     for (const blog of blogs) {
-      const cat = blog.primary_ad_category?.toLowerCase() ?? 'general'
-      if (!blogsByCategory.has(cat)) blogsByCategory.set(cat, [])
-      blogsByCategory.get(cat)!.push(blog)
+      const type = blog.blog_type ?? 'other'
+      if (!blogsByType.has(type)) blogsByType.set(type, [])
+      blogsByType.get(type)!.push(blog)
     }
 
-    // 4. 일정 관리
-    let nextDate = new Date()
-    nextDate.setDate(nextDate.getDate() + 1) // 내일부터
-    const blogTimeSlots = new Map<string, number>() // blogId → 다음 시간 슬롯
+    // 4. 일정 관리 (블로그별 시간 슬롯)
+    const blogSchedule = new Map<string, { nextDate: Date; nextHour: number }>()
 
     function getNextTimeForBlog(blogId: string): { date: string; time: string } {
-      let slot = blogTimeSlots.get(blogId) ?? 9
-      if (slot > 17) {
-        slot = 9
-        // 이 블로그의 다음 날짜로
+      if (!blogSchedule.has(blogId)) {
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        blogSchedule.set(blogId, { nextDate: tomorrow, nextHour: 9 })
       }
-      const date = nextDate.toISOString().split('T')[0]
-      const time = `${String(slot).padStart(2, '0')}:00`
-      blogTimeSlots.set(blogId, slot + 1 + Math.floor(Math.random() * 2))
+      const sched = blogSchedule.get(blogId)!
+      const date = sched.nextDate.toISOString().split('T')[0]
+      const time = `${String(sched.nextHour).padStart(2, '0')}:00`
+
+      // 다음 슬롯으로 이동
+      sched.nextHour += 1 + Math.floor(Math.random() * 2)
+      if (sched.nextHour > 17) {
+        sched.nextHour = 9
+        sched.nextDate.setDate(sched.nextDate.getDate() + 1)
+      }
+
       return { date, time }
     }
 
     // 5. 각 키워드를 최적 블로그에 배정
     for (const kw of scoredKeywords) {
-      // ─── 이벤트 키워드: D-Day 기반 클러스터 기획 ───
+      // ─── 이벤트 키워드 ───
       if (kw.keyword_type === 'event' && kw.event_title && kw.event_date) {
         const clusterId = `evt_${kw.event_title.replace(/\s+/g, '_').slice(0, 30)}_${kw.event_date}`
 
-        // 이미 클러스터가 있는지 확인
         const { data: existingCluster } = await supabase
           .from('keyword_pipeline')
           .select('id')
@@ -170,13 +201,10 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           .limit(1)
 
         if (!existingCluster || existingCluster.length === 0) {
-          // 새 이벤트: Phase별 키워드 클러스터 생성
           const eventDate = new Date(kw.event_date)
           const category = inferEventCategory(kw.event_title)
           const phases = EVENT_PHASE_CONFIG[category] ?? EVENT_PHASE_CONFIG.other
-
-          // 이벤트에 가장 적합한 블로그 찾기
-          const bestBlog = findBestBlog(blogs, kw.keyword_text, kw.intent_type)
+          const bestBlog = findBestBlog(blogs, kw.event_title ?? kw.keyword_text)
 
           for (const phase of phases) {
             const publishDate = new Date(eventDate)
@@ -212,8 +240,7 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           }
         }
 
-        // 원본 이벤트 키워드도 배정 완료 처리
-        const bestBlog = findBestBlog(blogs, kw.keyword_text, kw.intent_type)
+        const bestBlog = findBestBlog(blogs, kw.event_title ?? kw.keyword_text)
         await supabase.from('keyword_pipeline').update({
           stage: 'assigned',
           assigned_blog_id: bestBlog.id,
@@ -225,8 +252,8 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
         continue
       }
 
-      // ─── 일반 키워드: 최적 블로그 배정 + 다국어 확장 ───
-      const bestBlog = findBestBlog(blogs, kw.keyword_text, kw.intent_type)
+      // ─── 일반/시즌 키워드 ───
+      const bestBlog = findBestBlog(blogs, kw.keyword_text)
       const { date, time } = getNextTimeForBlog(bestBlog.id)
 
       await supabase.from('keyword_pipeline').update({
@@ -239,34 +266,31 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       }).eq('id', kw.id)
       assigned++
 
-      // ─── 다국어 확장: 같은 카테고리의 다른 언어 블로그에도 배정 ───
-      const bestCat = bestBlog.primary_ad_category?.toLowerCase() ?? ''
-      if (bestCat) {
-        const sameCategoryBlogs = blogsByCategory.get(bestCat) ?? []
-        const otherLangBlogs = sameCategoryBlogs.filter(b =>
-          b.id !== bestBlog.id && b.language !== bestBlog.language
-        )
+      // ─── 다국어 확장 ───
+      const bestType = bestBlog.blog_type ?? 'other'
+      const samTypeBlogs = blogsByType.get(bestType) ?? []
+      const otherLangBlogs = samTypeBlogs.filter(b =>
+        b.id !== bestBlog.id && b.language !== bestBlog.language
+      )
 
-        for (const langBlog of otherLangBlogs) {
-          const { date: langDate, time: langTime } = getNextTimeForBlog(langBlog.id)
+      for (const langBlog of otherLangBlogs) {
+        const { date: langDate, time: langTime } = getNextTimeForBlog(langBlog.id)
 
-          // 다국어 키워드 파이프라인 항목 생성
-          await supabase.from('keyword_pipeline').insert({
-            user_id: userId,
-            keyword_text: kw.keyword_text, // 원본 키워드 (Writer가 해당 언어로 번역 작성)
-            keyword_type: kw.keyword_type,
-            stage: 'scheduled',
-            revenue_score: kw.revenue_score,
-            keyword_grade: kw.keyword_grade,
-            intent_type: kw.intent_type,
-            assigned_blog_id: langBlog.id,
-            assigned_blog_name: langBlog.name,
-            scheduled_date: langDate,
-            scheduled_time: langTime,
-            assigned_at: new Date().toISOString(),
-          })
-          multiLangExpanded++
-        }
+        await supabase.from('keyword_pipeline').insert({
+          user_id: userId,
+          keyword_text: kw.keyword_text,
+          keyword_type: kw.keyword_type,
+          stage: 'scheduled',
+          revenue_score: kw.revenue_score,
+          keyword_grade: kw.keyword_grade,
+          intent_type: kw.intent_type,
+          assigned_blog_id: langBlog.id,
+          assigned_blog_name: langBlog.name,
+          scheduled_date: langDate,
+          scheduled_time: langTime,
+          assigned_at: new Date().toISOString(),
+        })
+        multiLangExpanded++
       }
     }
 
@@ -276,19 +300,26 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** 키워드와 가장 잘 매칭되는 블로그 찾기 */
-function findBestBlog(blogs: BlogInfo[], keywordText: string, intentType: string | null): BlogInfo {
+function findBestBlog(blogs: BlogInfo[], keywordText: string): BlogInfo {
   if (blogs.length === 1) return blogs[0]
 
   let bestBlog = blogs[0]
   let bestScore = -1
 
   for (const blog of blogs) {
-    const score = matchScore(keywordText, intentType, blog)
+    const score = matchScore(keywordText, blog)
     if (score > bestScore) {
       bestScore = score
       bestBlog = blog
     }
+  }
+
+  // 점수가 0이면 (어떤 블로그와도 매칭 안 됨) → 라이프스타일 또는 기타 블로그 우선
+  if (bestScore === 0) {
+    const lifestyleBlog = blogs.find(b => b.blog_type === 'lifestyle')
+    if (lifestyleBlog) return lifestyleBlog
+    const otherBlog = blogs.find(b => b.blog_type === 'other' || !b.blog_type)
+    if (otherBlog) return otherBlog
   }
 
   return bestBlog
@@ -297,7 +328,7 @@ function findBestBlog(blogs: BlogInfo[], keywordText: string, intentType: string
 function inferEventCategory(title: string): string {
   if (/콘서트|공연|뮤지컬|팬미팅|가수|아이돌/.test(title)) return 'concert'
   if (/야구|축구|농구|KBO|K리그|경기/.test(title)) return 'sports'
-  if (/축제|페스티벌/.test(title)) return 'festival'
+  if (/축제|페스티벌|코첼라/.test(title)) return 'festival'
   if (/전시|박람회|미술/.test(title)) return 'exhibition'
   return 'other'
 }

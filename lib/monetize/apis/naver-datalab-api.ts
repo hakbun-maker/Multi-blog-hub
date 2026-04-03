@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/utils/encryption'
 import { ANNUAL_EVENTS } from '@/lib/monetize/constants'
 
 interface TrendResult {
@@ -35,9 +36,14 @@ export class NaverDataLabAPI {
       .single()
 
     if (!data) return false
-    this.apiKey = data.encrypted_key
-    this.secretKey = data.encrypted_secret || ''
-    return true
+    try {
+      this.apiKey = decrypt(data.encrypted_key)
+      this.secretKey = data.encrypted_secret ? decrypt(data.encrypted_secret) : ''
+      return true
+    } catch {
+      console.error('[NaverDataLabAPI] API 키 복호화 실패')
+      return false
+    }
   }
 
   /** API 키를 직접 전달하여 초기화 (크론/서버 컨텍스트용) */
