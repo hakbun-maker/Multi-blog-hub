@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { addVercelDomain } from '@/lib/vercel'
 
 export async function GET() {
   const supabase = createClient()
@@ -80,6 +81,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '이미 사용 중인 슬러그입니다.' }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 커스텀 도메인이 있으면 Vercel에 자동 등록
+  if (customDomain) {
+    await addVercelDomain(customDomain).catch(() => {})
   }
 
   // Google Indexing OAuth가 연결되어 있으면 새 블로그를 GSC에 자동 등록
