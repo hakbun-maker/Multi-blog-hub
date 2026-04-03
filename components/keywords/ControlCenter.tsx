@@ -10,7 +10,7 @@ import {
   Loader2, RefreshCw, Settings2, ChevronRight, Clock,
   CheckCircle, AlertCircle, Circle, Zap, ZapOff,
   Calendar, Music, Trophy, PartyPopper, Palette,
-  Pencil, Trash2, Check, X,
+  Pencil, Trash2, Check, X, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { AutoDiscoveryToggle } from '@/components/keywords/AutoDiscoveryToggle'
 import { ApiKeyQuickSetup } from '@/components/keywords/ApiKeyQuickSetup'
@@ -135,6 +135,8 @@ export function ControlCenter() {
   })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [sortField, setSortField] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -187,6 +189,40 @@ export function ControlCenter() {
       setRunningPipeline(false)
     }
   }
+
+  // 정렬 토글
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  // 정렬 적용
+  const STAGE_ORDER: Record<string, number> = { discovered: 0, scored: 1, assigned: 2, scheduled: 3, writing: 4, review: 5, published: 6 }
+  const GRADE_ORDER: Record<string, number> = { S: 5, A: 4, B: 3, C: 2, D: 1 }
+
+  const sortedKeywordFlow = [...keywordFlow].sort((a, b) => {
+    if (!sortField) return 0
+    const dir = sortDir === 'asc' ? 1 : -1
+
+    switch (sortField) {
+      case 'grade':
+        return ((GRADE_ORDER[a.keyword_grade] ?? 0) - (GRADE_ORDER[b.keyword_grade] ?? 0)) * dir
+      case 'stage':
+        return ((STAGE_ORDER[a.stage] ?? 0) - (STAGE_ORDER[b.stage] ?? 0)) * dir
+      case 'blog':
+        return (a.assigned_blog_name ?? '').localeCompare(b.assigned_blog_name ?? '') * dir
+      case 'date':
+        return ((a.scheduled_date ?? '') + (a.scheduled_time ?? '')).localeCompare((b.scheduled_date ?? '') + (b.scheduled_time ?? '')) * dir
+      case 'score':
+        return ((a.revenue_score ?? 0) - (b.revenue_score ?? 0)) * dir
+      default:
+        return 0
+    }
+  })
 
   // 편집 시작
   const startEditing = (kw: KeywordFlowRow) => {
@@ -424,11 +460,27 @@ export function ControlCenter() {
                 <thead>
                   <tr className="border-b text-xs text-gray-500">
                     <th className="text-left py-2 px-2 font-medium">키워드</th>
-                    <th className="text-center py-2 px-1 font-medium">등급</th>
-                    <th className="text-center py-2 px-1 font-medium">단계</th>
-                    <th className="text-left py-2 px-2 font-medium hidden sm:table-cell">블로그</th>
-                    <th className="text-left py-2 px-2 font-medium hidden md:table-cell">발행예정</th>
-                    <th className="text-center py-2 px-1 font-medium">점수</th>
+                    {[
+                      { field: 'grade', label: '등급', center: true, hide: '' },
+                      { field: 'stage', label: '단계', center: true, hide: '' },
+                      { field: 'blog', label: '블로그', center: false, hide: 'hidden sm:table-cell' },
+                      { field: 'date', label: '발행예정', center: false, hide: 'hidden md:table-cell' },
+                      { field: 'score', label: '점수', center: true, hide: '' },
+                    ].map(col => (
+                      <th key={col.field} className={`py-2 px-1 font-medium ${col.center ? 'text-center' : 'text-left'} ${col.hide}`}>
+                        <button
+                          onClick={() => toggleSort(col.field)}
+                          className="inline-flex items-center gap-0.5 hover:text-orange-600 transition-colors"
+                        >
+                          {col.label}
+                          {sortField === col.field ? (
+                            sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-30" />
+                          )}
+                        </button>
+                      </th>
+                    ))}
                     <th className="text-center py-2 px-1 font-medium w-10"></th>
                     <th className="text-center py-2 px-1 w-8">
                       <input
@@ -441,7 +493,7 @@ export function ControlCenter() {
                   </tr>
                 </thead>
                 <tbody>
-                  {keywordFlow.map(kw => {
+                  {sortedKeywordFlow.map(kw => {
                     const stageConfig = STAGE_CONFIG[kw.stage] ?? STAGE_CONFIG.discovered
                     const isEditing = editingId === kw.id
 
