@@ -133,6 +133,8 @@ export function ControlCenter() {
   const [editData, setEditData] = useState<{ keyword_text: string; assigned_blog_id: string; assigned_blog_name: string; scheduled_date: string; scheduled_time: string }>({
     keyword_text: '', assigned_blog_id: '', assigned_blog_name: '', scheduled_date: '', scheduled_time: '',
   })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -217,10 +219,48 @@ export function ControlCenter() {
     fetchData(true)
   }
 
-  // 삭제
+  // 단일 삭제
   const deleteItem = async (id: string) => {
+    if (!confirm('이 키워드를 삭제하시겠습니까?')) return
     await fetch(`/api/agents/pipeline/${id}`, { method: 'DELETE' })
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n })
     fetchData(true)
+  }
+
+  // 체크박스 토글
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  // 전체 선택/해제
+  const toggleSelectAll = () => {
+    if (selectedIds.size === keywordFlow.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(keywordFlow.map(k => k.id)))
+    }
+  }
+
+  // 선택 항목 일괄 삭제
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`${selectedIds.size}개 키워드를 삭제하시겠습니까?`)) return
+    setDeleting(true)
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/agents/pipeline/${id}`, { method: 'DELETE' })
+        )
+      )
+      setSelectedIds(new Set())
+      fetchData(true)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -355,7 +395,21 @@ export function ControlCenter() {
       {/* Keyword Flow Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">키워드 파이프라인 흐름</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">키워드 파이프라인 흐름</CardTitle>
+            {selectedIds.size > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={bulkDelete}
+                disabled={deleting}
+                className="gap-1.5 h-7 text-xs"
+              >
+                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                선택 삭제 ({selectedIds.size})
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {keywordFlow.length === 0 ? (
@@ -375,7 +429,15 @@ export function ControlCenter() {
                     <th className="text-left py-2 px-2 font-medium hidden sm:table-cell">블로그</th>
                     <th className="text-left py-2 px-2 font-medium hidden md:table-cell">발행예정</th>
                     <th className="text-center py-2 px-1 font-medium">점수</th>
-                    <th className="text-center py-2 px-1 font-medium w-16"></th>
+                    <th className="text-center py-2 px-1 font-medium w-10"></th>
+                    <th className="text-center py-2 px-1 w-8">
+                      <input
+                        type="checkbox"
+                        checked={keywordFlow.length > 0 && selectedIds.size === keywordFlow.length}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -440,6 +502,10 @@ export function ControlCenter() {
                               </button>
                             </div>
                           </td>
+                          <td className="text-center py-2 px-1">
+                            <input type="checkbox" checked={selectedIds.has(kw.id)} onChange={() => toggleSelect(kw.id)}
+                              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500" />
+                          </td>
                         </tr>
                       )
                     }
@@ -501,6 +567,10 @@ export function ControlCenter() {
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                        </td>
+                        <td className="text-center py-2 px-1">
+                          <input type="checkbox" checked={selectedIds.has(kw.id)} onChange={() => toggleSelect(kw.id)}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500" />
                         </td>
                       </tr>
                     )
