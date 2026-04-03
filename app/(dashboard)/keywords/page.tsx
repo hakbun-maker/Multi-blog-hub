@@ -2,14 +2,14 @@
 
 import { MonetizeSubNav } from '@/components/monetize/MonetizeSubNav'
 import { FeatureGate } from '@/components/plan/FeatureGate'
-import { KeywordExplorer } from '@/components/keywords/KeywordExplorer'
+import { ControlCenter } from '@/components/keywords/ControlCenter'
 
 export default function KeywordsPage() {
   return (
     <>
       <MonetizeSubNav />
-      <FeatureGate featureKey="keyword_explorer" minPlan="pro" featureName="키워드 탐색기">
-        <KeywordExplorer />
+      <FeatureGate featureKey="keyword_explorer" minPlan="pro" featureName="키워드 자동화 컨트롤센터">
+        <ControlCenter />
       </FeatureGate>
     </>
   )
