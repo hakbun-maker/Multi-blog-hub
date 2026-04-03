@@ -207,7 +207,7 @@ export function SchedulerCalendar() {
             <ol className="list-decimal list-inside space-y-1 text-blue-600">
               <li>위 URL을 복사합니다</li>
               <li>Google Calendar 앱/웹 → 설정 → 캘린더 추가</li>
-              <li>"URL로 추가" 선택 → URL 붙여넣기</li>
+              <li>&ldquo;URL로 추가&rdquo; 선택 → URL 붙여넣기</li>
               <li>스케줄이 자동으로 핸드폰 달력에 표시됩니다</li>
             </ol>
           </div>

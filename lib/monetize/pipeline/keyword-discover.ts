@@ -567,11 +567,26 @@ export async function runKeywordDiscoverPipeline(): Promise<KeywordDiscoverResul
 
   const userIds = Array.from(userKeyMap.keys())
 
-  // Fetch blog categories for all users in one query
+  // Filter to only users who have auto_discover = true in keyword_settings
+  const { data: enabledSettings } = await supabase
+    .from('keyword_settings')
+    .select('user_id')
+    .in('user_id', userIds)
+    .eq('auto_discover', true)
+
+  const enabledUserIds = new Set((enabledSettings ?? []).map((s: { user_id: string }) => s.user_id))
+  const filteredUserIds = userIds.filter(id => enabledUserIds.has(id))
+
+  if (filteredUserIds.length === 0) {
+    console.log('[KeywordDiscover] No users with auto_discover enabled')
+    return results
+  }
+
+  // Fetch blog categories for all filtered users in one query
   const { data: blogs } = await supabase
     .from('blogs')
     .select('user_id, primary_ad_category')
-    .in('user_id', userIds)
+    .in('user_id', filteredUserIds)
     .eq('is_active', true)
 
   const userBlogCategoriesMap = new Map<string, Array<string | null>>()
@@ -582,9 +597,9 @@ export async function runKeywordDiscoverPipeline(): Promise<KeywordDiscoverResul
     userBlogCategoriesMap.get(blog.user_id)!.push(blog.primary_ad_category ?? null)
   }
 
-  // Process each user independently
-  for (const entry of Array.from(userKeyMap.entries())) {
-    const [userId, keys] = entry
+  // Process each user independently (only auto_discover-enabled users)
+  for (const userId of filteredUserIds) {
+    const keys = userKeyMap.get(userId)!
     try {
       const blogCategories = userBlogCategoriesMap.get(userId) ?? [null]
       const userResult = await discoverForUser(
