@@ -10,6 +10,8 @@ const SUPPORTED_PROVIDERS = [
   'naver_ad',
   'naver_search',
   'google_kwp',
+  'google_trends',
+  'interpark',
   'coupang',
   'amazon',
 ] as const

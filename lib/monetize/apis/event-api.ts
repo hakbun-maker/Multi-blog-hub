@@ -371,20 +371,57 @@ export class EventAPI {
     const rawTitle = (item.title ?? '').replace(/<[^>]*>/g, '').trim()
     const description = (item.description ?? '').replace(/<[^>]*>/g, '').trim()
 
-    const category = EventAPI.inferCategory(rawTitle) ?? defaultCategory
+    // 뉴스 기사 제목에서 핵심 이벤트명 추출 (긴 기사 제목을 검색 키워드로 정제)
+    const cleanTitle = EventAPI.extractEventName(rawTitle)
+    const category = EventAPI.inferCategory(cleanTitle) ?? defaultCategory
 
-    // Try to extract a date from the description or pubDate
     const date = EventAPI.extractDate(description) ?? EventAPI.extractDate(item.pubDate ?? '')
 
     return {
-      title: rawTitle,
+      title: cleanTitle,
       date,
       category,
       source,
-      keywords: EventAPI.extractKeywords(rawTitle, category),
-      dDay: null, // calculated later in fetchAllEvents
+      keywords: EventAPI.extractKeywords(cleanTitle, category),
+      dDay: null,
       url: item.link ?? undefined,
     }
+  }
+
+  /**
+   * 뉴스 기사 제목에서 핵심 이벤트명만 추출합니다.
+   * "OTT로 넘어가는 '공동 시청' 콘텐츠 주도권" → "OTT 공동시청"
+   * "2026 코첼라 페스티벌 라인업 공개...BTS 출연 확정" → "코첼라 페스티벌"
+   */
+  static extractEventName(title: string): string {
+    // 1. 따옴표 안의 이벤트명 추출 우선
+    const quoted = title.match(/[''""「」『』【】]([^''""「」『』【】]{2,15})[''""「」『』【】]/)
+    if (quoted) return quoted[1].trim()
+
+    // 2. "..." 이후 제거, 부제/설명 제거
+    let clean = title
+      .split(/[…·|,\-]/)
+      .map(s => s.trim())
+      .filter(s => s.length >= 2)
+      [0] ?? title
+
+    // 3. 기사성 접미사 제거
+    clean = clean
+      .replace(/(보도|발표|전망|논란|주도권|분석|평가|의미|배경|이유|현황|동향)$/, '')
+      .replace(/(에 대한|으로 인한|을 위한|에서의).*$/, '')
+      .trim()
+
+    // 4. 너무 길면 (15자 초과) 핵심 명사만 추출
+    if (clean.length > 15) {
+      const nouns = clean.match(/[가-힣A-Za-z0-9]{2,}/g) ?? []
+      // 의미없는 조사/동사 필터
+      const filtered = nouns.filter(n =>
+        !['넘어가는', '되는', '하는', '있는', '위한', '대한', '통한', '관련', '것으로', '이상'].includes(n)
+      )
+      clean = filtered.slice(0, 3).join(' ')
+    }
+
+    return clean || title.slice(0, 15)
   }
 
   /**
