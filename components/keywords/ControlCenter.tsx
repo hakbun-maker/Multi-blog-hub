@@ -121,6 +121,7 @@ export function ControlCenter() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
+  const [runningPipeline, setRunningPipeline] = useState(false)
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -152,6 +153,21 @@ export function ControlCenter() {
     return () => clearInterval(interval)
   }, [fetchData])
 
+  // 수동 파이프라인 실행
+  const handleRunNow = async () => {
+    setRunningPipeline(true)
+    try {
+      const res = await fetch('/api/agents/run', { method: 'POST' })
+      if (res.ok) {
+        // 완료 후 데이터 새로고침
+        await fetchData(true)
+      }
+    } catch { /* ignore */ }
+    finally {
+      setRunningPipeline(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -174,8 +190,20 @@ export function ControlCenter() {
             AI 에이전트가 키워드 발굴부터 글 발행까지 자동으로 처리합니다
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <AutoDiscoveryToggle enabled={autoDiscover} onToggle={setAutoDiscover} />
+          <Button
+            size="sm"
+            onClick={handleRunNow}
+            disabled={runningPipeline}
+            className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            {runningPipeline ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> 실행 중...</>
+            ) : (
+              <><Rocket className="w-4 h-4" /> 지금 시작</>
+            )}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowApiKeyDialog(true)} className="gap-1.5">
             <Settings2 className="w-4 h-4" />
             <span className="hidden sm:inline">API 키</span>
