@@ -75,9 +75,10 @@ const AGENT_CONFIG: Record<string, { label: string; icon: React.ReactNode; descr
   scout: { label: 'Scout', icon: <Search className="w-4 h-4" />, description: '키워드 발굴' },
   analyst: { label: 'Analyst', icon: <BarChart2 className="w-4 h-4" />, description: '점수 분석' },
   planner: { label: 'Planner', icon: <ClipboardList className="w-4 h-4" />, description: '배정 & 기획' },
-  writer: { label: 'Writer', icon: <PenSquare className="w-4 h-4" />, description: 'AI 글쓰기' },
-  publisher: { label: 'Publisher', icon: <Rocket className="w-4 h-4" />, description: '발행 & 후기' },
 }
+
+/** 이 페이지에서 보여줄 에이전트 (키워드 파이프라인만) */
+const VISIBLE_AGENTS = ['scout', 'analyst', 'planner']
 
 const STATUS_CONFIG: Record<string, { color: string; dot: string; label: string }> = {
   running: { color: 'text-yellow-600', dot: 'bg-yellow-500 animate-pulse', label: '실행 중' },
@@ -90,11 +91,15 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: React.R
   discovered: { label: '발굴', color: 'bg-blue-100 text-blue-700', icon: <Search className="w-3 h-3" /> },
   scored: { label: '분석', color: 'bg-purple-100 text-purple-700', icon: <BarChart2 className="w-3 h-3" /> },
   assigned: { label: '배정', color: 'bg-yellow-100 text-yellow-700', icon: <ClipboardList className="w-3 h-3" /> },
+  scheduled: { label: '스케줄 확정', color: 'bg-green-100 text-green-700', icon: <Clock className="w-3 h-3" /> },
+  // writing/review/published는 스케줄러 페이지에서 관리
   writing: { label: '작성중', color: 'bg-orange-100 text-orange-700', icon: <PenSquare className="w-3 h-3" /> },
   review: { label: '검수', color: 'bg-pink-100 text-pink-700', icon: <CheckCircle className="w-3 h-3" /> },
-  scheduled: { label: '예정', color: 'bg-indigo-100 text-indigo-700', icon: <Clock className="w-3 h-3" /> },
   published: { label: '발행완료', color: 'bg-green-100 text-green-700', icon: <Rocket className="w-3 h-3" /> },
 }
+
+/** 이 페이지에서 보여줄 파이프라인 단계 (키워드 배정까지만) */
+const VISIBLE_STAGES = ['discovered', 'scored', 'assigned', 'scheduled']
 
 const PHASE_ICONS: Record<string, { icon: React.ReactNode; label: string }> = {
   pre_info: { icon: <Search className="w-3 h-3" />, label: '정보글' },
@@ -225,7 +230,8 @@ export function ControlCenter() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-1 overflow-x-auto pb-2">
-              {Object.entries(STAGE_CONFIG).map(([stage, config], idx) => {
+              {VISIBLE_STAGES.map((stage, idx) => {
+                const config = STAGE_CONFIG[stage]
                 const count = pipeline[stage as keyof PipelineCounts] ?? 0
                 const maxCount = Math.max(...Object.values(pipeline), 1)
                 const width = Math.max(count / maxCount * 100, 15)
@@ -244,7 +250,7 @@ export function ControlCenter() {
                         </div>
                       </div>
                     </div>
-                    {idx < Object.keys(STAGE_CONFIG).length - 1 && (
+                    {idx < VISIBLE_STAGES.length - 1 && (
                       <ChevronRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
                     )}
                   </div>
@@ -255,9 +261,9 @@ export function ControlCenter() {
         </Card>
       )}
 
-      {/* Agent Status Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {agents.map(agent => {
+      {/* Agent Status Cards (Scout, Analyst, Planner만 표시) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {agents.filter(a => VISIBLE_AGENTS.includes(a.agentType)).map(agent => {
           const config = AGENT_CONFIG[agent.agentType]
           const status = STATUS_CONFIG[agent.status] ?? STATUS_CONFIG.idle
 
@@ -318,7 +324,7 @@ export function ControlCenter() {
                     <th className="text-center py-2 px-1 font-medium">단계</th>
                     <th className="text-left py-2 px-2 font-medium hidden sm:table-cell">블로그</th>
                     <th className="text-left py-2 px-2 font-medium hidden md:table-cell">발행예정</th>
-                    <th className="text-center py-2 px-1 font-medium">진행</th>
+                    <th className="text-center py-2 px-1 font-medium">점수</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -369,21 +375,9 @@ export function ControlCenter() {
                           )}
                         </td>
                         <td className="text-center py-2 px-1">
-                          {kw.stage === 'writing' ? (
-                            <div className="flex items-center gap-1">
-                              <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-orange-500 rounded-full transition-all"
-                                  style={{ width: `${kw.writing_progress}%` }}
-                                />
-                              </div>
-                              <span className="text-[9px] text-gray-500">{kw.writing_progress}%</span>
-                            </div>
-                          ) : kw.stage === 'published' ? (
-                            <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                          ) : (
-                            <Circle className="w-3 h-3 text-gray-200 mx-auto" />
-                          )}
+                          <span className="text-xs font-medium text-gray-700">
+                            {kw.revenue_score > 0 ? Math.round(kw.revenue_score) : '-'}
+                          </span>
                         </td>
                       </tr>
                     )

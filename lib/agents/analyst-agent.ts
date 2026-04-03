@@ -81,12 +81,34 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
       if (compIdx === '높음') competitionIndex = 'HIGH'
       else if (compIdx === '낮음') competitionIndex = 'LOW'
 
+      // API 데이터가 있으면 실제값 사용, 없으면 키워드 특성 기반 추정
+      const hasApiData = !!ad
+      const volume = ad?.volume ?? p.monthly_search_volume ?? 0
+
+      // API 없을 때: 키워드 길이/단어수로 경쟁도 추정 (롱테일 = 경쟁 낮음)
+      const wordCount = p.keyword_text.split(/\s+/).length
+      const estimatedCompetition = !hasApiData
+        ? (wordCount >= 3 ? 'LOW' : wordCount >= 2 ? 'MEDIUM' : 'HIGH')
+        : competitionIndex
+
+      // API 없을 때: 롱테일 키워드는 높은 CPC 추정 (구매 의도 높음)
+      const estimatedCpc = hasApiData ? 1500
+        : wordCount >= 3 ? 2500  // 롱테일 = 구매 의도 높음
+        : wordCount >= 2 ? 1800
+        : 800
+
+      // API 없을 때: 검색량 추정 (롱테일은 중간 검색량)
+      const estimatedVolume = volume > 0 ? volume
+        : wordCount >= 3 ? 3000
+        : wordCount >= 2 ? 5000
+        : 8000
+
       return {
         keyword: p.keyword_text,
-        monthlySearchVolume: ad?.volume ?? p.monthly_search_volume ?? 3000,
-        competitionIndex,
-        cpcEstimate: 1500,
-        trendIndex: trendMap.get(p.keyword_text) ?? 50,
+        monthlySearchVolume: estimatedVolume,
+        competitionIndex: estimatedCompetition,
+        cpcEstimate: estimatedCpc,
+        trendIndex: trendMap.get(p.keyword_text) ?? (wordCount >= 2 ? 65 : 45),
       }
     })
 
