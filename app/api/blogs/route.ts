@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       slug,
       description,
       custom_domain: customDomain,
-      subdomain,
+      subdomain: subdomain || slug,
       ai_provider: aiProvider ?? 'claude',
       color: color ?? '#3b82f6',
     })
