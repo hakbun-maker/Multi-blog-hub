@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   )
   const { data: blog } = await supabase
     .from('blogs')
-    .select('name, description, layout_config')
+    .select('name, description, layout_config, custom_domain')
     .eq('slug', params.slug)
     .eq('is_active', true)
     .single()
@@ -35,7 +35,10 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   if (tracking?.gsc_code) verification.google = tracking.gsc_code
   if (tracking?.naver_code) verification.other = tracking.naver_code
 
-  const url = `${APP_URL}/blog/${params.slug}`
+  // 커스텀 도메인이 있으면 해당 도메인 기준, 없으면 앱 도메인 기준
+  const url = blog.custom_domain
+    ? `https://${blog.custom_domain}`
+    : `${APP_URL}/blog/${params.slug}`
 
   return {
     title: blog.name,

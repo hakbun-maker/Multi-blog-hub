@@ -13,6 +13,28 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 블로그별 글 수를 한 번에 조회 (N+1 방지)
+  if (data && data.length > 0) {
+    const blogIds = data.map(b => b.id)
+    const { data: postCounts } = await supabase
+      .from('posts')
+      .select('blog_id, status')
+      .in('blog_id', blogIds)
+
+    if (postCounts) {
+      const countMap: Record<string, { total: number; published: number }> = {}
+      for (const p of postCounts) {
+        if (!countMap[p.blog_id]) countMap[p.blog_id] = { total: 0, published: 0 }
+        countMap[p.blog_id].total++
+        if (p.status === 'published') countMap[p.blog_id].published++
+      }
+      for (const blog of data) {
+        (blog as any).postCount = countMap[blog.id] ?? { total: 0, published: 0 }
+      }
+    }
+  }
+
   return NextResponse.json({ data })
 }
 

@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   // 블로그 조회
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, blog_type')
+    .select('id, name, slug, blog_type, custom_domain')
     .eq('slug', params.slug)
     .eq('is_active', true)
     .single()
@@ -54,7 +54,11 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   const title = post.seo_title || post.title
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
   const thumbnail = extractFirstImage(post.content_html)
-  const url = `${APP_URL}/blog/${blog.slug}/${params.postSlug}`
+  // 커스텀 도메인이면 해당 도메인 기준 URL, 없으면 앱 도메인 기준
+  const decodedPostSlug = decodeURIComponent(params.postSlug)
+  const url = blog.custom_domain
+    ? `https://${blog.custom_domain}/${decodedPostSlug}`
+    : `${APP_URL}/blog/${blog.slug}/${decodedPostSlug}`
 
   const BLOG_TYPE_KW: Record<string, string[]> = {
     legal: ['법률', '법률상담', 'legal'],

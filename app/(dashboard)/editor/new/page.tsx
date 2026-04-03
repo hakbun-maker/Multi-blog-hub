@@ -142,6 +142,21 @@ export default function EditorNewPage() {
     if (res.ok) router.push('/dashboard')
   }
 
+  // 블로그별 default_category_id를 일괄 조회
+  const fetchDefaultCategories = async (blogIds: string[]): Promise<Record<string, string | null>> => {
+    const result: Record<string, string | null> = {}
+    await Promise.all(blogIds.map(async (blogId) => {
+      try {
+        const res = await fetch(`/api/blogs/${blogId}`)
+        const json = await res.json()
+        result[blogId] = json.data?.default_category_id ?? null
+      } catch {
+        result[blogId] = null
+      }
+    }))
+    return result
+  }
+
   // AI 파이프라인 완료 콜백
   const handlePipelineComplete = useCallback(async (states: Record<string, BlogPipelineState>) => {
     setAiResults(states)
@@ -151,21 +166,35 @@ export default function EditorNewPage() {
     // 자동 발행 모드
     if (autoPublish) {
       setPublishingAll(true)
+      const defaultCategories = await fetchDefaultCategories(blogIds)
+      const errors: string[] = []
       for (const blogId of blogIds) {
         const s = states[blogId]
         if (s.step !== 'done' || !s.title) continue
-        await fetch('/api/posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: s.title, htmlContent: s.htmlContent,
-            status: 'published', tags: s.tags,
-            seoMeta: s.seoMeta, blogId,
-            publishedAt: new Date().toISOString(),
-          }),
-        })
+        try {
+          const res = await fetch('/api/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: s.title, htmlContent: s.htmlContent,
+              status: 'published', tags: s.tags,
+              seoMeta: s.seoMeta, blogId,
+              categoryId: defaultCategories[blogId],
+              publishedAt: new Date().toISOString(),
+            }),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({ error: 'Unknown error' }))
+            errors.push(`${s.blogName}: ${data.error}`)
+          }
+        } catch (err) {
+          errors.push(`${s.blogName}: 네트워크 오류`)
+        }
       }
       setPublishingAll(false)
+      if (errors.length > 0) {
+        alert(`일부 블로그 발행 실패:\n${errors.join('\n')}`)
+      }
       router.push('/dashboard')
     }
   }, [autoPublish, router])
@@ -183,22 +212,37 @@ export default function EditorNewPage() {
     const blogIds = Object.keys(aiResults)
     if (!blogIds.length) return
     setPublishingAll(true)
+    const defaultCategories = await fetchDefaultCategories(blogIds)
+    const errors: string[] = []
     for (const blogId of blogIds) {
       const s = aiResults[blogId]
       if (s.step !== 'done' || !s.title) continue
-      await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: s.title, htmlContent: s.htmlContent,
-          status: 'published', tags: s.tags,
-          seoMeta: s.seoMeta, blogId,
-          publishedAt: new Date().toISOString(),
-        }),
-      })
+      try {
+        const res = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: s.title, htmlContent: s.htmlContent,
+            status: 'published', tags: s.tags,
+            seoMeta: s.seoMeta, blogId,
+            categoryId: defaultCategories[blogId],
+            publishedAt: new Date().toISOString(),
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({ error: 'Unknown error' }))
+          errors.push(`${s.blogName}: ${data.error}`)
+        }
+      } catch (err) {
+        errors.push(`${s.blogName}: 네트워크 오류`)
+      }
     }
     setPublishingAll(false)
-    router.push('/dashboard')
+    if (errors.length > 0) {
+      alert(`일부 블로그 발행 실패:\n${errors.join('\n')}`)
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   // AI 메타/태그 자동 생성

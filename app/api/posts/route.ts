@@ -50,13 +50,30 @@ export async function POST(request: Request) {
   }
 
   const finalTitle = (title && title.trim()) ? title : '제목없음'
-  const slug = finalTitle.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now()
+  // slug 생성: 한글 + ASCII + 확장 라틴 문자(악센트 등) 모두 지원
+  const slug = finalTitle
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // 악센트 분리 후 제거 (é→e, ü→u)
+    .replace(/[^a-z0-9가-힣]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    + '-' + Date.now()
+
+  // categoryId가 없으면 블로그의 기본 카테고리 사용 (서버 fallback)
+  let resolvedCategoryId = categoryId || null
+  if (!resolvedCategoryId && blogId) {
+    const { data: blogData } = await supabase
+      .from('blogs')
+      .select('default_category_id')
+      .eq('id', blogId)
+      .single()
+    resolvedCategoryId = blogData?.default_category_id ?? null
+  }
 
   const { data, error } = await supabase
     .from('posts')
     .insert({
       ...(blogId ? { blog_id: blogId } : {}),
-      ...(categoryId ? { category_id: categoryId } : {}),
+      ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
       user_id: user.id,
       title: finalTitle,
       slug,

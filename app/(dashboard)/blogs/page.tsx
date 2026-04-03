@@ -117,16 +117,14 @@ export default function BlogsPage() {
     fetchPosts()
   }, [activeTab])
 
-  // 블로그 카드용 포스트 수 집계 (blogs 탭에서도 필요하므로 별도 fetch 없이 posts 재활용)
+  // 블로그 카드용 포스트 수 — blogs API에서 직접 반환 (별도 fetch 불필요)
   const postCountByBlog = useMemo(() => {
     const map: Record<string, { total: number; published: number }> = {}
-    for (const p of posts) {
-      if (!map[p.blog_id]) map[p.blog_id] = { total: 0, published: 0 }
-      map[p.blog_id].total++
-      if (p.status === 'published') map[p.blog_id].published++
+    for (const b of blogs) {
+      map[b.id] = (b as any).postCount ?? { total: 0, published: 0 }
     }
     return map
-  }, [posts])
+  }, [blogs])
 
   const blogMap = useMemo(() => {
     const m: Record<string, Blog> = {}
