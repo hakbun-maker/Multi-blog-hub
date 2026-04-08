@@ -294,6 +294,15 @@ export default function BlogsPage() {
                           <Link href={`/blogs/${blog.id}`}>확인</Link>
                         </Button>
                         <Button asChild size="sm" variant="outline">
+                          <a
+                            href={blog.custom_domain ? `https://${blog.custom_domain}` : `/blog/${blog.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 mr-1" />사이트
+                          </a>
+                        </Button>
+                        <Button asChild size="sm" variant="outline">
                           <Link href={`/blogs/${blog.id}/settings`}><Settings className="w-3.5 h-3.5 mr-1" />설정</Link>
                         </Button>
                       </div>
