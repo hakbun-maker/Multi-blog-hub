@@ -216,11 +216,18 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     const naverAd = new NaverAdAPI()
     naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey, naverAdKey.extraKey)
 
+    let firstCallDone = false
     for (const [blogType, seeds] of Array.from(seedsByType.entries())) {
       try {
         const results = await naverAd.getKeywordStats(seeds.slice(0, 5))
         _debug[`gold_${blogType}_apiResults`] = results.length
         _debug[`gold_${blogType}_seeds`] = seeds.slice(0, 5)
+
+        // 첫 번째 API 호출의 raw 응답 기록
+        if (!firstCallDone) {
+          _debug.firstApiRawResponse = (naverAd as any)._lastRawResponse ?? 'no_response'
+          firstCallDone = true
+        }
 
         const newKeywords = results
           .filter(r => !existingSet.has(r.keyword))

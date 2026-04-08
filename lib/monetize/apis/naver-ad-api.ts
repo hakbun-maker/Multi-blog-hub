@@ -112,6 +112,16 @@ export class NaverAdAPI {
         const data = await response.json()
         this.dailyCount++
 
+        // 첫 번째 키워드의 raw 응답을 저장 (디버깅용)
+        if (allResults.length === 0) {
+          (this as any)._lastRawResponse = {
+            keys: Object.keys(data),
+            sampleItem: Array.isArray(data.keywordList) ? data.keywordList[0] : null,
+            keywordListLength: Array.isArray(data.keywordList) ? data.keywordList.length : 'not_array',
+            rawSample: JSON.stringify(data).slice(0, 500),
+          }
+        }
+
         const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => {
           const pcQcCnt = NaverAdAPI.parseSearchCount(item.monthlyPcQcCnt)
           const mobileQcCnt = NaverAdAPI.parseSearchCount(item.monthlyMobileQcCnt)
