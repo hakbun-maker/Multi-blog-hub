@@ -188,6 +188,9 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
     }
 
     // 5. 각 키워드를 최적 블로그에 배정
+    //    매칭 점수가 최소 기준 이상인 블로그에만 배정 (무의미한 배정 방지)
+    const MIN_MATCH_SCORE = 10
+
     for (const kw of scoredKeywords) {
       // ─── 이벤트 키워드 ───
       if (kw.keyword_type === 'event' && kw.event_title && kw.event_date) {
@@ -204,7 +207,12 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           const eventDate = new Date(kw.event_date)
           const category = inferEventCategory(kw.event_title)
           const phases = EVENT_PHASE_CONFIG[category] ?? EVENT_PHASE_CONFIG.other
-          const bestBlog = findBestBlog(blogs, kw.event_title ?? kw.keyword_text)
+          const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.event_title ?? kw.keyword_text)
+
+          if (bestScore < MIN_MATCH_SCORE) {
+            // 어떤 블로그와도 주제가 맞지 않으면 건너뜀
+            continue
+          }
 
           for (const phase of phases) {
             const publishDate = new Date(eventDate)
@@ -240,7 +248,9 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           }
         }
 
-        const bestBlog = findBestBlog(blogs, kw.event_title ?? kw.keyword_text)
+        const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.event_title ?? kw.keyword_text)
+        if (bestScore < MIN_MATCH_SCORE) continue
+
         await supabase.from('keyword_pipeline').update({
           stage: 'assigned',
           assigned_blog_id: bestBlog.id,
@@ -253,7 +263,13 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       }
 
       // ─── 일반/시즌 키워드 ───
-      const bestBlog = findBestBlog(blogs, kw.keyword_text)
+      const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.keyword_text)
+
+      if (bestScore < MIN_MATCH_SCORE) {
+        // 매칭되는 블로그가 없으면 scored 단계에 남겨둠 (강제 배정 안 함)
+        continue
+      }
+
       const { date, time } = getNextTimeForBlog(bestBlog.id)
 
       await supabase.from('keyword_pipeline').update({
@@ -266,15 +282,21 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       }).eq('id', kw.id)
       assigned++
 
-      // ─── 다국어 확장 ───
+      // ─── 다국어 확장 (같은 blog_type + 다른 언어 블로그가 있을 때만) ───
+      //     단, 한국어 키워드를 그대로 외국어 블로그에 넣지 않음
+      //     같은 blog_type의 한국어 블로그가 여러 개일 때만 확장
       const bestType = bestBlog.blog_type ?? 'other'
-      const samTypeBlogs = blogsByType.get(bestType) ?? []
-      const otherLangBlogs = samTypeBlogs.filter(b =>
-        b.id !== bestBlog.id && b.language !== bestBlog.language
+      const sameTypeBlogs = blogsByType.get(bestType) ?? []
+      const sameLanguageOtherBlogs = sameTypeBlogs.filter(b =>
+        b.id !== bestBlog.id && b.language === bestBlog.language
       )
 
-      for (const langBlog of otherLangBlogs) {
-        const { date: langDate, time: langTime } = getNextTimeForBlog(langBlog.id)
+      for (const siblingBlog of sameLanguageOtherBlogs) {
+        // 동일 언어의 동일 카테고리 블로그에만 확장
+        const siblingScore = matchScore(kw.keyword_text, siblingBlog)
+        if (siblingScore < MIN_MATCH_SCORE) continue
+
+        const { date: sibDate, time: sibTime } = getNextTimeForBlog(siblingBlog.id)
 
         await supabase.from('keyword_pipeline').insert({
           user_id: userId,
@@ -284,10 +306,10 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           revenue_score: kw.revenue_score,
           keyword_grade: kw.keyword_grade,
           intent_type: kw.intent_type,
-          assigned_blog_id: langBlog.id,
-          assigned_blog_name: langBlog.name,
-          scheduled_date: langDate,
-          scheduled_time: langTime,
+          assigned_blog_id: siblingBlog.id,
+          assigned_blog_name: siblingBlog.name,
+          scheduled_date: sibDate,
+          scheduled_time: sibTime,
           assigned_at: new Date().toISOString(),
         })
         multiLangExpanded++
@@ -300,11 +322,9 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function findBestBlog(blogs: BlogInfo[], keywordText: string): BlogInfo {
-  if (blogs.length === 1) return blogs[0]
-
+function findBestBlogWithScore(blogs: BlogInfo[], keywordText: string): { blog: BlogInfo; score: number } {
   let bestBlog = blogs[0]
-  let bestScore = -1
+  let bestScore = 0
 
   for (const blog of blogs) {
     const score = matchScore(keywordText, blog)
@@ -314,15 +334,7 @@ function findBestBlog(blogs: BlogInfo[], keywordText: string): BlogInfo {
     }
   }
 
-  // 점수가 0이면 (어떤 블로그와도 매칭 안 됨) → 라이프스타일 또는 기타 블로그 우선
-  if (bestScore === 0) {
-    const lifestyleBlog = blogs.find(b => b.blog_type === 'lifestyle')
-    if (lifestyleBlog) return lifestyleBlog
-    const otherBlog = blogs.find(b => b.blog_type === 'other' || !b.blog_type)
-    if (otherBlog) return otherBlog
-  }
-
-  return bestBlog
+  return { blog: bestBlog, score: bestScore }
 }
 
 function inferEventCategory(title: string): string {

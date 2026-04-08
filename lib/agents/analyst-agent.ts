@@ -28,7 +28,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
     // 2. API 키 조회
     const { data: apiKeys } = await supabase
       .from('ai_api_keys')
-      .select('provider, encrypted_key, encrypted_secret')
+      .select('provider, encrypted_key, encrypted_secret, encrypted_extra')
       .eq('user_id', userId)
       .in('provider', ['naver_ad', 'naver_search'])
       .eq('is_active', true)
@@ -37,7 +37,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
     const naverSearchKeyRaw = apiKeys?.find(k => k.provider === 'naver_search')
 
     // 복호화
-    let decryptedAdKey: { apiKey: string; secretKey: string } | null = null
+    let decryptedAdKey: { apiKey: string; secretKey: string; customerId: string } | null = null
     let decryptedSearchKey: { apiKey: string; secretKey: string } | null = null
 
     if (naverAdKeyRaw) {
@@ -45,6 +45,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
         decryptedAdKey = {
           apiKey: decrypt(naverAdKeyRaw.encrypted_key),
           secretKey: naverAdKeyRaw.encrypted_secret ? decrypt(naverAdKeyRaw.encrypted_secret) : '',
+          customerId: naverAdKeyRaw.encrypted_extra ? decrypt(naverAdKeyRaw.encrypted_extra) : '',
         }
       } catch { console.error('[Analyst] naver_ad 키 복호화 실패') }
     }
@@ -57,23 +58,28 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
       } catch { console.error('[Analyst] naver_search 키 복호화 실패') }
     }
 
-    // 3. 네이버 광고 API로 검색량/경쟁도 조회
+    // 3. 네이버 광고 API로 검색량/경쟁도/CPC 조회
     const keywordTexts = pending.map(p => p.keyword_text)
-    const adDataMap = new Map<string, { volume: number; compIdx: string }>()
+    const adDataMap = new Map<string, { monthlySearchVolume: number; monthlyPcQcCnt: number; monthlyMobileQcCnt: number; compIdx: string; monthlyAvgCpc: number }>()
 
     if (decryptedAdKey) {
       try {
         const naverAd = new NaverAdAPI()
-        naverAd.initializeWithKeys(decryptedAdKey.apiKey, decryptedAdKey.secretKey)
-        const results = await naverAd.getKeywordStats(keywordTexts.slice(0, 30))
-        for (const r of results) {
-          adDataMap.set(r.keyword, {
-            volume: NaverAdAPI.getTotalSearchVolume(r),
-            compIdx: r.compIdx ?? '중간',
-          })
+        naverAd.initializeWithKeys(decryptedAdKey.apiKey, decryptedAdKey.secretKey, decryptedAdKey.customerId)
+        // 5개씩 배치로 조회 (네이버 API는 hintKeywords 최대 5개)
+        for (let i = 0; i < keywordTexts.length; i += 5) {
+          const batch = keywordTexts.slice(i, i + 5)
+          try {
+            const results = await naverAd.getKeywordStats(batch)
+            for (const r of results) {
+              adDataMap.set(r.keyword, r)
+            }
+          } catch (err) {
+            console.error(`[Analyst] Naver Ad batch error (${batch.join(', ')}):`, err)
+          }
         }
       } catch (err) {
-        console.error('[Analyst] Naver Ad error:', err)
+        console.error('[Analyst] Naver Ad init error:', err)
       }
     }
 
@@ -83,8 +89,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
       try {
         const dataLab = new NaverDataLabAPI()
         dataLab.initializeWithKeys(decryptedSearchKey.apiKey, decryptedSearchKey.secretKey)
-        // 상위 5개만 트렌드 조회 (API 호출 제한)
-        for (const kw of keywordTexts.slice(0, 5)) {
+        for (const kw of keywordTexts.slice(0, 10)) {
           try {
             const trend = await dataLab.getTrend(kw)
             trendMap.set(kw, trend?.trendIndex ?? 50)
@@ -95,71 +100,65 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
       }
     }
 
-    // 5. 점수 계산
-    const apiDataList: KeywordApiData[] = pending.map(p => {
-      const ad = adDataMap.get(p.keyword_text)
-      const compIdx = ad?.compIdx ?? '중간'
-      let competitionIndex = 'MEDIUM'
-      if (compIdx === '높음') competitionIndex = 'HIGH'
-      else if (compIdx === '낮음') competitionIndex = 'LOW'
-
-      // API 데이터가 있으면 실제값 사용, 없으면 키워드 특성 기반 추정
-      const hasApiData = !!ad
-      const volume = ad?.volume ?? p.monthly_search_volume ?? 0
-
-      // API 없을 때: 키워드 길이/단어수로 경쟁도 추정 (롱테일 = 경쟁 낮음)
-      const wordCount = p.keyword_text.split(/\s+/).length
-      const estimatedCompetition = !hasApiData
-        ? (wordCount >= 3 ? 'LOW' : wordCount >= 2 ? 'MEDIUM' : 'HIGH')
-        : competitionIndex
-
-      // API 없을 때: 롱테일 키워드는 높은 CPC 추정 (구매 의도 높음)
-      const estimatedCpc = hasApiData ? 1500
-        : wordCount >= 3 ? 2500  // 롱테일 = 구매 의도 높음
-        : wordCount >= 2 ? 1800
-        : 800
-
-      // API 없을 때: 검색량 추정 (롱테일은 중간 검색량)
-      const estimatedVolume = volume > 0 ? volume
-        : wordCount >= 3 ? 3000
-        : wordCount >= 2 ? 5000
-        : 8000
-
-      return {
-        keyword: p.keyword_text,
-        monthlySearchVolume: estimatedVolume,
-        competitionIndex: estimatedCompetition,
-        cpcEstimate: estimatedCpc,
-        trendIndex: trendMap.get(p.keyword_text) ?? (wordCount >= 2 ? 65 : 45),
-      }
-    })
-
-    const scored = scoreKeywords(apiDataList, 'gold')
+    // 5. 점수 계산 — API 데이터가 있는 키워드만 scored 단계로 진행
+    //    API 데이터 없는 키워드는 점수를 매기지 않음 (가짜 데이터 날조 금지)
     let scoredCount = 0
+    let skippedCount = 0
 
-    // 6. 파이프라인 업데이트 (scored 단계로)
-    for (const sk of scored) {
-      const pipeline = pending.find(p => p.keyword_text === sk.keyword)
-      if (!pipeline) continue
+    for (const p of pending) {
+      // 네이버 광고 API에서 이 키워드의 데이터를 찾기
+      // hintKeywords 결과에 원본 키워드가 포함되지 않을 수 있으므로
+      // pipeline의 keyword_text와 정확히 일치하는 결과를 찾음
+      const adResult = adDataMap.get(p.keyword_text)
+
+      if (!adResult || adResult.monthlySearchVolume === 0) {
+        // API 데이터가 없거나 검색량 0인 키워드는 파이프라인에서 제거
+        // (검증 불가능한 키워드를 scored로 보내지 않음)
+        await supabase
+          .from('keyword_pipeline')
+          .update({
+            stage: 'rejected' as any,
+            scored_at: new Date().toISOString(),
+          })
+          .eq('id', p.id)
+        skippedCount++
+        continue
+      }
+
+      // 실제 API 데이터로 점수 계산
+      const competitionIndex = adResult.compIdx === '높음' ? 'HIGH'
+        : adResult.compIdx === '낮음' ? 'LOW' : 'MEDIUM'
+
+      const apiData: KeywordApiData = {
+        keyword: p.keyword_text,
+        monthlySearchVolume: adResult.monthlySearchVolume,
+        pcSearchVolume: adResult.monthlyPcQcCnt,
+        mobileSearchVolume: adResult.monthlyMobileQcCnt,
+        competitionIndex,
+        cpcEstimate: adResult.monthlyAvgCpc || 0,
+        trendIndex: trendMap.get(p.keyword_text),
+      }
+
+      const [scored] = scoreKeywords([apiData], p.keyword_type ?? 'gold')
 
       await supabase
         .from('keyword_pipeline')
         .update({
           stage: 'scored',
-          revenue_score: sk.revenueScore.total,
-          keyword_grade: sk.revenueScore.grade,
-          intent_type: sk.intentType,
-          monthly_search_volume: sk.monthlySearchVolume,
-          cpc_estimate: sk.cpcEstimate,
-          competition_score: sk.competitionScore,
-          trend_index: sk.trendIndex,
+          revenue_score: scored.revenueScore.total,
+          keyword_grade: scored.revenueScore.grade,
+          intent_type: scored.intentType,
+          monthly_search_volume: scored.monthlySearchVolume,
+          cpc_estimate: scored.cpcEstimate,
+          competition_score: scored.competitionScore,
+          trend_index: scored.trendIndex,
           scored_at: new Date().toISOString(),
         })
-        .eq('id', pipeline.id)
+        .eq('id', p.id)
 
       scoredCount++
     }
 
-    return { analyzed: pending.length, scored: scoredCount }
+    return { analyzed: pending.length, scored: scoredCount, skipped: skippedCount }
   })
 }

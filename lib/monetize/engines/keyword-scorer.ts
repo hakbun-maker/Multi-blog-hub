@@ -43,6 +43,27 @@ function competitionToScore(index?: string): number {
   }
 }
 
+// ────────────────────────────────────────────────────
+// Intent 자동 분류: 키워드 패턴 기반
+// ────────────────────────────────────────────────────
+const INTENT_PATTERNS: { intent: IntentType; patterns: RegExp }[] = [
+  { intent: 'AD',      patterns: /가격|할인|쿠폰|최저가|구매|구입|파는곳|판매처|싼곳|저렴|특가|세일/ },
+  { intent: 'COMPARE', patterns: /추천|순위|비교|TOP|탑|베스트|vs|대|어떤게|뭐가 좋|선택/ },
+  { intent: 'REVIEW',  patterns: /후기|리뷰|사용기|체험|솔직|장단점|개봉기|언박싱|unboxing/ },
+  { intent: 'CRITIC',  patterns: /단점|문제점|주의|조심|실패|망한|별로|최악|안좋/ },
+  { intent: 'INFO',    patterns: /방법|하는법|뜻|의미|차이|종류|원리|설명|정리|알아보|이란/ },
+  { intent: 'TREND',   patterns: /트렌드|인기|핫|유행|신상|최신|2025|2026|올해/ },
+]
+
+/** 키워드에서 Intent 자동 분류 */
+function classifyIntent(keyword: string): IntentType | null {
+  const lowerKw = keyword.toLowerCase()
+  for (const { intent, patterns } of INTENT_PATTERNS) {
+    if (patterns.test(lowerKw)) return intent
+  }
+  return null
+}
+
 /** Score a single keyword from API data */
 export function scoreKeyword(data: KeywordApiData, keywordType: KeywordType = 'gold'): ScoredKeyword {
   const searchVolume = data.monthlySearchVolume || ((data.pcSearchVolume || 0) + (data.mobileSearchVolume || 0))
@@ -60,7 +81,7 @@ export function scoreKeyword(data: KeywordApiData, keywordType: KeywordType = 'g
   return {
     keyword: data.keyword,
     keywordType,
-    intentType: null, // Will be set by cluster engine
+    intentType: classifyIntent(data.keyword),
     revenueScore,
     monthlySearchVolume: searchVolume,
     cpcEstimate: cpc,

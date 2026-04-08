@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
+import type { NaverKeywordResult } from '@/lib/monetize/apis/naver-ad-api'
 import { GoogleKWPAPI } from '@/lib/monetize/apis/google-kwp-api'
 import { NaverDataLabAPI } from '@/lib/monetize/apis/naver-datalab-api'
 import { scoreKeywords, saveKeywordsToDb, filterByScore, getGradeStats, getAverageScore } from '@/lib/monetize/engines/keyword-scorer'
+import type { KeywordApiData } from '@/lib/monetize/engines/keyword-scorer'
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const minScore = Math.max(0, Math.min(100, parseInt(minScoreParam || '60', 10)))
+    const minScore = Math.max(0, Math.min(100, parseInt(minScoreParam || '0', 10)))
     const limit = Math.max(1, Math.min(100, parseInt(limitParam || '50', 10)))
 
     // Initialize APIs
@@ -48,61 +50,104 @@ export async function GET(request: NextRequest) {
     const googleKWPReady = await googleKWPAPI.initialize(user.id)
     const dataLabReady = await naverDataLabAPI.initialize(user.id)
 
-    if (!naverAdReady && !googleKWPReady) {
+    // 네이버 광고 API가 최소 필수 (한국어 키워드의 핵심 데이터소스)
+    if (!naverAdReady) {
+      const missingKeys: string[] = []
+      if (!naverAdReady) missingKeys.push('네이버 광고 API (API Key + Secret + Customer ID)')
       return NextResponse.json(
-        { error: '등록된 API 키가 없습니다. 먼저 API 키를 등록하세요.' },
+        {
+          error: `키워드 검색에 필요한 API 키가 없습니다: ${missingKeys.join(', ')}`,
+          hint: '설정 > API 키 관리에서 네이버 광고 API 키를 등록하세요.',
+        },
         { status: 400 }
       )
     }
 
-    // Fetch data from APIs
-    const keywordsList: string[] = [query]
-
-    let naverResults: any[] = []
-    let googleResults: any[] = []
-    let trendData: any = null
+    // ────────────────────────────────────────────────────
+    // Step 1: 네이버 광고 API 호출 (원본 키워드 그대로 전송)
+    //   - hintKeywords로 원본 쿼리를 보내면 연관 키워드를 포함한 결과 반환
+    // ────────────────────────────────────────────────────
+    let naverResults: NaverKeywordResult[] = []
+    let apiErrors: string[] = []
 
     try {
-      if (naverAdReady) {
-        naverResults = await naverAdAPI.getKeywordStats(keywordsList)
-      }
-    } catch (error) {
+      naverResults = await naverAdAPI.getKeywordStats([query.trim()])
+    } catch (error: any) {
       console.error('[Gold Keywords] Naver API error:', error)
+      apiErrors.push(`네이버 광고 API: ${error.message}`)
     }
 
+    // Google KWP는 보조 데이터소스 (사용 가능하면 CPC 보강)
+    let googleResults: any[] = []
     try {
       if (googleKWPReady) {
-        googleResults = await googleKWPAPI.getKeywordIdeas(keywordsList)
+        googleResults = await googleKWPAPI.getKeywordIdeas([query.trim()])
       }
     } catch (error) {
       console.error('[Gold Keywords] Google API error:', error)
     }
 
+    // ────────────────────────────────────────────────────
+    // Step 2: 네이버 결과를 KeywordApiData로 변환
+    //   - 네이버 API가 반환한 모든 연관 키워드를 활용
+    //   - 네이버 API의 monthlyAvgCpc를 CPC 데이터로 사용
+    // ────────────────────────────────────────────────────
+    const mergedData: KeywordApiData[] = naverResults.map(naver => {
+      const googleMatch = googleResults.find(
+        g => g.keyword === naver.keyword
+      )
+
+      return {
+        keyword: naver.keyword,
+        monthlySearchVolume: naver.monthlySearchVolume,
+        pcSearchVolume: naver.monthlyPcQcCnt,
+        mobileSearchVolume: naver.monthlyMobileQcCnt,
+        competitionIndex: naver.compIdx === '높음' ? 'HIGH'
+          : naver.compIdx === '중간' ? 'MEDIUM' : 'LOW',
+        // CPC: 네이버 광고 API의 monthlyAvgCpc 활용 (Google 보조)
+        cpcEstimate: googleMatch?.cpcKrw || naver.monthlyAvgCpc || 0,
+      }
+    })
+
+    // 결과가 비어있으면 API 에러 정보와 함께 반환
+    if (mergedData.length === 0) {
+      return NextResponse.json({
+        success: true,
+        query,
+        total: 0,
+        keywords: [],
+        stats: { averageScore: 0, gradeDistribution: { S: 0, A: 0, B: 0, C: 0, D: 0 }, minScore, maxScore: 0 },
+        savedIds: [],
+        apiErrors: apiErrors.length > 0 ? apiErrors : undefined,
+      })
+    }
+
+    // ────────────────────────────────────────────────────
+    // Step 3: DataLab 트렌드 데이터 보강 (원본 쿼리 기준)
+    //   - 트렌드 데이터는 원본 키워드에 대해서만 조회
+    //   - 연관 키워드들은 동일 트렌드를 상속 (같은 주제이므로)
+    // ────────────────────────────────────────────────────
+    let trendData: any = null
     try {
       if (dataLabReady) {
-        trendData = await naverDataLabAPI.getTrend(query)
+        trendData = await naverDataLabAPI.getTrend(query.trim())
       }
     } catch (error) {
       console.error('[Gold Keywords] DataLab API error:', error)
     }
 
-    // Merge and score results
-    const mergedData = query.split(' ').map(kw => {
-      const naver = naverResults.find(r => r.keyword === kw)
-      const google = googleResults.find(r => r.keyword === kw)
-
-      return {
-        keyword: kw,
-        monthlySearchVolume: naver?.monthlySearchVolume || google?.avgMonthlySearches || 0,
-        competitionIndex: naver?.competitionIndex || 'MEDIUM',
-        cpcEstimate: google?.cpcKrw || naver?.cpcEstimate || 0,
-        trendIndex: trendData?.trendIndex || 50,
-        yoyGrowth: trendData?.yoyGrowth || 0,
-        isSeasonal: trendData?.isSeasonal || false,
-        seasonalMonths: trendData?.seasonalMonths || null,
+    if (trendData) {
+      for (const item of mergedData) {
+        item.trendIndex = trendData.trendIndex
+        item.yoyGrowth = trendData.yoyGrowth
+        item.isSeasonal = trendData.isSeasonal
+        item.seasonalMonths = trendData.seasonalMonths
       }
-    })
+    }
 
+    // ────────────────────────────────────────────────────
+    // Step 4: 점수 계산 + 필터링
+    // ────────────────────────────────────────────────────
     const scoredKeywords = scoreKeywords(mergedData, 'gold')
     const filteredKeywords = filterByScore(scoredKeywords, minScore).slice(0, limit)
 
@@ -144,6 +189,7 @@ export async function GET(request: NextRequest) {
         maxScore: filteredKeywords[0]?.revenueScore.total || 0,
       },
       savedIds,
+      apiErrors: apiErrors.length > 0 ? apiErrors : undefined,
     })
   } catch (error) {
     console.error('[Gold Keywords API] Unexpected error:', error)

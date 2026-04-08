@@ -106,7 +106,7 @@ function getEventDateRange(): { startDate: string; endDate: string } {
 
 async function discoverForUser(
   userId: string,
-  naverAdKey: { encrypted_key: string; encrypted_secret: string } | null,
+  naverAdKey: { encrypted_key: string; encrypted_secret: string; encrypted_extra?: string } | null,
   naverSearchKey: { encrypted_key: string; encrypted_secret: string } | null,
   blogCategories: Array<string | null>
 ): Promise<Omit<KeywordDiscoverResult, 'userId'>> {
@@ -125,7 +125,7 @@ async function discoverForUser(
   const naverDataLabAPI = new NaverDataLabAPI()
 
   // API 키 복호화
-  let decryptedAdKey: { apiKey: string; secretKey: string } | null = null
+  let decryptedAdKey: { apiKey: string; secretKey: string; customerId: string } | null = null
   let decryptedSearchKey: { apiKey: string; secretKey: string } | null = null
 
   if (naverAdKey) {
@@ -133,6 +133,7 @@ async function discoverForUser(
       decryptedAdKey = {
         apiKey: decrypt(naverAdKey.encrypted_key),
         secretKey: naverAdKey.encrypted_secret ? decrypt(naverAdKey.encrypted_secret) : '',
+        customerId: naverAdKey.encrypted_extra ? decrypt(naverAdKey.encrypted_extra) : '',
       }
     } catch { /* decrypt failure */ }
   }
@@ -149,7 +150,7 @@ async function discoverForUser(
   const dataLabReady = decryptedSearchKey != null
 
   if (naverAdReady) {
-    naverAdAPI.initializeWithKeys(decryptedAdKey!.apiKey, decryptedAdKey!.secretKey)
+    naverAdAPI.initializeWithKeys(decryptedAdKey!.apiKey, decryptedAdKey!.secretKey, decryptedAdKey!.customerId)
   }
   if (dataLabReady) {
     naverDataLabAPI.initializeWithKeys(decryptedSearchKey!.apiKey, decryptedSearchKey!.secretKey)
@@ -555,7 +556,7 @@ export async function runKeywordDiscoverPipeline(): Promise<KeywordDiscoverResul
   // Get all users who have at least one active Naver API key (ad or search)
   const { data: activeKeys, error: keysError } = await supabase
     .from('ai_api_keys')
-    .select('user_id, provider, encrypted_key, encrypted_secret')
+    .select('user_id, provider, encrypted_key, encrypted_secret, encrypted_extra')
     .in('provider', ['naver_ad', 'naver_search'])
     .eq('is_active', true)
 

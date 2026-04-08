@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/utils/encryption'
+import { createHmac } from 'crypto'
 
-interface NaverKeywordResult {
+export interface NaverKeywordResult {
   keyword: string
   monthlyPcQcCnt: number      // PC 월간 검색량
   monthlyMobileQcCnt: number  // 모바일 월간 검색량
+  monthlySearchVolume: number // PC + 모바일 합산
   compIdx: string             // 경쟁도: 높음/중간/낮음
-  relKeywords: string[]       // 연관 키워드
+  plAvgDepth: number          // 월평균 노출 광고 수
+  monthlyAvgCpc: number       // 월평균 클릭 비용 (₩)
+  relKeywords: string[]       // 연관 키워드 (relKeyword 필드에서 파생)
 }
 
 interface NaverAdApiConfig {
@@ -27,7 +31,7 @@ export class NaverAdAPI {
     const supabase = createClient()
     const { data } = await supabase
       .from('ai_api_keys')
-      .select('encrypted_key, encrypted_secret')
+      .select('encrypted_key, encrypted_secret, encrypted_extra')
       .eq('user_id', userId)
       .eq('provider', 'naver_ad')
       .eq('is_active', true)
@@ -38,7 +42,11 @@ export class NaverAdAPI {
       this.config = {
         apiKey: decrypt(data.encrypted_key),
         secretKey: data.encrypted_secret ? decrypt(data.encrypted_secret) : '',
-        customerId: '',
+        customerId: data.encrypted_extra ? decrypt(data.encrypted_extra) : '',
+      }
+      if (!this.config.customerId) {
+        console.error('[NaverAdAPI] Customer ID가 설정되지 않았습니다. encrypted_extra 필드를 확인하세요.')
+        return false
       }
       return true
     } catch {
@@ -48,15 +56,20 @@ export class NaverAdAPI {
   }
 
   /** API 키를 직접 전달하여 초기화 (크론/서버 컨텍스트용) */
-  initializeWithKeys(apiKey: string, secretKey: string): void {
-    this.config = {
-      apiKey,
-      secretKey,
-      customerId: '',
-    }
+  initializeWithKeys(apiKey: string, secretKey: string, customerId: string): void {
+    this.config = { apiKey, secretKey, customerId }
   }
 
-  /** 키워드 검색량 + 경쟁도 조회 */
+  /** 네이버 검색광고 API용 HMAC-SHA256 서명 생성 */
+  private generateSignature(timestamp: string, method: string, path: string): string {
+    if (!this.config) throw new Error('NaverAdAPI not initialized')
+    const message = `${timestamp}.${method}.${path}`
+    return createHmac('sha256', this.config.secretKey)
+      .update(message)
+      .digest('base64')
+  }
+
+  /** 키워드 검색량 + 경쟁도 + CPC 조회 */
   async getKeywordStats(keywords: string[]): Promise<NaverKeywordResult[]> {
     if (!this.config) throw new Error('NaverAdAPI not initialized')
     if (this.dailyCount >= this.DAILY_LIMIT) throw new Error('Daily API limit reached')
@@ -68,31 +81,48 @@ export class NaverAdAPI {
       return cached.data
     }
 
+    const API_BASE = 'https://api.searchad.naver.com'
+    const PATH = '/keywordstool'
+    const timestamp = Date.now().toString()
+    const signature = this.generateSignature(timestamp, 'GET', PATH)
+
+    // hintKeywords: 쉼표로 구분, 최대 5개
+    const hintKeywords = keywords.slice(0, 5).join(',')
+    const url = `${API_BASE}${PATH}?hintKeywords=${encodeURIComponent(hintKeywords)}&showDetail=1`
+
     try {
-      const timestamp = Date.now().toString()
-      const response = await fetch('https://api.naver.com/keywordstool', {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'X-API-KEY': this.config.apiKey,
           'X-Customer': this.config.customerId,
           'X-Timestamp': timestamp,
-          'X-Signature': this.config.secretKey, // 실제로는 HMAC-SHA256 서명
+          'X-Signature': signature,
         },
-        // In production, pass keywords as query params
       })
 
-      if (!response.ok) throw new Error(`Naver API error: ${response.status}`)
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '')
+        throw new Error(`Naver SearchAd API error ${response.status}: ${errorBody}`)
+      }
 
       const data = await response.json()
       this.dailyCount++
 
-      const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => ({
-        keyword: item.relKeyword,
-        monthlyPcQcCnt: parseInt(item.monthlyPcQcCnt) || 0,
-        monthlyMobileQcCnt: parseInt(item.monthlyMobileQcCnt) || 0,
-        compIdx: item.compIdx || '낮음',
-        relKeywords: (item.relKeyword || '').split(',').filter(Boolean),
-      }))
+      const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => {
+        const pcQcCnt = NaverAdAPI.parseSearchCount(item.monthlyPcQcCnt)
+        const mobileQcCnt = NaverAdAPI.parseSearchCount(item.monthlyMobileQcCnt)
+        return {
+          keyword: item.relKeyword || '',
+          monthlyPcQcCnt: pcQcCnt,
+          monthlyMobileQcCnt: mobileQcCnt,
+          monthlySearchVolume: pcQcCnt + mobileQcCnt,
+          compIdx: item.compIdx || '낮음',
+          plAvgDepth: parseInt(item.plAvgDepth) || 0,
+          monthlyAvgCpc: parseInt(item.monthlyAvgCpc) || 0,
+          relKeywords: [], // 각 항목이 곧 연관 키워드
+        }
+      })
 
       this.cache.set(cacheKey, { data: results, timestamp: Date.now() })
       return results
@@ -100,6 +130,16 @@ export class NaverAdAPI {
       console.error('[NaverAdAPI] 키워드 조회 실패:', error)
       throw error
     }
+  }
+
+  /** 네이버 검색량은 "< 10" 같은 문자열이 올 수 있으므로 안전 파싱 */
+  private static parseSearchCount(value: any): number {
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^0-9]/g, '')
+      return parseInt(cleaned) || 0
+    }
+    return 0
   }
 
   /** 경쟁도 문자열 → 숫자 변환 */

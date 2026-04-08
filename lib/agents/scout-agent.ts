@@ -107,7 +107,7 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
         naverAdKey = {
           apiKey: decrypt(naverAdKeyRaw.encrypted_key),
           secretKey: naverAdKeyRaw.encrypted_secret ? decrypt(naverAdKeyRaw.encrypted_secret) : '',
-          extraKey: '', // customer ID는 encrypted_extra에 있을 수 있음
+          extraKey: naverAdKeyRaw.encrypted_extra ? decrypt(naverAdKeyRaw.encrypted_extra) : '',
         }
       } catch (err) {
         console.error('[Scout] API 키 복호화 실패:', err)
@@ -126,7 +126,7 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     if (naverAdKey) {
       try {
         const naverAd = new NaverAdAPI()
-        naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey)
+        naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey, naverAdKey.extraKey)
         const results = await naverAd.getKeywordStats(Array.from(allSeeds).slice(0, 20))
 
         const newKeywords = results
@@ -150,24 +150,8 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
         console.error('[Scout] Gold discovery error:', err)
       }
     } else {
-      // API 키 없을 때: 블로그 설명 기반 시드 키워드를 직접 등록 (최소한의 발굴)
-      const fallbackSeeds = Array.from(allSeeds)
-        .filter(s => s.includes(' ')) // 롱테일만 (2단어 이상)
-        .filter(s => !existingSet.has(s))
-        .slice(0, 15)
-
-      if (fallbackSeeds.length > 0) {
-        const rows = fallbackSeeds.map(kw => ({
-          user_id: userId,
-          keyword_text: kw,
-          keyword_type: 'gold',
-          stage: 'discovered',
-          monthly_search_volume: 0, // API 없으므로 0
-        }))
-        await supabase.from('keyword_pipeline').insert(rows)
-        goldFound = fallbackSeeds.length
-        fallbackSeeds.forEach(s => existingSet.add(s))
-      }
+      // API 키가 없으면 검증 불가능한 키워드를 등록하지 않음
+      console.warn('[Scout] 네이버 광고 API 키가 없어 Gold 키워드 발굴을 건너뜁니다.')
     }
 
     // 3. 이벤트 키워드 발굴 (공연/경기/축제)
@@ -205,36 +189,48 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       console.error('[Scout] Event discovery error:', err)
     }
 
-    // 4. 시즌 키워드 (보조적으로만, 롱테일 변환하여 사용)
-    try {
-      const now = new Date()
-      const currentMonth = now.getMonth() + 1
-      const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1
+    // 4. 시즌 키워드 — API 검증 가능한 경우에만 등록
+    //    단순 조합(이벤트명 + "선물 추천")이 아닌, 네이버 광고 API에서
+    //    실제 검색량이 확인된 시즌 연관 키워드만 파이프라인에 추가합니다.
+    if (naverAdKey) {
+      try {
+        const now = new Date()
+        const currentMonth = now.getMonth() + 1
+        const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1
 
-      const seasonalBase: string[] = []
-      for (const month of [currentMonth, nextMonth]) {
-        const ae = ANNUAL_EVENTS.find(a => a.month === month)
-        if (ae) seasonalBase.push(...ae.events)
+        const seasonalBase: string[] = []
+        for (const month of [currentMonth, nextMonth]) {
+          const ae = ANNUAL_EVENTS.find(a => a.month === month)
+          if (ae) seasonalBase.push(...ae.events)
+        }
+
+        if (seasonalBase.length > 0) {
+          const naverAd = new NaverAdAPI()
+          naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey, naverAdKey.extraKey)
+          // 시즌 키워드를 hintKeywords로 보내면 네이버가 연관 키워드를 반환
+          const seasonResults = await naverAd.getKeywordStats(seasonalBase.slice(0, 5))
+
+          const validSeasonal = seasonResults
+            .filter(r => !existingSet.has(r.keyword))
+            .filter(r => r.monthlySearchVolume >= 100) // 실제 검색량이 있는 것만
+            .slice(0, 15)
+
+          if (validSeasonal.length > 0) {
+            const rows = validSeasonal.map(r => ({
+              user_id: userId,
+              keyword_text: r.keyword,
+              keyword_type: 'seasonal' as const,
+              stage: 'discovered' as const,
+              monthly_search_volume: r.monthlySearchVolume,
+            }))
+            await supabase.from('keyword_pipeline').insert(rows)
+            seasonFound = validSeasonal.length
+            validSeasonal.forEach(r => existingSet.add(r.keyword))
+          }
+        }
+      } catch (err) {
+        console.error('[Scout] Seasonal discovery error:', err)
       }
-
-      // 롱테일로 변환: "어린이날" → "어린이날 선물 추천", "어린이날 나들이 장소"
-      const seasonSuffixes = ['선물 추천', '이벤트', '준비물', '나들이 장소', '할인 행사']
-      const longTailSeasonal = seasonalBase.flatMap(base =>
-        seasonSuffixes.slice(0, 2).map(suffix => `${base} ${suffix}`)
-      ).filter(kw => !existingSet.has(kw)).slice(0, 10)
-
-      if (longTailSeasonal.length > 0) {
-        const rows = longTailSeasonal.map(kw => ({
-          user_id: userId,
-          keyword_text: kw,
-          keyword_type: 'seasonal',
-          stage: 'discovered',
-        }))
-        await supabase.from('keyword_pipeline').insert(rows)
-        seasonFound = longTailSeasonal.length
-      }
-    } catch (err) {
-      console.error('[Scout] Seasonal discovery error:', err)
     }
 
     return { goldFound, eventFound, seasonFound, total: goldFound + eventFound + seasonFound }

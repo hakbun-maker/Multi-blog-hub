@@ -1,11 +1,15 @@
 import type { Grade, IntentType, PasonaWeights, BlogLanguage } from '@/types/monetize'
 
 // Revenue Score 가중치
+// - traffic(검색량): 네이버 광고 API에서 안정적으로 제공
+// - revenue(CPC): 네이버 monthlyAvgCpc 활용 (Google KWP 보조)
+// - difficulty(경쟁도): 네이버 compIdx에서 제공
+// - trend(트렌드): DataLab API에서 제공 (실패 시 기본값 주의)
 export const REVENUE_SCORE_WEIGHTS = {
-  traffic: 0.25,
-  revenue: 0.40,
+  traffic: 0.30,
+  revenue: 0.30,
   difficulty: 0.25,
-  trend: 0.10,
+  trend: 0.15,
 } as const
 
 // 자동 발행 임계값
