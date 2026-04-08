@@ -92,7 +92,11 @@ export class NaverAdAPI {
     for (const keyword of trimmedKeywords) {
       const timestamp = Date.now().toString()
       const signature = this.generateSignature(timestamp, 'GET', PATH)
-      const url = `${API_BASE}${PATH}?hintKeywords=${encodeURIComponent(keyword)}&showDetail=1`
+      // URL 클래스 사용: searchParams가 공백을 +로 인코딩 (Python requests와 동일)
+      const urlObj = new URL(`${API_BASE}${PATH}`)
+      urlObj.searchParams.set('hintKeywords', keyword)
+      urlObj.searchParams.set('showDetail', '1')
+      const url = urlObj.toString()
 
       try {
         const response = await fetch(url, {
