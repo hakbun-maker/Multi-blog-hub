@@ -87,9 +87,11 @@ export class NaverAdAPI {
     const signature = this.generateSignature(timestamp, 'GET', PATH)
 
     // hintKeywords: 쉼표로 구분, 최대 5개
-    const hintKeywords = keywords.slice(0, 5).map(k => k.trim()).join(',')
-    const params = new URLSearchParams({ hintKeywords, showDetail: '1' })
-    const url = `${API_BASE}${PATH}?${params.toString()}`
+    // URLSearchParams는 쉼표를 %2C로 인코딩하므로 사용하지 않음
+    // 각 키워드를 개별 encodeURIComponent 후 raw 쉼표로 연결
+    const trimmedKeywords = keywords.slice(0, 5).map(k => k.trim()).filter(k => k.length > 0)
+    const hintKeywords = trimmedKeywords.map(k => encodeURIComponent(k)).join(',')
+    const url = `${API_BASE}${PATH}?hintKeywords=${hintKeywords}&showDetail=1`
 
     try {
       const response = await fetch(url, {
@@ -104,7 +106,7 @@ export class NaverAdAPI {
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '')
-        throw new Error(`Naver SearchAd API error ${response.status}: ${errorBody}`)
+        throw new Error(`Naver SearchAd API error ${response.status} [url=${url.slice(0, 200)}]: ${errorBody}`)
       }
 
       const data = await response.json()
