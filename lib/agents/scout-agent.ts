@@ -135,14 +135,18 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       .eq('user_id', userId)
       .eq('is_active', true)
 
-    if (!blogs || blogs.length === 0) return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0 }
+    if (!blogs || blogs.length === 0) {
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_blogs' }
+    }
+
+    console.log(`[Scout] 블로그 ${blogs.length}개 조회됨:`, blogs.map(b => ({ name: b.name, type: b.blog_type, lang: b.language })))
 
     // 한국어 블로그만 키워드 발굴 대상 (외국어 블로그는 번역 단계에서 처리)
     const koBlogsWithType = blogs.filter(b => (b.language === 'ko' || !b.language) && b.blog_type)
 
     if (koBlogsWithType.length === 0) {
-      console.warn('[Scout] blog_type이 설정된 한국어 블로그가 없습니다.')
-      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0 }
+      console.warn('[Scout] blog_type이 설정된 한국어 블로그가 없습니다. 블로그 language 값:', blogs.map(b => `${b.name}:${b.language}:${b.blog_type}`))
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_ko_blogs_with_type', blogLanguages: blogs.map(b => ({ name: b.name, language: b.language, blog_type: b.blog_type })) }
     }
 
     // blog_type별로 시드 키워드 그룹화
@@ -176,9 +180,11 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     }
 
     if (!naverAdKey) {
-      console.warn('[Scout] 네이버 광고 API 키가 없어 키워드 발굴을 건너뜁니다.')
-      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0 }
+      console.warn('[Scout] 네이버 광고 API 키가 없어 키워드 발굴을 건너뜁니다. naverAdKeyRaw:', !!naverAdKeyRaw)
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_api_key', hasRawKey: !!naverAdKeyRaw }
     }
+
+    console.log(`[Scout] API 키 준비 완료. koBlogsWithType: ${koBlogsWithType.length}개, seedsByType: ${Array.from(seedsByType.keys()).join(', ')}`)
 
     // 기존 파이프라인 키워드 (중복 방지)
     const { data: existingPipeline } = await supabase
@@ -196,8 +202,10 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
 
     for (const [blogType, seeds] of Array.from(seedsByType.entries())) {
       try {
+        console.log(`[Scout] Gold 발굴 시작: blogType=${blogType}, seeds=${seeds.slice(0, 5).join(', ')}`)
         // hintKeywords 최대 5개씩 전송
         const results = await naverAd.getKeywordStats(seeds.slice(0, 5))
+        console.log(`[Scout] Gold 결과: blogType=${blogType}, results=${results.length}개`)
 
         const newKeywords = results
           .filter(r => !existingSet.has(r.keyword))
