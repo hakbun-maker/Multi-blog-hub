@@ -412,9 +412,11 @@ export function ControlCenter() {
                 )}
                 {agent.summary && Object.keys(agent.summary).length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {Object.entries(agent.summary).slice(0, 3).map(([key, val]) => (
+                    {Object.entries(agent.summary)
+                      .filter(([key, val]) => !key.startsWith('_') && (typeof val === 'number' || typeof val === 'string'))
+                      .slice(0, 5).map(([key, val]) => (
                       <span key={key} className="text-[9px] bg-gray-100 px-1 py-0.5 rounded text-gray-600">
-                        {key}: {val}
+                        {key}: {String(val)}
                       </span>
                     ))}
                   </div>
