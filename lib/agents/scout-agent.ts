@@ -223,9 +223,10 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
         _debug[`gold_${blogType}_apiResults`] = results.length
         _debug[`gold_${blogType}_seeds`] = seeds.slice(0, 5)
 
-        // 첫 번째 API 호출의 raw 응답 기록
+        // API 호출의 raw 응답/에러 기록
         if (!firstCallDone) {
-          _debug.firstApiRawResponse = (naverAd as any)._lastRawResponse ?? 'no_response'
+          _debug.firstApiRawResponse = (naverAd as any)._lastRawResponse ?? 'no_raw_response'
+          _debug.apiInternalErrors = (naverAd as any)._lastErrors ?? []
           firstCallDone = true
         }
 

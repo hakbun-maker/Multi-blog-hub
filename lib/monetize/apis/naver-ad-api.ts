@@ -84,9 +84,10 @@ export class NaverAdAPI {
     const API_BASE = 'https://api.naver.com'
     const PATH = '/keywordstool'
 
-    // 키워드를 하나씩 보내서 결과를 합침 (쉼표 구분 이슈 회피)
+    // 키워드를 하나씩 보내서 결과를 합침
     const trimmedKeywords = keywords.slice(0, 5).map(k => k.trim()).filter(k => k.length > 0)
     const allResults: NaverKeywordResult[] = []
+    const errors: string[] = []
 
     for (const keyword of trimmedKeywords) {
       const timestamp = Date.now().toString()
@@ -104,21 +105,25 @@ export class NaverAdAPI {
           },
         })
 
+        const responseText = await response.text()
+
         if (!response.ok) {
-          const errorBody = await response.text().catch(() => '')
-          throw new Error(`Naver API ${response.status} [kw=${keyword}]: ${errorBody}`)
+          errors.push(`[${keyword}] ${response.status}: ${responseText.slice(0, 200)}`)
+          continue
         }
 
-        const data = await response.json()
+        const data = JSON.parse(responseText)
         this.dailyCount++
 
-        // 첫 번째 키워드의 raw 응답을 저장 (디버깅용)
-        if (allResults.length === 0) {
+        // raw 응답 저장 (디버깅용)
+        if (!(this as any)._lastRawResponse) {
           (this as any)._lastRawResponse = {
+            keyword,
+            url: url.slice(0, 300),
+            status: response.status,
             keys: Object.keys(data),
-            sampleItem: Array.isArray(data.keywordList) ? data.keywordList[0] : null,
-            keywordListLength: Array.isArray(data.keywordList) ? data.keywordList.length : 'not_array',
-            rawSample: JSON.stringify(data).slice(0, 500),
+            keywordListLength: Array.isArray(data.keywordList) ? data.keywordList.length : `not_array: ${typeof data.keywordList}`,
+            rawSample: JSON.stringify(data).slice(0, 800),
           }
         }
 
@@ -137,10 +142,14 @@ export class NaverAdAPI {
           }
         })
         allResults.push(...results)
-      } catch (error) {
-        // 개별 키워드 실패 시 다음 키워드로 계속
-        console.error(`[NaverAdAPI] 키워드 "${keyword}" 조회 실패:`, error)
+      } catch (error: any) {
+        errors.push(`[${keyword}] fetch error: ${error.message}`)
       }
+    }
+
+    // 에러 정보도 저장
+    if (errors.length > 0) {
+      (this as any)._lastErrors = errors
     }
 
     // 중복 제거
