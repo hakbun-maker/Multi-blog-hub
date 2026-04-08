@@ -127,26 +127,32 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     let goldFound = 0
     let eventFound = 0
     let seasonFound = 0
+    // 디버그 정보 수집 (API 응답에 포함하여 원인 추적)
+    const _debug: Record<string, unknown> = {}
+    const _errors: string[] = []
 
     // 1. 사용자의 블로그 목록 (blog_type 포함!)
-    const { data: blogs } = await supabase
+    const { data: blogs, error: blogsError } = await supabase
       .from('blogs')
       .select('id, name, description, primary_ad_category, blog_type, language')
       .eq('user_id', userId)
       .eq('is_active', true)
 
-    if (!blogs || blogs.length === 0) {
-      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_blogs' }
-    }
+    _debug.blogsCount = blogs?.length ?? 0
+    _debug.blogsError = blogsError?.message ?? null
+    _debug.blogs = blogs?.map(b => ({ name: b.name, type: b.blog_type, lang: b.language })) ?? []
 
-    console.log(`[Scout] 블로그 ${blogs.length}개 조회됨:`, blogs.map(b => ({ name: b.name, type: b.blog_type, lang: b.language })))
+    if (!blogs || blogs.length === 0) {
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, _debug, _errors }
+    }
 
     // 한국어 블로그만 키워드 발굴 대상 (외국어 블로그는 번역 단계에서 처리)
     const koBlogsWithType = blogs.filter(b => (b.language === 'ko' || !b.language) && b.blog_type)
+    _debug.koBlogsWithTypeCount = koBlogsWithType.length
 
     if (koBlogsWithType.length === 0) {
-      console.warn('[Scout] blog_type이 설정된 한국어 블로그가 없습니다. 블로그 language 값:', blogs.map(b => `${b.name}:${b.language}:${b.blog_type}`))
-      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_ko_blogs_with_type', blogLanguages: blogs.map(b => ({ name: b.name, language: b.language, blog_type: b.blog_type })) }
+      _errors.push('blog_type이 설정된 한국어 블로그가 없음')
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, _debug, _errors }
     }
 
     // blog_type별로 시드 키워드 그룹화
@@ -156,16 +162,24 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       const existing = seedsByType.get(blog.blog_type!) ?? []
       seedsByType.set(blog.blog_type!, Array.from(new Set([...existing, ...seeds])))
     }
+    _debug.seedsByType = Object.fromEntries(Array.from(seedsByType.entries()).map(([k, v]) => [k, v.slice(0, 5)]))
 
     // API 키 조회
-    const { data: apiKeys } = await supabase
+    const { data: apiKeys, error: apiKeysError } = await supabase
       .from('ai_api_keys')
       .select('provider, encrypted_key, encrypted_secret, encrypted_extra')
       .eq('user_id', userId)
       .in('provider', ['naver_ad', 'naver_search'])
       .eq('is_active', true)
 
+    _debug.apiKeysCount = apiKeys?.length ?? 0
+    _debug.apiKeysError = apiKeysError?.message ?? null
+    _debug.apiProviders = apiKeys?.map(k => k.provider) ?? []
+
     const naverAdKeyRaw = apiKeys?.find(k => k.provider === 'naver_ad')
+    _debug.hasNaverAdKey = !!naverAdKeyRaw
+    _debug.hasEncryptedExtra = !!(naverAdKeyRaw?.encrypted_extra)
+
     let naverAdKey: { apiKey: string; secretKey: string; extraKey: string } | null = null
     if (naverAdKeyRaw) {
       try {
@@ -174,17 +188,18 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
           secretKey: naverAdKeyRaw.encrypted_secret ? decrypt(naverAdKeyRaw.encrypted_secret) : '',
           extraKey: naverAdKeyRaw.encrypted_extra ? decrypt(naverAdKeyRaw.encrypted_extra) : '',
         }
-      } catch (err) {
-        console.error('[Scout] API 키 복호화 실패:', err)
+        _debug.decryptSuccess = true
+        _debug.hasCustomerId = !!naverAdKey.extraKey
+      } catch (err: any) {
+        _debug.decryptSuccess = false
+        _errors.push(`API 키 복호화 실패: ${err.message}`)
       }
     }
 
     if (!naverAdKey) {
-      console.warn('[Scout] 네이버 광고 API 키가 없어 키워드 발굴을 건너뜁니다. naverAdKeyRaw:', !!naverAdKeyRaw)
-      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, debug: 'no_api_key', hasRawKey: !!naverAdKeyRaw }
+      _errors.push('네이버 광고 API 키가 없거나 복호화 실패')
+      return { goldFound: 0, eventFound: 0, seasonFound: 0, total: 0, _debug, _errors }
     }
-
-    console.log(`[Scout] API 키 준비 완료. koBlogsWithType: ${koBlogsWithType.length}개, seedsByType: ${Array.from(seedsByType.keys()).join(', ')}`)
 
     // 기존 파이프라인 키워드 (중복 방지)
     const { data: existingPipeline } = await supabase
@@ -193,6 +208,7 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       .eq('user_id', userId)
 
     const existingSet = new Set((existingPipeline ?? []).map(p => p.keyword_text))
+    _debug.existingKeywords = existingSet.size
 
     // ──────────────────────────────────────────────
     // 2. Gold 키워드 발굴 — blog_type별로 네이버 API 호출
@@ -202,15 +218,16 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
 
     for (const [blogType, seeds] of Array.from(seedsByType.entries())) {
       try {
-        console.log(`[Scout] Gold 발굴 시작: blogType=${blogType}, seeds=${seeds.slice(0, 5).join(', ')}`)
-        // hintKeywords 최대 5개씩 전송
         const results = await naverAd.getKeywordStats(seeds.slice(0, 5))
-        console.log(`[Scout] Gold 결과: blogType=${blogType}, results=${results.length}개`)
+        _debug[`gold_${blogType}_apiResults`] = results.length
+        _debug[`gold_${blogType}_seeds`] = seeds.slice(0, 5)
 
         const newKeywords = results
           .filter(r => !existingSet.has(r.keyword))
           .filter(r => r.monthlySearchVolume >= 100)
           .slice(0, 30)
+
+        _debug[`gold_${blogType}_newKeywords`] = newKeywords.length
 
         if (newKeywords.length > 0) {
           const rows = newKeywords.map(r => ({
@@ -224,8 +241,9 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
           goldFound += newKeywords.length
           newKeywords.forEach(r => existingSet.add(r.keyword))
         }
-      } catch (err) {
-        console.error(`[Scout] Gold discovery error for ${blogType}:`, err)
+      } catch (err: any) {
+        _errors.push(`Gold(${blogType}): ${err.message}`)
+        _debug[`gold_${blogType}_error`] = err.message
       }
     }
 
@@ -262,8 +280,8 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
         eventFound = eventKeywords.length
         eventKeywords.forEach(ek => existingSet.add(ek.keyword))
       }
-    } catch (err) {
-      console.error('[Scout] Event discovery error:', err)
+    } catch (err: any) {
+      _errors.push(`Event: ${err.message}`)
     }
 
     // ──────────────────────────────────────────────
@@ -314,16 +332,16 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
                 seasonFound += validSeasonal.length
                 validSeasonal.forEach(r => existingSet.add(r.keyword))
               }
-            } catch (err) {
-              console.error('[Scout] Seasonal batch error:', err)
+            } catch (err: any) {
+              _errors.push(`Seasonal batch: ${err.message}`)
             }
           }
         }
       }
-    } catch (err) {
-      console.error('[Scout] Seasonal discovery error:', err)
+    } catch (err: any) {
+      _errors.push(`Seasonal: ${err.message}`)
     }
 
-    return { goldFound, eventFound, seasonFound, total: goldFound + eventFound + seasonFound }
+    return { goldFound, eventFound, seasonFound, total: goldFound + eventFound + seasonFound, _debug, _errors }
   })
 }
