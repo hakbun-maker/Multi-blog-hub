@@ -81,15 +81,15 @@ export class NaverAdAPI {
       return cached.data
     }
 
-    const API_BASE = 'https://api.searchad.naver.com'
+    const API_BASE = 'https://api.naver.com'
     const PATH = '/keywordstool'
     const timestamp = Date.now().toString()
     const signature = this.generateSignature(timestamp, 'GET', PATH)
 
     // hintKeywords: 쉼표로 구분, 최대 5개
-    // 각 키워드를 개별 인코딩 후 쉼표로 연결 (쉼표 자체는 인코딩하면 안 됨)
-    const hintKeywords = keywords.slice(0, 5).map(k => encodeURIComponent(k.trim())).join(',')
-    const url = `${API_BASE}${PATH}?hintKeywords=${hintKeywords}&showDetail=1`
+    const hintKeywords = keywords.slice(0, 5).map(k => k.trim()).join(',')
+    const params = new URLSearchParams({ hintKeywords, showDetail: '1' })
+    const url = `${API_BASE}${PATH}?${params.toString()}`
 
     try {
       const response = await fetch(url, {
