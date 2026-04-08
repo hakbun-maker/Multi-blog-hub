@@ -83,57 +83,68 @@ export class NaverAdAPI {
 
     const API_BASE = 'https://api.naver.com'
     const PATH = '/keywordstool'
-    const timestamp = Date.now().toString()
-    const signature = this.generateSignature(timestamp, 'GET', PATH)
 
-    // hintKeywords: 쉼표로 구분, 최대 5개
-    // URLSearchParams는 쉼표를 %2C로 인코딩하므로 사용하지 않음
-    // 각 키워드를 개별 encodeURIComponent 후 raw 쉼표로 연결
+    // 키워드를 하나씩 보내서 결과를 합침 (쉼표 구분 이슈 회피)
     const trimmedKeywords = keywords.slice(0, 5).map(k => k.trim()).filter(k => k.length > 0)
-    const hintKeywords = trimmedKeywords.map(k => encodeURIComponent(k)).join(',')
-    const url = `${API_BASE}${PATH}?hintKeywords=${hintKeywords}&showDetail=1`
+    const allResults: NaverKeywordResult[] = []
 
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': this.config.apiKey,
-          'X-Customer': this.config.customerId,
-          'X-Timestamp': timestamp,
-          'X-Signature': signature,
-        },
-      })
+    for (const keyword of trimmedKeywords) {
+      const timestamp = Date.now().toString()
+      const signature = this.generateSignature(timestamp, 'GET', PATH)
+      const url = `${API_BASE}${PATH}?hintKeywords=${encodeURIComponent(keyword)}&showDetail=1`
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '')
-        throw new Error(`Naver SearchAd API error ${response.status} [url=${url.slice(0, 200)}]: ${errorBody}`)
-      }
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'X-API-KEY': this.config.apiKey,
+            'X-Customer': this.config.customerId,
+            'X-Timestamp': timestamp,
+            'X-Signature': signature,
+          },
+        })
 
-      const data = await response.json()
-      this.dailyCount++
-
-      const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => {
-        const pcQcCnt = NaverAdAPI.parseSearchCount(item.monthlyPcQcCnt)
-        const mobileQcCnt = NaverAdAPI.parseSearchCount(item.monthlyMobileQcCnt)
-        return {
-          keyword: item.relKeyword || '',
-          monthlyPcQcCnt: pcQcCnt,
-          monthlyMobileQcCnt: mobileQcCnt,
-          monthlySearchVolume: pcQcCnt + mobileQcCnt,
-          compIdx: item.compIdx || '낮음',
-          plAvgDepth: parseInt(item.plAvgDepth) || 0,
-          monthlyAvgCpc: parseInt(item.monthlyAvgCpc) || 0,
-          relKeywords: [], // 각 항목이 곧 연관 키워드
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '')
+          throw new Error(`Naver API ${response.status} [kw=${keyword}]: ${errorBody}`)
         }
-      })
 
-      this.cache.set(cacheKey, { data: results, timestamp: Date.now() })
-      return results
-    } catch (error) {
-      console.error('[NaverAdAPI] 키워드 조회 실패:', error)
-      throw error
+        const data = await response.json()
+        this.dailyCount++
+
+        const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => {
+          const pcQcCnt = NaverAdAPI.parseSearchCount(item.monthlyPcQcCnt)
+          const mobileQcCnt = NaverAdAPI.parseSearchCount(item.monthlyMobileQcCnt)
+          return {
+            keyword: item.relKeyword || '',
+            monthlyPcQcCnt: pcQcCnt,
+            monthlyMobileQcCnt: mobileQcCnt,
+            monthlySearchVolume: pcQcCnt + mobileQcCnt,
+            compIdx: item.compIdx || '낮음',
+            plAvgDepth: parseInt(item.plAvgDepth) || 0,
+            monthlyAvgCpc: parseInt(item.monthlyAvgCpc) || 0,
+            relKeywords: [],
+          }
+        })
+        allResults.push(...results)
+      } catch (error) {
+        // 개별 키워드 실패 시 다음 키워드로 계속
+        console.error(`[NaverAdAPI] 키워드 "${keyword}" 조회 실패:`, error)
+      }
     }
+
+    // 중복 제거
+    const seen = new Set<string>()
+    const dedupedResults = allResults.filter(r => {
+      if (seen.has(r.keyword)) return false
+      seen.add(r.keyword)
+      return true
+    })
+
+    this.cache.set(cacheKey, { data: dedupedResults, timestamp: Date.now() })
+    return dedupedResults
   }
+
 
   /** 네이버 검색량은 "< 10" 같은 문자열이 올 수 있으므로 안전 파싱 */
   private static parseSearchCount(value: any): number {
