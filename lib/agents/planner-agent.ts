@@ -136,16 +136,18 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
     let eventPlanned = 0
     let multiLangExpanded = 0
 
-    // 1. scored 단계 키워드
+    let deletedMismatch = 0
+    let deletedLowScore = 0
+
+    // 1. scored 단계 키워드 전체 조회
     const { data: scoredKeywords } = await supabase
       .from('keyword_pipeline')
       .select('*')
       .eq('user_id', userId)
       .eq('stage', 'scored')
       .order('revenue_score', { ascending: false })
-      .limit(50)
 
-    if (!scoredKeywords || scoredKeywords.length === 0) return { assigned: 0, eventPlanned: 0, multiLangExpanded: 0 }
+    if (!scoredKeywords || scoredKeywords.length === 0) return { assigned: 0, deletedMismatch: 0, deletedLowScore: 0, multiLangExpanded: 0 }
 
     // 2. 사용자 블로그 목록 (blog_type 포함!)
     const { data: blogs } = await supabase
@@ -154,7 +156,47 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       .eq('user_id', userId)
       .eq('is_active', true)
 
-    if (!blogs || blogs.length === 0) return { assigned: 0, eventPlanned: 0, error: 'no_active_blogs' }
+    if (!blogs || blogs.length === 0) return { assigned: 0, deletedMismatch: 0, deletedLowScore: 0, error: 'no_active_blogs' }
+
+    // ──── 4단계-A: 블로그 유형 불일치 키워드 삭제 ────
+    // 사용자가 보유한 blog_type에 매칭되지 않는 키워드를 제거
+    const userBlogTypes = new Set(blogs.map(b => b.blog_type).filter(Boolean))
+    const matchedKeywords: typeof scoredKeywords = []
+    const mismatchIds: string[] = []
+
+    for (const kw of scoredKeywords) {
+      const inferredType = inferBlogType(kw.keyword_text)
+      if (!inferredType || userBlogTypes.has(inferredType)) {
+        matchedKeywords.push(kw)
+      } else {
+        mismatchIds.push(kw.id)
+      }
+    }
+
+    if (mismatchIds.length > 0) {
+      // 50개씩 배치 삭제
+      for (let i = 0; i < mismatchIds.length; i += 50) {
+        await supabase.from('keyword_pipeline').delete().in('id', mismatchIds.slice(i, i + 50))
+      }
+      deletedMismatch = mismatchIds.length
+    }
+
+    // ──── 4단계-B: 하위 60% 점수 삭제 ────
+    // 매칭된 키워드 중 상위 40%만 남기고 나머지 삭제
+    const sortedByScore = [...matchedKeywords].sort((a, b) => (b.revenue_score ?? 0) - (a.revenue_score ?? 0))
+    const cutoffIndex = Math.ceil(sortedByScore.length * 0.4)
+    const kept = sortedByScore.slice(0, cutoffIndex)
+    const lowScoreIds = sortedByScore.slice(cutoffIndex).map(k => k.id)
+
+    if (lowScoreIds.length > 0) {
+      for (let i = 0; i < lowScoreIds.length; i += 50) {
+        await supabase.from('keyword_pipeline').delete().in('id', lowScoreIds.slice(i, i + 50))
+      }
+      deletedLowScore = lowScoreIds.length
+    }
+
+    // ──── 4단계-C: 상위 40% 키워드를 블로그에 배정 ────
+    const remainingKeywords = kept
 
     // 3. blog_type별 블로그 그룹 (다국어 확장용)
     const blogsByType = new Map<string, BlogInfo[]>()
@@ -188,10 +230,9 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
     }
 
     // 5. 각 키워드를 최적 블로그에 배정
-    //    매칭 점수가 최소 기준 이상인 블로그에만 배정 (무의미한 배정 방지)
     const MIN_MATCH_SCORE = 10
 
-    for (const kw of scoredKeywords) {
+    for (const kw of remainingKeywords) {
       // ─── 이벤트 키워드 ───
       if (kw.keyword_type === 'event' && kw.event_title && kw.event_date) {
         const clusterId = `evt_${kw.event_title.replace(/\s+/g, '_').slice(0, 30)}_${kw.event_date}`
@@ -316,7 +357,7 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       }
     }
 
-    return { assigned, eventPlanned, multiLangExpanded }
+    return { assigned, deletedMismatch, deletedLowScore, multiLangExpanded }
   })
 }
 

@@ -1,8 +1,8 @@
-/** 5개 AI 에이전트 타입 */
-export type AgentType = 'scout' | 'analyst' | 'planner' | 'writer' | 'publisher'
+/** 6개 AI 에이전트 타입 */
+export type AgentType = 'scout' | 'expander' | 'analyst' | 'planner' | 'writer' | 'publisher'
 
 /** 파이프라인 단계 (순서대로) */
-export type PipelineStage = 'discovered' | 'scored' | 'assigned' | 'writing' | 'review' | 'scheduled' | 'published'
+export type PipelineStage = 'discovered' | 'expanded' | 'scored' | 'assigned' | 'writing' | 'review' | 'scheduled' | 'published'
 
 /** 이벤트 기반 콘텐츠 Phase */
 export type EventPhase = 'pre_info' | 'comparison' | 'preparation' | 'review'

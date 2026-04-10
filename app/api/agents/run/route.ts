@@ -5,6 +5,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { runScoutAgent } from '@/lib/agents/scout-agent'
+import { runExpanderAgent } from '@/lib/agents/expander-agent'
 import { runAnalystAgent } from '@/lib/agents/analyst-agent'
 import { runPlannerAgent } from '@/lib/agents/planner-agent'
 import { runWriterAgent } from '@/lib/agents/writer-agent'
@@ -22,8 +23,9 @@ export async function POST() {
   const results: AgentRunResult[] = []
 
   try {
-    // 5개 에이전트 순차 실행
+    // 6개 에이전트 순차 실행
     results.push(await runScoutAgent(user.id))
+    results.push(await runExpanderAgent(user.id))
     results.push(await runAnalystAgent(user.id))
     results.push(await runPlannerAgent(user.id))
     results.push(await runWriterAgent(user.id))

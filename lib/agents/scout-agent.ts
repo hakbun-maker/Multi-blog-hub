@@ -253,6 +253,8 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
             keyword_type: 'gold' as const,
             stage: 'discovered' as const,
             monthly_search_volume: r.monthlySearchVolume,
+            cpc_estimate: r.monthlyAvgCpc || 0,
+            competition_score: compScore(r.compIdx),
           }))
           await supabase.from('keyword_pipeline').insert(rows)
           goldFound += newKeywords.length
@@ -349,6 +351,8 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
                   keyword_type: 'seasonal' as const,
                   stage: 'discovered' as const,
                   monthly_search_volume: r.monthlySearchVolume,
+                  cpc_estimate: r.monthlyAvgCpc || 0,
+                  competition_score: compScore(r.compIdx),
                 }))
                 await supabase.from('keyword_pipeline').insert(rows)
                 seasonFound += validSeasonal.length

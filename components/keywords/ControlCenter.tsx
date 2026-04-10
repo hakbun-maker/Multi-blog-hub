@@ -19,6 +19,7 @@ import { ApiKeyQuickSetup } from '@/components/keywords/ApiKeyQuickSetup'
 
 interface PipelineCounts {
   discovered: number
+  expanded: number
   scored: number
   assigned: number
   writing: number
@@ -77,12 +78,13 @@ interface EventCluster {
 
 const AGENT_CONFIG: Record<string, { label: string; icon: React.ReactNode; description: string }> = {
   scout: { label: 'Scout', icon: <Search className="w-4 h-4" />, description: '키워드 발굴' },
+  expander: { label: 'Expander', icon: <Zap className="w-4 h-4" />, description: '롱테일 확장' },
   analyst: { label: 'Analyst', icon: <BarChart2 className="w-4 h-4" />, description: '점수 분석' },
   planner: { label: 'Planner', icon: <ClipboardList className="w-4 h-4" />, description: '배정 & 기획' },
 }
 
 /** 이 페이지에서 보여줄 에이전트 (키워드 파이프라인만) */
-const VISIBLE_AGENTS = ['scout', 'analyst', 'planner']
+const VISIBLE_AGENTS = ['scout', 'expander', 'analyst', 'planner']
 
 const STATUS_CONFIG: Record<string, { color: string; dot: string; label: string }> = {
   running: { color: 'text-yellow-600', dot: 'bg-yellow-500 animate-pulse', label: '실행 중' },
@@ -93,6 +95,7 @@ const STATUS_CONFIG: Record<string, { color: string; dot: string; label: string 
 
 const STAGE_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   discovered: { label: '발굴', color: 'bg-blue-100 text-blue-700', icon: <Search className="w-3 h-3" /> },
+  expanded: { label: '확장', color: 'bg-cyan-100 text-cyan-700', icon: <Zap className="w-3 h-3" /> },
   scored: { label: '분석', color: 'bg-purple-100 text-purple-700', icon: <BarChart2 className="w-3 h-3" /> },
   assigned: { label: '배정', color: 'bg-yellow-100 text-yellow-700', icon: <ClipboardList className="w-3 h-3" /> },
   scheduled: { label: '스케줄 확정', color: 'bg-green-100 text-green-700', icon: <Clock className="w-3 h-3" /> },
@@ -103,7 +106,7 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: React.R
 }
 
 /** 이 페이지에서 보여줄 파이프라인 단계 (키워드 배정까지만) */
-const VISIBLE_STAGES = ['discovered', 'scored', 'assigned', 'scheduled']
+const VISIBLE_STAGES = ['discovered', 'expanded', 'scored', 'scheduled']
 
 const PHASE_ICONS: Record<string, { icon: React.ReactNode; label: string }> = {
   pre_info: { icon: <Search className="w-3 h-3" />, label: '정보글' },

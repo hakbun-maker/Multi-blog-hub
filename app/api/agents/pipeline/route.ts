@@ -18,14 +18,14 @@ export async function GET() {
       .eq('user_id', user.id)
 
     const stageCounts: Record<string, number> = {
-      discovered: 0, scored: 0, assigned: 0, writing: 0, review: 0, scheduled: 0, published: 0,
+      discovered: 0, expanded: 0, scored: 0, assigned: 0, writing: 0, review: 0, scheduled: 0, published: 0,
     }
     for (const row of pipeline ?? []) {
       if (row.stage in stageCounts) stageCounts[row.stage]++
     }
 
     // 2. 에이전트 최근 상태 (각 에이전트의 마지막 실행)
-    const agentTypes = ['scout', 'analyst', 'planner', 'writer', 'publisher']
+    const agentTypes = ['scout', 'expander', 'analyst', 'planner', 'writer', 'publisher']
     const agentStatuses = []
 
     for (const agentType of agentTypes) {
