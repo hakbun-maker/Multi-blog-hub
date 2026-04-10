@@ -85,7 +85,10 @@ export class NaverAdAPI {
     const PATH = '/keywordstool'
 
     // 키워드를 하나씩 보내서 결과를 합침
-    const trimmedKeywords = keywords.slice(0, 5).map(k => k.trim()).filter(k => k.length > 0)
+    // 네이버 SearchAd API hintKeywords는 공백을 허용하지 않으므로 제거
+    const trimmedKeywords = keywords.slice(0, 5)
+      .map(k => k.trim().replace(/\s+/g, ''))
+      .filter(k => k.length > 0)
     const allResults: NaverKeywordResult[] = []
     const errors: string[] = []
 
