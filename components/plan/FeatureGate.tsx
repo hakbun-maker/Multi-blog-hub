@@ -16,10 +16,21 @@ interface FeatureGateProps {
 }
 
 export function FeatureGate({ featureKey, minPlan, featureName, children, mode = 'overlay' }: FeatureGateProps) {
-  const { hasFeature, planId } = usePlanContext()
+  const { hasFeature, planId, loading } = usePlanContext()
   const [showUpgrade, setShowUpgrade] = useState(false)
-  const allowed = hasFeature(featureKey)
 
+  // 로딩 중에는 잠금 판단하지 않음 (깜빡임 방지)
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-4 py-8">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mx-auto" />
+        <div className="h-4 bg-gray-100 rounded w-1/2 mx-auto" />
+        <div className="h-32 bg-gray-50 rounded" />
+      </div>
+    )
+  }
+
+  const allowed = hasFeature(featureKey)
   if (allowed) return <>{children}</>
 
   const message = `이 기능은 ${PLAN_LABELS[minPlan]} 플랜부터 사용할 수 있어요.`

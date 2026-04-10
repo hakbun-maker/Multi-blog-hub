@@ -232,9 +232,16 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
           firstCallDone = true
         }
 
+        // 경쟁력 기반 선별: 검색량 있고 경쟁도 낮은 롱테일 우선
+        // 경쟁력 점수 = 검색량 / (경쟁도 점수 + 1)
+        // 경쟁도: 높음=80, 중간=50, 낮음=20
+        const compScore = (compIdx: string) => compIdx === '높음' ? 80 : compIdx === '낮음' ? 20 : 50
         const newKeywords = results
           .filter(r => !existingSet.has(r.keyword))
-          .filter(r => r.monthlySearchVolume >= 100)
+          .filter(r => r.monthlySearchVolume >= 50)        // 최소 검색량 50 (롱테일 포함)
+          .filter(r => r.keyword.length >= 4)               // 너무 짧은 단일 단어 제외 (예: "약", "차")
+          .map(r => ({ ...r, competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1) }))
+          .sort((a, b) => b.competitiveness - a.competitiveness) // 경쟁력 높은 순
           .slice(0, 30)
 
         _debug[`gold_${blogType}_newKeywords`] = newKeywords.length
@@ -326,9 +333,14 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
               const batch = seedArray.slice(i, i + 5)
               const seasonResults = await naverAd.getKeywordStats(batch)
 
+              const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
               const validSeasonal = seasonResults
                 .filter(r => !existingSet.has(r.keyword))
-                .filter(r => r.monthlySearchVolume >= 100)
+                .filter(r => r.monthlySearchVolume >= 50)
+                .filter(r => r.keyword.length >= 4)
+                .map(r => ({ ...r, competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1) }))
+                .sort((a, b) => b.competitiveness - a.competitiveness)
+                .slice(0, 20) // 배치당 최대 20개
 
               if (validSeasonal.length > 0) {
                 const rows = validSeasonal.map(r => ({

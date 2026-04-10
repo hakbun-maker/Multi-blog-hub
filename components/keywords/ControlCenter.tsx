@@ -466,19 +466,19 @@ export function ControlCenter() {
               <p className="text-xs text-gray-300 mt-1">자동 수집을 켜면 AI가 키워드를 발굴합니다</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <table className="w-full text-sm min-w-[900px]">
                 <thead>
                   <tr className="border-b text-xs text-gray-500">
                     <th className="text-left py-2 px-2 font-medium">키워드</th>
                     {[
                       { field: 'grade', label: '등급', center: true, hide: '' },
                       { field: 'stage', label: '단계', center: true, hide: '' },
-                      { field: 'volume', label: '검색량', center: true, hide: 'hidden sm:table-cell' },
-                      { field: 'cpc', label: 'CPC', center: true, hide: 'hidden md:table-cell' },
-                      { field: 'competition', label: '경쟁도', center: true, hide: 'hidden lg:table-cell' },
-                      { field: 'blog', label: '블로그', center: false, hide: 'hidden sm:table-cell' },
-                      { field: 'date', label: '발행예정', center: false, hide: 'hidden md:table-cell' },
+                      { field: 'volume', label: '검색량', center: true, hide: '' },
+                      { field: 'cpc', label: 'CPC', center: true, hide: '' },
+                      { field: 'competition', label: '경쟁도', center: true, hide: '' },
+                      { field: 'blog', label: '블로그', center: false, hide: '' },
+                      { field: 'date', label: '발행예정', center: false, hide: '' },
                       { field: 'score', label: '점수', center: true, hide: '' },
                     ].map(col => (
                       <th key={col.field} className={`py-2 px-1 font-medium ${col.center ? 'text-center' : 'text-left'} ${col.hide}`}>
@@ -527,16 +527,16 @@ export function ControlCenter() {
                           <td className="text-center py-2 px-1">
                             <span className="text-[10px] text-gray-400">{stageConfig.label}</span>
                           </td>
-                          <td className="text-center py-2 px-1 hidden sm:table-cell">
+                          <td className="text-center py-2 px-1 ">
                             <span className="text-xs text-gray-400">{kw.monthly_search_volume?.toLocaleString() ?? '-'}</span>
                           </td>
-                          <td className="text-center py-2 px-1 hidden md:table-cell">
+                          <td className="text-center py-2 px-1 ">
                             <span className="text-xs text-gray-400">{kw.cpc_estimate ? `₩${kw.cpc_estimate.toLocaleString()}` : '-'}</span>
                           </td>
-                          <td className="text-center py-2 px-1 hidden lg:table-cell">
+                          <td className="text-center py-2 px-1 ">
                             <span className="text-xs text-gray-400">{kw.competition_score ?? '-'}</span>
                           </td>
-                          <td className="py-2 px-2 hidden sm:table-cell">
+                          <td className="py-2 px-2 ">
                             <select
                               value={editData.assigned_blog_id}
                               onChange={e => setEditData(prev => ({ ...prev, assigned_blog_id: e.target.value }))}
@@ -548,7 +548,7 @@ export function ControlCenter() {
                               ))}
                             </select>
                           </td>
-                          <td className="py-2 px-2 hidden md:table-cell">
+                          <td className="py-2 px-2 ">
                             <div className="flex gap-1">
                               <input
                                 type="date"
@@ -616,21 +616,21 @@ export function ControlCenter() {
                             <span className="ml-0.5">{stageConfig.label}</span>
                           </Badge>
                         </td>
-                        <td className="text-center py-2 px-1 hidden sm:table-cell">
+                        <td className="text-center py-2 px-1 ">
                           <span className="text-xs text-gray-600">
                             {kw.monthly_search_volume != null && kw.monthly_search_volume > 0
                               ? kw.monthly_search_volume.toLocaleString()
                               : '-'}
                           </span>
                         </td>
-                        <td className="text-center py-2 px-1 hidden md:table-cell">
+                        <td className="text-center py-2 px-1 ">
                           <span className="text-xs text-gray-600">
                             {kw.cpc_estimate != null && kw.cpc_estimate > 0
                               ? `₩${kw.cpc_estimate.toLocaleString()}`
                               : '-'}
                           </span>
                         </td>
-                        <td className="text-center py-2 px-1 hidden lg:table-cell">
+                        <td className="text-center py-2 px-1 ">
                           <span className={`text-xs font-medium ${
                             kw.competition_score != null && kw.competition_score >= 70 ? 'text-red-500' :
                             kw.competition_score != null && kw.competition_score >= 40 ? 'text-yellow-600' :
@@ -639,10 +639,10 @@ export function ControlCenter() {
                             {kw.competition_score != null ? kw.competition_score : '-'}
                           </span>
                         </td>
-                        <td className="py-2 px-2 hidden sm:table-cell">
+                        <td className="py-2 px-2 ">
                           <span className="text-xs text-gray-600">{kw.assigned_blog_name ?? '-'}</span>
                         </td>
-                        <td className="py-2 px-2 hidden md:table-cell">
+                        <td className="py-2 px-2 ">
                           {kw.scheduled_date ? (
                             <span className="text-xs text-gray-600">
                               {kw.scheduled_date} {kw.scheduled_time ?? ''}
