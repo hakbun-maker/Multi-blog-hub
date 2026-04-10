@@ -444,18 +444,41 @@ export function ControlCenter() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">키워드 파이프라인 흐름</CardTitle>
-            {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={bulkDelete}
+                  disabled={deleting}
+                  className="gap-1.5 h-7 text-xs"
+                >
+                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                  선택 삭제 ({selectedIds.size})
+                </Button>
+              )}
               <Button
                 size="sm"
-                variant="destructive"
-                onClick={bulkDelete}
+                variant="outline"
                 disabled={deleting}
-                className="gap-1.5 h-7 text-xs"
+                onClick={async () => {
+                  const stageLabels: Record<string, string> = { discovered: '발굴', expanded: '확장', scored: '분석', scheduled: '스케줄 확정', all: '전체' }
+                  const stage = prompt('삭제할 단계를 입력하세요:\n\n• discovered (발굴)\n• expanded (확장)\n• scored (분석)\n• scheduled (스케줄)\n• all (전체)')
+                  if (!stage || !['discovered', 'expanded', 'scored', 'scheduled', 'all'].includes(stage)) return
+                  if (!confirm(`"${stageLabels[stage] ?? stage}" 단계의 모든 키워드를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return
+                  setDeleting(true)
+                  try {
+                    await fetch(`/api/agents/pipeline?stage=${stage}`, { method: 'DELETE' })
+                    setSelectedIds(new Set())
+                    fetchData(true, 1)
+                  } finally { setDeleting(false) }
+                }}
+                className="gap-1 h-7 text-xs"
               >
-                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                선택 삭제 ({selectedIds.size})
+                <Trash2 className="w-3 h-3" />
+                단계별 삭제
               </Button>
-            )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

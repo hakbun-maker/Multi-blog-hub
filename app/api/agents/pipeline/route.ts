@@ -5,6 +5,29 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+/**
+ * DELETE: 특정 단계의 키워드 일괄 삭제
+ * ?stage=discovered — 발굴 단계 전체 삭제
+ * ?stage=all — 전체 삭제
+ */
+export async function DELETE(request: NextRequest) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
+
+  const stage = new URL(request.url).searchParams.get('stage')
+  if (!stage) return NextResponse.json({ error: 'stage 파라미터 필요' }, { status: 400 })
+
+  let query = supabase.from('keyword_pipeline').delete().eq('user_id', user.id)
+  if (stage !== 'all') {
+    query = query.eq('stage', stage)
+  }
+
+  const { error, count } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, deleted: count })
+}
+
 export async function GET(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
