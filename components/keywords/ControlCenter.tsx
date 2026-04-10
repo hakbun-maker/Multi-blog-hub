@@ -410,19 +410,26 @@ export function ControlCenter() {
 
       {/* Agent Status — 한 줄 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {agents.filter(a => VISIBLE_AGENTS.includes(a.agentType)).map(agent => {
-          const config = AGENT_CONFIG[agent.agentType]
-          const status = STATUS_CONFIG[agent.status] ?? STATUS_CONFIG.idle
+        {VISIBLE_AGENTS.map(agentType => {
+          const agent = agents.find(a => a.agentType === agentType)
+          const config = AGENT_CONFIG[agentType]
+          // 파이프라인 실행 중이면 모든 에이전트를 '실행 중' 또는 '대기'로 표시
+          const displayStatus = runningPipeline
+            ? STATUS_CONFIG.running
+            : STATUS_CONFIG[agent?.status ?? 'idle'] ?? STATUS_CONFIG.idle
+          const isRunning = runningPipeline
 
           return (
-            <div key={agent.agentType} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border ${agent.status === 'running' ? 'border-yellow-300 bg-yellow-50/30' : 'border-gray-200'}`}>
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+            <div key={agentType} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border ${isRunning ? 'border-yellow-300 bg-yellow-50/30' : 'border-gray-200'}`}>
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? 'bg-yellow-500 animate-pulse' : displayStatus.dot}`} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-semibold text-gray-800">{config?.label}</span>
-                  <span className={`text-[10px] ${status.color}`}>{status.label}</span>
+                  <span className={`text-[10px] ${isRunning ? 'text-yellow-600' : displayStatus.color}`}>
+                    {isRunning ? '실행 중...' : displayStatus.label}
+                  </span>
                 </div>
-                {agent.summary && Object.keys(agent.summary).length > 0 && (
+                {!runningPipeline && agent?.summary && Object.keys(agent.summary).length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-0.5">
                     {Object.entries(agent.summary)
                       .filter(([key, val]) => !key.startsWith('_') && (typeof val === 'number' || typeof val === 'string'))
@@ -457,14 +464,14 @@ export function ControlCenter() {
                   선택 삭제 ({selectedIds.size})
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="outline"
+              <select
                 disabled={deleting}
-                onClick={async () => {
+                defaultValue=""
+                onChange={async (e) => {
+                  const stage = e.target.value
+                  if (!stage) return
+                  e.target.value = '' // 리셋
                   const stageLabels: Record<string, string> = { discovered: '발굴', expanded: '확장', scored: '분석', scheduled: '스케줄 확정', all: '전체' }
-                  const stage = prompt('삭제할 단계를 입력하세요:\n\n• discovered (발굴)\n• expanded (확장)\n• scored (분석)\n• scheduled (스케줄)\n• all (전체)')
-                  if (!stage || !['discovered', 'expanded', 'scored', 'scheduled', 'all'].includes(stage)) return
                   if (!confirm(`"${stageLabels[stage] ?? stage}" 단계의 모든 키워드를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return
                   setDeleting(true)
                   try {
@@ -473,11 +480,15 @@ export function ControlCenter() {
                     fetchData(true, 1)
                   } finally { setDeleting(false) }
                 }}
-                className="gap-1 h-7 text-xs"
+                className="h-7 text-xs rounded-md border border-gray-200 bg-white px-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-orange-500"
               >
-                <Trash2 className="w-3 h-3" />
-                단계별 삭제
-              </Button>
+                <option value="">단계별 삭제</option>
+                <option value="discovered">발굴 삭제</option>
+                <option value="expanded">확장 삭제</option>
+                <option value="scored">분석 삭제</option>
+                <option value="scheduled">스케줄 삭제</option>
+                <option value="all">전체 삭제</option>
+              </select>
             </div>
           </div>
         </CardHeader>

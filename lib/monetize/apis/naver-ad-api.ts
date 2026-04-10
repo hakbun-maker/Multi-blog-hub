@@ -137,14 +137,30 @@ export class NaverAdAPI {
         const results: NaverKeywordResult[] = (data.keywordList || []).map((item: any) => {
           const pcQcCnt = NaverAdAPI.parseSearchCount(item.monthlyPcQcCnt)
           const mobileQcCnt = NaverAdAPI.parseSearchCount(item.monthlyMobileQcCnt)
+          const totalVolume = pcQcCnt + mobileQcCnt
+          const pcClicks = parseFloat(item.monthlyAvePcClkCnt) || 0
+          const mobileClicks = parseFloat(item.monthlyAveMobileClkCnt) || 0
+          const totalClicks = pcClicks + mobileClicks
+          const plDepth = parseInt(item.plAvgDepth) || 0
+          const compIdx = item.compIdx || '낮음'
+
+          // CPC 추정: 네이버 API는 CPC를 직접 제공하지 않음
+          // 경쟁도 + 광고 노출 수 + 클릭 데이터로 추정
+          // 높은 경쟁 + 많은 광고 노출 + 많은 클릭 = 높은 CPC
+          const compMultiplier = compIdx === '높음' ? 3 : compIdx === '중간' ? 2 : 1
+          const estimatedCpc = Math.round(
+            (plDepth > 0 ? plDepth * 50 : 100) * compMultiplier *
+            (totalClicks > 0 ? Math.min(totalClicks / Math.max(totalVolume, 1) * 100, 3) : 1)
+          )
+
           return {
             keyword: item.relKeyword || '',
             monthlyPcQcCnt: pcQcCnt,
             monthlyMobileQcCnt: mobileQcCnt,
-            monthlySearchVolume: pcQcCnt + mobileQcCnt,
-            compIdx: item.compIdx || '낮음',
-            plAvgDepth: parseInt(item.plAvgDepth) || 0,
-            monthlyAvgCpc: parseInt(item.monthlyAvgCpc) || 0,
+            monthlySearchVolume: totalVolume,
+            compIdx,
+            plAvgDepth: plDepth,
+            monthlyAvgCpc: estimatedCpc,
             relKeywords: [],
           }
         })
