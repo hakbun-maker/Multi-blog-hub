@@ -50,7 +50,7 @@ export async function GET() {
     // 3. 키워드 파이프라인 흐름 (최근 50개)
     const { data: keywordFlow } = await supabase
       .from('keyword_pipeline')
-      .select('id, keyword_text, keyword_type, stage, revenue_score, keyword_grade, intent_type, assigned_blog_name, scheduled_date, scheduled_time, event_title, event_d_day, event_phase, event_cluster_id, writing_progress, discovered_at, updated_at')
+      .select('id, keyword_text, keyword_type, stage, revenue_score, keyword_grade, intent_type, assigned_blog_name, scheduled_date, scheduled_time, event_title, event_d_day, event_phase, event_cluster_id, writing_progress, discovered_at, updated_at, monthly_search_volume, cpc_estimate, competition_score')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(50)

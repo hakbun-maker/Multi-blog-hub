@@ -53,6 +53,9 @@ interface KeywordFlowRow {
   writing_progress: number
   discovered_at: string
   updated_at: string
+  monthly_search_volume: number | null
+  cpc_estimate: number | null
+  competition_score: number | null
 }
 
 interface EventCluster {
@@ -217,6 +220,12 @@ export function ControlCenter() {
         return (a.assigned_blog_name ?? '').localeCompare(b.assigned_blog_name ?? '') * dir
       case 'date':
         return ((a.scheduled_date ?? '') + (a.scheduled_time ?? '')).localeCompare((b.scheduled_date ?? '') + (b.scheduled_time ?? '')) * dir
+      case 'volume':
+        return ((a.monthly_search_volume ?? 0) - (b.monthly_search_volume ?? 0)) * dir
+      case 'cpc':
+        return ((a.cpc_estimate ?? 0) - (b.cpc_estimate ?? 0)) * dir
+      case 'competition':
+        return ((a.competition_score ?? 0) - (b.competition_score ?? 0)) * dir
       case 'score':
         return ((a.revenue_score ?? 0) - (b.revenue_score ?? 0)) * dir
       default:
@@ -465,6 +474,9 @@ export function ControlCenter() {
                     {[
                       { field: 'grade', label: '등급', center: true, hide: '' },
                       { field: 'stage', label: '단계', center: true, hide: '' },
+                      { field: 'volume', label: '검색량', center: true, hide: 'hidden sm:table-cell' },
+                      { field: 'cpc', label: 'CPC', center: true, hide: 'hidden md:table-cell' },
+                      { field: 'competition', label: '경쟁도', center: true, hide: 'hidden lg:table-cell' },
                       { field: 'blog', label: '블로그', center: false, hide: 'hidden sm:table-cell' },
                       { field: 'date', label: '발행예정', center: false, hide: 'hidden md:table-cell' },
                       { field: 'score', label: '점수', center: true, hide: '' },
@@ -514,6 +526,15 @@ export function ControlCenter() {
                           </td>
                           <td className="text-center py-2 px-1">
                             <span className="text-[10px] text-gray-400">{stageConfig.label}</span>
+                          </td>
+                          <td className="text-center py-2 px-1 hidden sm:table-cell">
+                            <span className="text-xs text-gray-400">{kw.monthly_search_volume?.toLocaleString() ?? '-'}</span>
+                          </td>
+                          <td className="text-center py-2 px-1 hidden md:table-cell">
+                            <span className="text-xs text-gray-400">{kw.cpc_estimate ? `₩${kw.cpc_estimate.toLocaleString()}` : '-'}</span>
+                          </td>
+                          <td className="text-center py-2 px-1 hidden lg:table-cell">
+                            <span className="text-xs text-gray-400">{kw.competition_score ?? '-'}</span>
                           </td>
                           <td className="py-2 px-2 hidden sm:table-cell">
                             <select
@@ -594,6 +615,29 @@ export function ControlCenter() {
                             {stageConfig.icon}
                             <span className="ml-0.5">{stageConfig.label}</span>
                           </Badge>
+                        </td>
+                        <td className="text-center py-2 px-1 hidden sm:table-cell">
+                          <span className="text-xs text-gray-600">
+                            {kw.monthly_search_volume != null && kw.monthly_search_volume > 0
+                              ? kw.monthly_search_volume.toLocaleString()
+                              : '-'}
+                          </span>
+                        </td>
+                        <td className="text-center py-2 px-1 hidden md:table-cell">
+                          <span className="text-xs text-gray-600">
+                            {kw.cpc_estimate != null && kw.cpc_estimate > 0
+                              ? `₩${kw.cpc_estimate.toLocaleString()}`
+                              : '-'}
+                          </span>
+                        </td>
+                        <td className="text-center py-2 px-1 hidden lg:table-cell">
+                          <span className={`text-xs font-medium ${
+                            kw.competition_score != null && kw.competition_score >= 70 ? 'text-red-500' :
+                            kw.competition_score != null && kw.competition_score >= 40 ? 'text-yellow-600' :
+                            kw.competition_score != null ? 'text-green-600' : 'text-gray-400'
+                          }`}>
+                            {kw.competition_score != null ? kw.competition_score : '-'}
+                          </span>
                         </td>
                         <td className="py-2 px-2 hidden sm:table-cell">
                           <span className="text-xs text-gray-600">{kw.assigned_blog_name ?? '-'}</span>
