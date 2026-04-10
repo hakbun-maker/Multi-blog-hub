@@ -143,13 +143,17 @@ export function ControlCenter() {
   const [deleting, setDeleting] = useState(false)
   const [sortField, setSortField] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const PAGE_SIZE = 50
 
-  const fetchData = useCallback(async (isRefresh = false) => {
+  const fetchData = useCallback(async (isRefresh = false, page = 1) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
 
     try {
-      const res = await fetch('/api/agents/pipeline')
+      const res = await fetch(`/api/agents/pipeline?page=${page}&pageSize=${PAGE_SIZE}`)
       if (res.ok) {
         const json = await res.json()
         const d = json.data
@@ -158,6 +162,11 @@ export function ControlCenter() {
         setKeywordFlow(d.keywordFlow)
         setEventTimeline(d.eventTimeline)
         setAutoDiscover(d.autoDiscover)
+        if (d.pagination) {
+          setCurrentPage(d.pagination.page)
+          setTotalPages(d.pagination.totalPages)
+          setTotalCount(d.pagination.totalCount)
+        }
       }
     } catch { /* ignore */ }
     finally {
@@ -319,9 +328,9 @@ export function ControlCenter() {
     )
   }
 
-  const totalKeywords = pipeline
+  const totalKeywords = totalCount > 0 ? totalCount : (pipeline
     ? Object.values(pipeline).reduce((a, b) => a + b, 0)
-    : 0
+    : 0)
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -678,6 +687,38 @@ export function ControlCenter() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-2">
+              <span className="text-xs text-gray-500">
+                총 {totalCount.toLocaleString()}개 중 {((currentPage - 1) * PAGE_SIZE) + 1}-{Math.min(currentPage * PAGE_SIZE, totalCount)}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={currentPage <= 1}
+                  onClick={() => { setCurrentPage(currentPage - 1); fetchData(true, currentPage - 1) }}
+                  className="h-7 text-xs px-2"
+                >
+                  이전
+                </Button>
+                <span className="text-xs text-gray-600 px-2">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => { setCurrentPage(currentPage + 1); fetchData(true, currentPage + 1) }}
+                  className="h-7 text-xs px-2"
+                >
+                  다음
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

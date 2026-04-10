@@ -3,12 +3,16 @@
  * GET: 파이프라인 현황 + 에이전트 상태 + 키워드 흐름 + 이벤트 타임라인
  */
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+  const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get('pageSize') || '50', 10)))
 
   try {
     // 1. 파이프라인 단계별 집계
@@ -47,13 +51,21 @@ export async function GET() {
       })
     }
 
-    // 3. 키워드 파이프라인 흐름 (최근 50개)
+    // 3. 키워드 파이프라인 흐름 (페이지네이션)
+    const offset = (page - 1) * pageSize
+
+    // 전체 개수 조회
+    const { count: totalCount } = await supabase
+      .from('keyword_pipeline')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+
     const { data: keywordFlow } = await supabase
       .from('keyword_pipeline')
       .select('id, keyword_text, keyword_type, stage, revenue_score, keyword_grade, intent_type, assigned_blog_name, scheduled_date, scheduled_time, event_title, event_d_day, event_phase, event_cluster_id, writing_progress, discovered_at, updated_at, monthly_search_volume, cpc_estimate, competition_score')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
-      .limit(50)
+      .range(offset, offset + pageSize - 1)
 
     // 4. 이벤트 타임라인 (클러스터별 그룹)
     const { data: eventPipeline } = await supabase
@@ -124,6 +136,12 @@ export async function GET() {
         pipeline: stageCounts,
         agents: agentStatuses,
         keywordFlow: keywordFlow ?? [],
+        pagination: {
+          page,
+          pageSize,
+          totalCount: totalCount ?? 0,
+          totalPages: Math.ceil((totalCount ?? 0) / pageSize),
+        },
         eventTimeline: Object.values(eventClusters),
         autoDiscover: settings?.auto_discover ?? false,
       }
