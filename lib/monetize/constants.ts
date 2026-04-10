@@ -1,15 +1,13 @@
 import type { Grade, IntentType, PasonaWeights, BlogLanguage } from '@/types/monetize'
 
-// Revenue Score 가중치
-// - traffic(검색량): 네이버 광고 API에서 안정적으로 제공
-// - revenue(CPC): 네이버 monthlyAvgCpc 활용 (Google KWP 보조)
-// - difficulty(경쟁도): 네이버 compIdx에서 제공
-// - trend(트렌드): DataLab API에서 제공 (실패 시 기본값 주의)
+// SEO Opportunity Score 가중치
+// 블로그 SEO 핵심: "경쟁 낮고 검색량 있는 키워드" = 상위 노출 가능성
+// CPC는 네이버 API가 직접 제공하지 않으므로 비중 최소화
 export const REVENUE_SCORE_WEIGHTS = {
-  traffic: 0.30,
-  revenue: 0.30,
-  difficulty: 0.25,
-  trend: 0.15,
+  traffic: 0.25,     // 검색량 — 충분한 트래픽이 있는가
+  revenue: 0.10,     // CPC — 추정값이므로 비중 최소
+  difficulty: 0.45,  // 경쟁도 — 가장 중요! 낮을수록 높은 점수
+  trend: 0.20,       // 트렌드 — 상승 중인 키워드 우대
 } as const
 
 // 자동 발행 임계값
@@ -18,13 +16,14 @@ export const AUTO_PUBLISH_THRESHOLD = 45
 // 검수 만점
 export const MAX_QUALITY_SCORE = 50
 
-// 등급 기준
+// 등급 기준 (블로그 SEO 기준)
+// 경쟁도 비중이 높으므로 롱테일 키워드가 A/S 등급에 도달 가능
 export const GRADE_THRESHOLDS: Record<Grade, { min: number; max: number }> = {
-  S: { min: 90, max: 100 },
-  A: { min: 75, max: 89 },
-  B: { min: 60, max: 74 },
-  C: { min: 45, max: 59 },
-  D: { min: 0, max: 44 },
+  S: { min: 80, max: 100 },
+  A: { min: 65, max: 79 },
+  B: { min: 50, max: 64 },
+  C: { min: 35, max: 49 },
+  D: { min: 0, max: 34 },
 }
 
 // Intent 우선순위 점수 (IPS)
