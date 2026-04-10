@@ -211,11 +211,32 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
     _debug.existingKeywords = existingSet.size
 
     // ──────────────────────────────────────────────
-    // 2. Gold 키워드 발굴 — blog_type별로 네이버 API 호출
+    // 2. 진단 테스트: "마스크" 키워드로 API 동작 확인
     // ──────────────────────────────────────────────
     const naverAd = new NaverAdAPI()
     naverAd.initializeWithKeys(naverAdKey.apiKey, naverAdKey.secretKey, naverAdKey.extraKey)
 
+    try {
+      const testResults = await naverAd.getKeywordStats(['마스크'])
+      _debug.apiTest = {
+        keyword: '마스크',
+        resultCount: testResults.length,
+        sampleKeyword: testResults[0]?.keyword ?? null,
+        sampleVolume: testResults[0]?.monthlySearchVolume ?? null,
+        rawResponse: (naverAd as any)._lastRawResponse ?? 'no_response',
+        internalErrors: (naverAd as any)._lastErrors ?? [],
+      }
+    } catch (err: any) {
+      _debug.apiTest = { error: err.message }
+    }
+
+    // 테스트 후 내부 상태 초기화
+    ;(naverAd as any)._lastRawResponse = undefined
+    ;(naverAd as any)._lastErrors = undefined
+
+    // ──────────────────────────────────────────────
+    // 3. Gold 키워드 발굴 — blog_type별로 네이버 API 호출
+    // ──────────────────────────────────────────────
     let firstCallDone = false
     for (const [blogType, seeds] of Array.from(seedsByType.entries())) {
       try {
