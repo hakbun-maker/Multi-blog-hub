@@ -166,6 +166,11 @@ export async function runTrendDiscovery(userId: string) {
         const valid = results
           .filter(r => !existingSet.has(r.keyword))
           .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
+          // 반환된 키워드가 실제로 해당 카테고리에 맞는지 재검증
+          .filter(r => {
+            const verified = matchBlogType(r.keyword, new Set([blogType]))
+            return verified === blogType
+          })
           .map(r => ({
             keyword: r.keyword,
             volume: r.monthlySearchVolume,
@@ -174,7 +179,7 @@ export async function runTrendDiscovery(userId: string) {
             competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1),
           }))
           .sort((a, b) => b.competitiveness - a.competitiveness)
-          .slice(0, 5) // 시드당 경쟁력 상위 5개
+          .slice(0, 5)
 
         for (const r of valid) {
           matchedTrends.push({ keyword: r.keyword, source: `trend_${blogType}`, blogType })
