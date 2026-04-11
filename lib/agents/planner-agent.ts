@@ -251,7 +251,8 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
           const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.event_title ?? kw.keyword_text)
 
           if (bestScore < MIN_MATCH_SCORE) {
-            // 어떤 블로그와도 주제가 맞지 않으면 건너뜀
+            await supabase.from('keyword_pipeline').delete().eq('id', kw.id)
+            deletedMismatch++
             continue
           }
 
@@ -307,7 +308,9 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.keyword_text)
 
       if (bestScore < MIN_MATCH_SCORE) {
-        // 매칭되는 블로그가 없으면 scored 단계에 남겨둠 (강제 배정 안 함)
+        // 매칭되는 블로그가 없으면 삭제 (찌꺼기 방지)
+        await supabase.from('keyword_pipeline').delete().eq('id', kw.id)
+        deletedMismatch++
         continue
       }
 

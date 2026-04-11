@@ -26,7 +26,7 @@ export async function runExpanderAgent(userId: string): Promise<AgentRunResult> 
       .eq('user_id', userId)
       .eq('stage', 'discovered')
       .order('monthly_search_volume', { ascending: false })
-      .limit(100)
+      .limit(500)
 
     _debug.discoveredCount = discovered?.length ?? 0
     _debug.discoverError = discoverError?.message ?? null
