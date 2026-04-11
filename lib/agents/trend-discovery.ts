@@ -14,24 +14,26 @@ import { EventAPI } from '@/lib/monetize/apis/event-api'
 import { decrypt } from '@/lib/utils/encryption'
 
 // blog_type별 관련 키워드 매칭 (트렌드 키워드가 어떤 블로그에 적합한지 판단)
+// 3글자 이상 단어만 사용 (2글자는 오매칭 위험)
 const BLOG_TYPE_MATCH_WORDS: Record<string, string[]> = {
-  'medical': ['건강', '병원', '의료', '질병', '치료', '약', '증상', '수술', '혈당', '혈압', '비타민', '영양', '다이어트', '운동', '면역', '의학', '검진'],
-  'finance': ['주식', '투자', '부동산', '재테크', '연금', '보험', '세금', 'ETF', '금리', '대출', '자산', '배당', '펀드', '금융', '경제', '환율', '코인'],
-  'real-estate': ['부동산', '아파트', '전세', '월세', '매매', '분양', '인테리어', '이사', '재개발', '재건축', '집값', '청약'],
-  'entertainment': ['콘서트', '공연', '뮤지컬', '팬미팅', '아이돌', 'K-POP', '넷플릭스', '영화', '드라마', 'OTT', '음악', '웹툰', '게임', '축제'],
-  'it-tech': ['AI', '프로그래밍', '코딩', '노트북', '스마트폰', '앱', '개발', '클라우드', 'IT', '테크', '반도체', '소프트웨어'],
+  'medical': ['건강', '병원', '의료', '질병', '치료', '증상', '수술', '혈당', '혈압', '비타민', '영양', '다이어트', '면역', '의학', '검진', '약국', '진료'],
+  'finance': ['주식', '투자', '재테크', '연금', '보험', '세금', '금리', '대출', '자산', '배당', '펀드', '금융', '경제', '환율', '코인', '증시'],
+  'real-estate': ['부동산', '아파트', '전세', '월세', '분양', '인테리어', '재개발', '재건축', '집값', '청약', '매물'],
+  'entertainment': ['콘서트', '공연', '뮤지컬', '팬미팅', '아이돌', '넷플릭스', '영화', '드라마', '웹툰', '게임', '축제', '페스티벌'],
+  'it-tech': ['프로그래밍', '코딩', '노트북', '스마트폰', '개발', '클라우드', '반도체', '소프트웨어', '인공지능'],
   'food': ['맛집', '레시피', '요리', '카페', '음식', '배달', '식당', '밀키트'],
-  'travel': ['여행', '호텔', '항공', '캠핑', '관광', '리조트', '숙소', '투어', '명소'],
-  'pets': ['강아지', '고양이', '반려동물', '펫', '사료'],
-  'sports': ['축구', '야구', '골프', '등산', '헬스', 'KBO', 'K리그', '경기', '올림픽'],
-  'education': ['공부', '자격증', '영어', '시험', '토익', '대학', '입시', '교육'],
+  'travel': ['여행', '호텔', '항공', '캠핑', '관광', '리조트', '숙소', '명소'],
+  'pets': ['강아지', '고양이', '반려동물', '사료'],
+  'sports': ['축구', '야구', '골프', '등산', '헬스', '올림픽', '경기장'],
+  'education': ['자격증', '영어', '토익', '입시', '교육', '공무원'],
 }
 
 function matchBlogType(keyword: string, userBlogTypes: Set<string>): string | null {
   const kw = keyword.toLowerCase()
+  // 3글자 이상 매칭 단어만 사용 (2글자 "이사"→"김혜성이사태" 오매칭 방지)
   for (const [blogType, words] of Object.entries(BLOG_TYPE_MATCH_WORDS)) {
     if (!userBlogTypes.has(blogType)) continue
-    if (words.some(w => kw.includes(w.toLowerCase()))) {
+    if (words.some(w => w.length >= 3 && kw.includes(w.toLowerCase()))) {
       return blogType
     }
   }
@@ -107,15 +109,30 @@ export async function runTrendDiscovery(userId: string) {
   const matchedTrends: Array<{ keyword: string; source: string; blogType: string }> = []
 
   for (const event of allEvents) {
-    // 이벤트 제목에서 키워드 추출
-    const keywords = [event.title, ...event.keywords]
-    for (const kw of keywords) {
-      const cleanKw = kw.replace(/<[^>]*>/g, '').replace(/\s+/g, '').trim()
-      if (cleanKw.length < 3) continue
+    // HTML 태그 제거 후 제목에서 한국어 핵심 단어 추출
+    const rawTitle = event.title.replace(/<[^>]*>/g, '').trim()
+    // 제목에서 2~6글자 한국어 단어 추출 (검색 가능한 단위)
+    const koreanWords = rawTitle.match(/[가-힣]{2,6}/g) ?? []
 
-      const matchedType = matchBlogType(cleanKw, userBlogTypes)
-      if (matchedType && !existingSet.has(cleanKw)) {
-        matchedTrends.push({ keyword: cleanKw, source: event.source, blogType: matchedType })
+    // 단어별로 블로그 카테고리 매칭 (3글자 이상 단어만)
+    for (const word of koreanWords) {
+      if (word.length < 3) continue
+      const matchedType = matchBlogType(word, userBlogTypes)
+      if (matchedType && !existingSet.has(word)) {
+        matchedTrends.push({ keyword: word, source: event.source, blogType: matchedType })
+      }
+    }
+
+    // event.keywords도 활용 (이미 정제된 키워드)
+    for (const kw of event.keywords) {
+      const cleanKw = kw.replace(/<[^>]*>/g, '').trim()
+      // 공백 제거하되 너무 긴 것은 제외 (15자 이상은 검색어가 아님)
+      const noSpace = cleanKw.replace(/\s+/g, '')
+      if (noSpace.length < 3 || noSpace.length > 15) continue
+
+      const matchedType = matchBlogType(noSpace, userBlogTypes)
+      if (matchedType && !existingSet.has(noSpace)) {
+        matchedTrends.push({ keyword: noSpace, source: event.source, blogType: matchedType })
       }
     }
   }
