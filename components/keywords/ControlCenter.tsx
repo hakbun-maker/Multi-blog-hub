@@ -366,7 +366,13 @@ export function ControlCenter() {
               try {
                 const res = await fetch('/api/agents/seasonal', { method: 'POST' })
                 const json = await res.json()
-                const msg = [`시즌 키워드 동기화 완료`, `추가: ${json.added ?? 0}개`, `삭제: ${json.removed ?? 0}개`, `유지: ${json.kept ?? 0}개`]
+                const msg = [
+                  `시즌 키워드 완료`,
+                  `1차 발굴: ${json.discovered ?? 0}개`,
+                  `2차 롱테일: ${json.expanded ?? 0}개`,
+                  `파이프라인 추가: ${json.added ?? 0}개`,
+                  `기존 삭제: ${json.removed ?? 0}개, 유지: ${json.kept ?? 0}개`,
+                ]
                 if (json._errors?.length > 0) msg.push(`\n에러: ${json._errors.join(', ')}`)
                 alert(msg.join('\n'))
                 await fetchData(true, 1)
