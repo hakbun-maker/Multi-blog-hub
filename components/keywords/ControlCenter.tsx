@@ -388,7 +388,32 @@ export function ControlCenter() {
             size="sm"
             disabled={runningPipeline}
             onClick={async () => {
-              if (!confirm('실시간 트렌드 키워드를 발굴합니다.\nGoogle Trends + 네이버 뉴스에서 블로그에 적합한 키워드를 찾습니다.\n\n진행하시겠습니까?')) return
+              if (!confirm('이벤트 키워드를 발굴합니다.\n공연/경기/축제 일정에 맞춘 D-Day 키워드를 생성합니다.\n\n진행하시겠습니까?')) return
+              setRunningPipeline(true)
+              try {
+                const res = await fetch('/api/agents/events', { method: 'POST' })
+                const json = await res.json()
+                alert([
+                  '이벤트 키워드 완료',
+                  `이벤트 발견: ${json.eventsFound ?? 0}개`,
+                  `키워드 생성: ${json.keywordsGenerated ?? 0}개`,
+                  ...(json._errors?.length > 0 ? [`\n에러: ${json._errors.slice(0, 3).join(', ')}`] : []),
+                ].join('\n'))
+                await fetchData(true, 1)
+              } catch { /* ignore */ }
+              finally { setRunningPipeline(false) }
+            }}
+            className="gap-1.5"
+          >
+            <Music className="w-4 h-4" />
+            <span className="hidden sm:inline">이벤트</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={runningPipeline}
+            onClick={async () => {
+              if (!confirm('실시간 트렌드 키워드를 발굴합니다.\n블로그 카테고리별 최신 트렌드 키워드를 찾습니다.\n\n진행하시겠습니까?')) return
               setRunningPipeline(true)
               try {
                 const res = await fetch('/api/agents/trends', { method: 'POST' })
