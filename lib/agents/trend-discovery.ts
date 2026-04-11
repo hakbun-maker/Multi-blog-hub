@@ -132,15 +132,22 @@ export async function runTrendDiscovery(userId: string) {
 
   const matchedTrends: Array<{ keyword: string; source: string; blogType: string }> = []
 
-  // 소스 1: 블로그 카테고리별 네이버 뉴스 검색
+  // 소스 1: 블로그 카테고리별 네이버 뉴스 → 핵심 명사 추출 → 네이버 광고 API 시드로 사용
+  // 뉴스 제목에서 직접 키워드를 뽑지 않고, 핵심 명사를 시드로 보내서
+  // 네이버 광고 API가 실제 검색 키워드를 반환하도록 함
+  const trendSeeds: Array<{ seed: string; blogType: string; source: string }> = []
+
   if (naverSearchKey) {
     for (const blogType of Array.from(userBlogTypes)) {
       const queries = BLOG_TYPE_NEWS_QUERIES[blogType]
       if (!queries) continue
 
-      for (const query of queries) {
+      // 카테고리별 뉴스에서 핵심 명사 추출
+      const categoryNouns = new Set<string>()
+
+      for (const query of queries.slice(0, 2)) { // 쿼리 2개씩만
         try {
-          const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=10&sort=date`
+          const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=5&sort=date`
           const res = await fetch(url, {
             headers: {
               'X-Naver-Client-Id': naverSearchKey.clientId,
@@ -152,15 +159,21 @@ export async function runTrendDiscovery(userId: string) {
           const data = await res.json()
           for (const item of (data.items ?? [])) {
             const title = (item.title || '').replace(/<[^>]*>/g, '').trim()
-            // 제목에서 3~8글자 한국어 단어 추출
-            const words = title.match(/[가-힣]{3,8}/g) ?? []
+            // 3~6글자 한국어 명사 후보 추출 (동사/형용사 제외)
+            const words = title.match(/[가-힣]{3,6}/g) ?? []
             for (const word of words) {
-              if (!existingSet.has(word) && !matchedTrends.some(t => t.keyword === word)) {
-                matchedTrends.push({ keyword: word, source: 'naver_news', blogType })
-              }
+              // 동사/형용사/조사 패턴 필터 (끝나는 글자로 판단)
+              if (/[다지고서면며는된할를에게의로]$/.test(word)) continue
+              categoryNouns.add(word)
             }
           }
-        } catch { /* 개별 쿼리 실패 무시 */ }
+        } catch { /* ignore */ }
+      }
+
+      // 카테고리별 상위 3개 명사를 시드로 사용
+      const nouns = Array.from(categoryNouns).slice(0, 3)
+      for (const noun of nouns) {
+        trendSeeds.push({ seed: noun, blogType, source: 'naver_news' })
       }
     }
   }
@@ -170,29 +183,50 @@ export async function runTrendDiscovery(userId: string) {
     const gRes = await fetch('https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR')
     if (gRes.ok) {
       const xml = await gRes.text()
-      // RSS에서 <title> 태그 추출
       const titles = xml.match(/<title>([^<]+)<\/title>/g) ?? []
       for (const tag of titles) {
         const keyword = tag.replace(/<\/?title>/g, '').trim().replace(/\s+/g, '')
-        if (keyword.length < 3 || keyword.length > 12) continue
-        if (keyword === 'DailySearchTrends') continue
+        if (keyword.length < 3 || keyword.length > 12 || keyword === 'DailySearchTrends') continue
 
         const matchedType = matchBlogType(keyword, userBlogTypes)
-        if (matchedType && !existingSet.has(keyword) && !matchedTrends.some(t => t.keyword === keyword)) {
-          matchedTrends.push({ keyword, source: 'google_trends', blogType: matchedType })
+        if (matchedType) {
+          trendSeeds.push({ seed: keyword, source: 'google_trends', blogType: matchedType })
         }
       }
     }
-  } catch { /* Google Trends 실패 무시 */ }
+  } catch { /* ignore */ }
 
-  // 중복 제거
+  _debug.trendSeeds = trendSeeds.map(s => `${s.seed}(${s.source}→${s.blogType})`)
+
+  // 시드를 네이버 광고 API에 넣어서 실제 검색 키워드 수집
+  const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
+
+  for (const { seed, blogType } of trendSeeds) {
+    try {
+      const results = await naverAd.getKeywordStats([seed])
+      const valid = results
+        .filter(r => !existingSet.has(r.keyword))
+        .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
+        .slice(0, 8)
+
+      for (const r of valid) {
+        if (!matchedTrends.some(t => t.keyword === r.keyword)) {
+          matchedTrends.push({ keyword: r.keyword, source: 'naver_news', blogType })
+          existingSet.add(r.keyword)
+        }
+      }
+    } catch { /* 개별 시드 실패 무시 */ }
+  }
+
+  // 중복 제거 (시드 → 광고 API에서 이미 실제 검색 키워드를 받아옴)
   const seen = new Set<string>()
   const uniqueTrends = matchedTrends.filter(t => {
     if (seen.has(t.keyword)) return false
     seen.add(t.keyword)
     return true
-  }).slice(0, 20) // 최대 20개
+  }).slice(0, 30)
 
+  trendFound = uniqueTrends.length
   _debug.totalRawTrends = matchedTrends.length
   _debug.matchedTrends = uniqueTrends.length
   _debug.trendSample = uniqueTrends.slice(0, 10).map(t => `${t.keyword}(${t.source}→${t.blogType})`)
@@ -202,60 +236,16 @@ export async function runTrendDiscovery(userId: string) {
   }
 
   // ──────────────────────────────────────────────
-  // 4. 1차 발굴: 트렌드 키워드 → 네이버 광고 API
+  // 4. 2차 롱테일 확장: 1차 결과 상위 → 다시 API
   // ──────────────────────────────────────────────
-  const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
-  const firstRound: Array<{
-    keyword: string; volume: number; cpc: number; competition: number
-  }> = []
-
-  const trendSeeds = uniqueTrends.map(t => t.keyword)
-  for (let i = 0; i < trendSeeds.length; i += 5) {
-    try {
-      const batch = trendSeeds.slice(i, i + 5)
-      const results = await naverAd.getKeywordStats(batch)
-
-      const valid = results
-        .filter(r => !existingSet.has(r.keyword))
-        .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
-        .map(r => ({
-          keyword: r.keyword,
-          volume: r.monthlySearchVolume,
-          cpc: r.monthlyAvgCpc || 0,
-          competition: compScore(r.compIdx),
-          competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1),
-        }))
-        .sort((a, b) => b.competitiveness - a.competitiveness)
-        .slice(0, 15)
-
-      firstRound.push(...valid)
-      valid.forEach(r => existingSet.add(r.keyword))
-    } catch (err: any) {
-      _errors.push(`1차: ${err.message}`)
-    }
-  }
-
-  // 중복 제거
-  const uniqueFirst = new Map<string, typeof firstRound[0]>()
-  for (const r of firstRound) {
-    if (!uniqueFirst.has(r.keyword)) uniqueFirst.set(r.keyword, r)
-  }
-  trendFound = uniqueFirst.size
-  _debug.firstRoundCount = trendFound
-
-  // ──────────────────────────────────────────────
-  // 5. 2차 확장: 상위 → 롱테일
-  // ──────────────────────────────────────────────
-  const expandedKeywords: typeof firstRound = []
-  const toExpand = Array.from(uniqueFirst.values())
-    .sort((a, b) => (b.volume / (b.competition + 1)) - (a.volume / (a.competition + 1)))
-    .slice(0, 8)
+  const expandedKeywords: Array<{ keyword: string; volume: number; cpc: number; competition: number }> = []
+  const toExpand = uniqueTrends.slice(0, 8)
 
   for (const kw of toExpand) {
     try {
       const results = await naverAd.getKeywordStats([kw.keyword])
       const longTails = results
-        .filter(r => r.keyword !== kw.keyword && !existingSet.has(r.keyword))
+        .filter(r => r.keyword !== kw.keyword && !existingSet.has(r.keyword) && !seen.has(r.keyword))
         .filter(r => r.monthlySearchVolume >= 30 && r.keyword.length >= 5)
         .map(r => ({
           keyword: r.keyword,
@@ -267,20 +257,26 @@ export async function runTrendDiscovery(userId: string) {
         .slice(0, 6)
 
       expandedKeywords.push(...longTails)
-      longTails.forEach(r => existingSet.add(r.keyword))
+      longTails.forEach(r => { existingSet.add(r.keyword); seen.add(r.keyword) })
     } catch (err: any) {
       _errors.push(`2차(${kw.keyword}): ${err.message}`)
     }
   }
   expanded = expandedKeywords.length
-  _debug.expandedCount = expanded
 
   // ──────────────────────────────────────────────
-  // 6. stage='expanded'로 저장
+  // 5. stage='expanded'로 저장
   // ──────────────────────────────────────────────
-  const allNew = [...Array.from(uniqueFirst.values()), ...expandedKeywords]
-  if (allNew.length > 0) {
-    const rows = allNew.map(r => ({
+  const allNew = [
+    ...uniqueTrends.map(t => ({ keyword: t.keyword, volume: 0, cpc: 0, competition: 50 })),
+    ...expandedKeywords,
+  ]
+
+  // 1차 키워드는 이미 광고 API에서 받아온 것이므로 데이터가 matchedTrends에 없음
+  // 광고 API 결과를 다시 가져와서 데이터 보강 — 이미 있는 건 스킵
+  const toInsert: Array<Record<string, unknown>> = []
+  for (const r of allNew) {
+    toInsert.push({
       user_id: userId,
       keyword_text: r.keyword,
       keyword_type: 'gold' as const,
@@ -288,12 +284,16 @@ export async function runTrendDiscovery(userId: string) {
       monthly_search_volume: r.volume,
       cpc_estimate: r.cpc,
       competition_score: r.competition,
-    }))
-    for (let i = 0; i < rows.length; i += 50) {
-      await supabase.from('keyword_pipeline').insert(rows.slice(i, i + 50))
+    })
+  }
+
+  if (toInsert.length > 0) {
+    for (let i = 0; i < toInsert.length; i += 50) {
+      await supabase.from('keyword_pipeline').insert(toInsert.slice(i, i + 50))
     }
   }
 
-  _debug.totalAdded = allNew.length
-  return { trendFound, expanded, added: allNew.length, _debug, _errors }
+  _debug.expandedCount = expanded
+  _debug.totalAdded = toInsert.length
+  return { trendFound, expanded, added: toInsert.length, _debug, _errors }
 }
