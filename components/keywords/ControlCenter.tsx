@@ -383,6 +383,32 @@ export function ControlCenter() {
             <Calendar className="w-4 h-4" />
             <span className="hidden sm:inline">시즌 키워드</span>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={runningPipeline}
+            onClick={async () => {
+              if (!confirm('실시간 트렌드 키워드를 발굴합니다.\nGoogle Trends + 네이버 뉴스에서 블로그에 적합한 키워드를 찾습니다.\n\n진행하시겠습니까?')) return
+              setRunningPipeline(true)
+              try {
+                const res = await fetch('/api/agents/trends', { method: 'POST' })
+                const json = await res.json()
+                alert([
+                  '트렌드 키워드 완료',
+                  `1차 발굴: ${json.trendFound ?? 0}개`,
+                  `2차 롱테일: ${json.expanded ?? 0}개`,
+                  `파이프라인 추가: ${json.added ?? 0}개`,
+                  ...(json._errors?.length > 0 ? [`\n에러: ${json._errors.join(', ')}`] : []),
+                ].join('\n'))
+                await fetchData(true, 1)
+              } catch { /* ignore */ }
+              finally { setRunningPipeline(false) }
+            }}
+            className="gap-1.5"
+          >
+            <Zap className="w-4 h-4" />
+            <span className="hidden sm:inline">트렌드</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowApiKeyDialog(true)} className="gap-1.5">
             <Settings2 className="w-4 h-4" />
             <span className="hidden sm:inline">API 키</span>
