@@ -18,7 +18,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
     // 1. expanded 단계 키워드 가져오기 (Scout/Expander가 데이터를 이미 저장함)
     const { data: pending } = await supabase
       .from('keyword_pipeline')
-      .select('id, keyword_text, keyword_type, monthly_search_volume, cpc_estimate, competition_score')
+      .select('id, keyword_text, keyword_type, monthly_search_volume, cpc_estimate, competition_score, trend_index')
       .eq('user_id', userId)
       .eq('stage', 'expanded')
       .order('created_at', { ascending: true })
@@ -50,16 +50,28 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
         monthlySearchVolume: volume,
         competitionIndex,
         cpcEstimate: cpc,
+        trendIndex: p.trend_index ?? undefined,
       }
 
       const scored = scoreKeyword(apiData, p.keyword_type ?? 'gold')
+
+      // 시즌 키워드 계절성 보너스 (기획서 기준: 피크 1개월 전 +30, 2개월 전 +15, 당월 +5)
+      let finalScore = scored.revenueScore.total
+      if (p.keyword_type === 'seasonal' && p.trend_index && p.trend_index > 50) {
+        // 트렌드 지수가 높을수록 보너스 증가 (최대 +30)
+        const trendBonus = Math.min(Math.round((p.trend_index - 50) * 0.6), 30)
+        finalScore = Math.min(finalScore + trendBonus, 100)
+      }
+
+      // 보너스 적용 후 등급 재계산
+      const finalGrade = finalScore >= 80 ? 'S' : finalScore >= 65 ? 'A' : finalScore >= 50 ? 'B' : finalScore >= 35 ? 'C' : 'D'
 
       await supabase
         .from('keyword_pipeline')
         .update({
           stage: 'scored',
-          revenue_score: scored.revenueScore.total,
-          keyword_grade: scored.revenueScore.grade,
+          revenue_score: finalScore,
+          keyword_grade: finalGrade,
           intent_type: scored.intentType,
           trend_index: scored.trendIndex,
           scored_at: new Date().toISOString(),

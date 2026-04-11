@@ -10,7 +10,6 @@
 import { getServiceClient, runAgent } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
 import { EventAPI } from '@/lib/monetize/apis/event-api'
-import { ANNUAL_EVENTS } from '@/lib/monetize/constants'
 import { decrypt } from '@/lib/utils/encryption'
 import type { AgentRunResult } from './types'
 
@@ -36,42 +35,7 @@ const BLOG_TYPE_SEEDS: Record<string, string[]> = {
 }
 
 // ─── blog_type별 시즌 키워드 시드 (시즌 이벤트 × 블로그 주제 교차) ──────────
-// "어버이날" + medical → "어버이날 건강검진 선물" 같은 맥락적 시드
-// 시즌 × 카테고리 교차 시드 (공백 없는 단어로 구성)
-const SEASONAL_CROSS_SEEDS: Record<string, Record<string, string[]>> = {
-  'medical': {
-    '어버이날': ['어버이날건강선물', '영양제추천', '부모님건강검진'],
-    '어린이날': ['어린이영양제', '어린이건강검진'],
-    '봄나들이': ['봄철알레르기', '황사마스크', '봄운동'],
-    '겨울여행': ['면역력강화', '독감예방접종'],
-    '여름휴가': ['식중독예방', '열사병증상'],
-    '설날': ['소화불량', '명절건강'],
-    '추석': ['추석건강관리', '명절다이어트'],
-  },
-  'finance': {
-    '설날': ['세뱃돈재테크', '재무목표'],
-    '근로자의날': ['주식시장휴장', '공모주일정'],
-    '블랙프라이데이': ['해외주식', '연말절세'],
-    '어버이날': ['효도보험', '부모님용돈'],
-    '봄나들이': ['여행자보험', '소비절약'],
-    '수능': ['등록금마련', '학자금대출'],
-  },
-  'real-estate': {
-    '봄나들이': ['봄이사철', '전세시세', '이사비용'],
-    '설날': ['부동산전망', '분양일정'],
-    '겨울여행': ['부동산매매', '겨울인테리어'],
-    '어버이날': ['실버타운', '리모델링비용'],
-    '여름휴가': ['전세이동', '하반기부동산'],
-  },
-  'entertainment': {
-    '코첼라': ['코첼라라인업', '코첼라일정'],
-    '어린이날': ['어린이날공연', '어린이뮤지컬'],
-    '크리스마스': ['크리스마스공연', '연말콘서트'],
-    '핼러윈': ['핼러윈파티', '핼러윈이벤트'],
-    '봄나들이': ['봄페스티벌', '봄전시회'],
-    '여름휴가': ['여름페스티벌', '워터밤'],
-  },
-}
+// 시즌 × 카테고리 교차 시드는 seasonal-discovery.ts로 이동됨
 
 /**
  * 블로그의 blog_type과 설명에서 시드 키워드를 추출합니다.
@@ -108,28 +72,11 @@ function extractSeedsFromBlog(blog: {
   return Array.from(new Set(seeds)).slice(0, 15)
 }
 
-/**
- * 시즌 키워드를 블로그 카테고리와 교차하여 생성합니다.
- * "어버이날" + medical블로그 → "어버이날 건강검진 선물"
- */
-function getSeasonalSeedsForBlogType(blogType: string, seasonalBase: string[]): string[] {
-  const crossSeeds = SEASONAL_CROSS_SEEDS[blogType]
-  if (!crossSeeds) return []
-
-  const seeds: string[] = []
-  for (const event of seasonalBase) {
-    const eventSeeds = crossSeeds[event]
-    if (eventSeeds) seeds.push(...eventSeeds)
-  }
-  return seeds
-}
-
 export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
   return runAgent(userId, 'scout', async () => {
     const supabase = getServiceClient()
     let goldFound = 0
     let eventFound = 0
-    let seasonFound = 0
     // 디버그 정보 수집 (API 응답에 포함하여 원인 추적)
     const _debug: Record<string, unknown> = {}
     const _errors: string[] = []
@@ -303,71 +250,9 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       _errors.push(`Event: ${err.message}`)
     }
 
-    // ──────────────────────────────────────────────
-    // 4. 시즌 키워드 — 블로그 카테고리 × 시즌 이벤트 교차
-    //    "어버이날" + medical → "어버이날 건강검진 선물"
-    //    API에서 실제 검색량 확인된 것만 등록
-    // ──────────────────────────────────────────────
-    try {
-      const now = new Date()
-      const currentMonth = now.getMonth() + 1
-      const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1
+    // 시즌 키워드는 별도 버튼(runSeasonalDiscovery)으로 분리됨
+    // "지금 시작"에서는 Gold + Event만 실행
 
-      const seasonalBase: string[] = []
-      for (const month of [currentMonth, nextMonth]) {
-        const ae = ANNUAL_EVENTS.find(a => a.month === month)
-        if (ae) seasonalBase.push(...ae.events)
-      }
-
-      if (seasonalBase.length > 0) {
-        // blog_type별로 시즌 × 카테고리 교차 시드 생성
-        const allSeasonalSeeds = new Set<string>()
-        for (const blog of koBlogsWithType) {
-          const crossSeeds = getSeasonalSeedsForBlogType(blog.blog_type!, seasonalBase)
-          crossSeeds.forEach(s => allSeasonalSeeds.add(s))
-        }
-
-        if (allSeasonalSeeds.size > 0) {
-          const seedArray = Array.from(allSeasonalSeeds)
-          // 5개씩 배치로 API 호출
-          for (let i = 0; i < seedArray.length; i += 5) {
-            try {
-              const batch = seedArray.slice(i, i + 5)
-              const seasonResults = await naverAd.getKeywordStats(batch)
-
-              const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
-              const validSeasonal = seasonResults
-                .filter(r => !existingSet.has(r.keyword))
-                .filter(r => r.monthlySearchVolume >= 50)
-                .filter(r => r.keyword.length >= 4)
-                .map(r => ({ ...r, competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1) }))
-                .sort((a, b) => b.competitiveness - a.competitiveness)
-                .slice(0, 20) // 배치당 최대 20개
-
-              if (validSeasonal.length > 0) {
-                const rows = validSeasonal.map(r => ({
-                  user_id: userId,
-                  keyword_text: r.keyword,
-                  keyword_type: 'seasonal' as const,
-                  stage: 'discovered' as const,
-                  monthly_search_volume: r.monthlySearchVolume,
-                  cpc_estimate: r.monthlyAvgCpc || 0,
-                  competition_score: compScore(r.compIdx),
-                }))
-                await supabase.from('keyword_pipeline').insert(rows)
-                seasonFound += validSeasonal.length
-                validSeasonal.forEach(r => existingSet.add(r.keyword))
-              }
-            } catch (err: any) {
-              _errors.push(`Seasonal batch: ${err.message}`)
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      _errors.push(`Seasonal: ${err.message}`)
-    }
-
-    return { goldFound, eventFound, seasonFound, total: goldFound + eventFound + seasonFound, _debug, _errors }
+    return { goldFound, eventFound, seasonFound: 0, total: goldFound + eventFound, _debug, _errors }
   })
 }

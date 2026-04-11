@@ -356,6 +356,30 @@ export function ControlCenter() {
               <><Rocket className="w-4 h-4" /> 지금 시작</>
             )}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={runningPipeline}
+            onClick={async () => {
+              if (!confirm('시즌 키워드 발굴을 시작합니다.\nDataLab 2년 트렌드를 분석하여 현재/다음달 시즌 키워드를 찾습니다.\n\n진행하시겠습니까?')) return
+              setRunningPipeline(true)
+              try {
+                const res = await fetch('/api/agents/seasonal', { method: 'POST' })
+                const json = await res.json()
+                if (json.seasonFound > 0) {
+                  alert(`시즌 키워드 ${json.seasonFound}개를 발굴했습니다.`)
+                } else {
+                  alert(`시즌 키워드를 찾지 못했습니다.\n${json._errors?.join('\n') || ''}`)
+                }
+                await fetchData(true, 1)
+              } catch { /* ignore */ }
+              finally { setRunningPipeline(false) }
+            }}
+            className="gap-1.5"
+          >
+            <Calendar className="w-4 h-4" />
+            <span className="hidden sm:inline">시즌 키워드</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowApiKeyDialog(true)} className="gap-1.5">
             <Settings2 className="w-4 h-4" />
             <span className="hidden sm:inline">API 키</span>
