@@ -10,10 +10,23 @@
  */
 import { getServiceClient } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
-import { EventAPI } from '@/lib/monetize/apis/event-api'
 import { decrypt } from '@/lib/utils/encryption'
 
 // blog_type별 관련 키워드 매칭 (트렌드 키워드가 어떤 블로그에 적합한지 판단)
+// blog_type별 네이버 뉴스 검색 쿼리 (해당 분야 최신 이슈 수집용)
+const BLOG_TYPE_NEWS_QUERIES: Record<string, string[]> = {
+  'medical': ['건강 질병 최신', '의료 신약 치료법', '다이어트 운동 트렌드'],
+  'finance': ['주식 증시 전망', '금리 경제 투자', '재테크 부동산 대출'],
+  'real-estate': ['부동산 아파트 시세', '전세 분양 청약', '재개발 재건축 전망'],
+  'entertainment': ['공연 콘서트 신작', '넷플릭스 드라마 영화', '웹툰 게임 신작'],
+  'it-tech': ['AI 반도체 기술', '스마트폰 노트북 신제품', '프로그래밍 개발 트렌드'],
+  'food': ['맛집 레시피 트렌드', '카페 디저트 신메뉴'],
+  'travel': ['여행 관광 명소', '항공 호텔 할인'],
+  'pets': ['반려동물 강아지 고양이', '펫 사료 건강'],
+  'sports': ['야구 축구 경기결과', '골프 등산 피트니스'],
+  'education': ['자격증 시험 일정', '교육 입시 학습'],
+}
+
 // 3글자 이상 단어만 사용 (2글자는 오매칭 위험)
 const BLOG_TYPE_MATCH_WORDS: Record<string, string[]> = {
   'medical': ['건강', '병원', '의료', '질병', '치료', '증상', '수술', '혈당', '혈압', '비타민', '영양', '다이어트', '면역', '의학', '검진', '약국', '진료'],
@@ -99,43 +112,78 @@ export async function runTrendDiscovery(userId: string) {
   const existingSet = new Set((existingAll ?? []).map((p: any) => p.keyword_text))
 
   // ──────────────────────────────────────────────
-  // 3. 트렌드 키워드 수집 (Google Trends + 네이버 뉴스)
+  // 3. 트렌드 키워드 수집
+  //    소스 1: 블로그 카테고리별 네이버 뉴스 검색
+  //    소스 2: Google Trends 급상승 검색어
   // ──────────────────────────────────────────────
-  const eventAPI = new EventAPI(userId)
-  await eventAPI.initializeWithClient(supabase)
-  const allEvents = await eventAPI.fetchAllEvents()
 
-  // 블로그 카테고리와 매칭되는 트렌드 키워드만 필터
+  // 네이버 검색 API 키 확인
+  const naverSearchKeyRaw = apiKeys?.find((k: any) => k.provider === 'naver_search')
+  let naverSearchKey: { clientId: string; clientSecret: string } | null = null
+  if (naverSearchKeyRaw) {
+    try {
+      naverSearchKey = {
+        clientId: decrypt(naverSearchKeyRaw.encrypted_key),
+        clientSecret: naverSearchKeyRaw.encrypted_secret ? decrypt(naverSearchKeyRaw.encrypted_secret) : '',
+      }
+    } catch { /* ignore */ }
+  }
+  _debug.hasNaverSearchKey = !!naverSearchKey
+
   const matchedTrends: Array<{ keyword: string; source: string; blogType: string }> = []
 
-  for (const event of allEvents) {
-    // HTML 태그 제거 후 제목에서 한국어 핵심 단어 추출
-    const rawTitle = event.title.replace(/<[^>]*>/g, '').trim()
-    // 제목에서 2~6글자 한국어 단어 추출 (검색 가능한 단위)
-    const koreanWords = rawTitle.match(/[가-힣]{2,6}/g) ?? []
+  // 소스 1: 블로그 카테고리별 네이버 뉴스 검색
+  if (naverSearchKey) {
+    for (const blogType of Array.from(userBlogTypes)) {
+      const queries = BLOG_TYPE_NEWS_QUERIES[blogType]
+      if (!queries) continue
 
-    // 단어별로 블로그 카테고리 매칭 (3글자 이상 단어만)
-    for (const word of koreanWords) {
-      if (word.length < 3) continue
-      const matchedType = matchBlogType(word, userBlogTypes)
-      if (matchedType && !existingSet.has(word)) {
-        matchedTrends.push({ keyword: word, source: event.source, blogType: matchedType })
-      }
-    }
+      for (const query of queries) {
+        try {
+          const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=10&sort=date`
+          const res = await fetch(url, {
+            headers: {
+              'X-Naver-Client-Id': naverSearchKey.clientId,
+              'X-Naver-Client-Secret': naverSearchKey.clientSecret,
+            },
+          })
+          if (!res.ok) continue
 
-    // event.keywords도 활용 (이미 정제된 키워드)
-    for (const kw of event.keywords) {
-      const cleanKw = kw.replace(/<[^>]*>/g, '').trim()
-      // 공백 제거하되 너무 긴 것은 제외 (15자 이상은 검색어가 아님)
-      const noSpace = cleanKw.replace(/\s+/g, '')
-      if (noSpace.length < 3 || noSpace.length > 15) continue
-
-      const matchedType = matchBlogType(noSpace, userBlogTypes)
-      if (matchedType && !existingSet.has(noSpace)) {
-        matchedTrends.push({ keyword: noSpace, source: event.source, blogType: matchedType })
+          const data = await res.json()
+          for (const item of (data.items ?? [])) {
+            const title = (item.title || '').replace(/<[^>]*>/g, '').trim()
+            // 제목에서 3~8글자 한국어 단어 추출
+            const words = title.match(/[가-힣]{3,8}/g) ?? []
+            for (const word of words) {
+              if (!existingSet.has(word) && !matchedTrends.some(t => t.keyword === word)) {
+                matchedTrends.push({ keyword: word, source: 'naver_news', blogType })
+              }
+            }
+          }
+        } catch { /* 개별 쿼리 실패 무시 */ }
       }
     }
   }
+
+  // 소스 2: Google Trends 급상승 검색어
+  try {
+    const gRes = await fetch('https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR')
+    if (gRes.ok) {
+      const xml = await gRes.text()
+      // RSS에서 <title> 태그 추출
+      const titles = xml.match(/<title>([^<]+)<\/title>/g) ?? []
+      for (const tag of titles) {
+        const keyword = tag.replace(/<\/?title>/g, '').trim().replace(/\s+/g, '')
+        if (keyword.length < 3 || keyword.length > 12) continue
+        if (keyword === 'DailySearchTrends') continue
+
+        const matchedType = matchBlogType(keyword, userBlogTypes)
+        if (matchedType && !existingSet.has(keyword) && !matchedTrends.some(t => t.keyword === keyword)) {
+          matchedTrends.push({ keyword, source: 'google_trends', blogType: matchedType })
+        }
+      }
+    }
+  } catch { /* Google Trends 실패 무시 */ }
 
   // 중복 제거
   const seen = new Set<string>()
@@ -145,7 +193,7 @@ export async function runTrendDiscovery(userId: string) {
     return true
   }).slice(0, 20) // 최대 20개
 
-  _debug.totalEvents = allEvents.length
+  _debug.totalRawTrends = matchedTrends.length
   _debug.matchedTrends = uniqueTrends.length
   _debug.trendSample = uniqueTrends.slice(0, 10).map(t => `${t.keyword}(${t.source}→${t.blogType})`)
 
