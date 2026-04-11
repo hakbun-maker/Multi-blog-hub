@@ -132,91 +132,59 @@ export async function runTrendDiscovery(userId: string) {
 
   const matchedTrends: Array<{ keyword: string; source: string; blogType: string }> = []
 
-  // 소스 1: 블로그 카테고리별 네이버 뉴스 → 핵심 명사 추출 → 네이버 광고 API 시드로 사용
-  // 뉴스 제목에서 직접 키워드를 뽑지 않고, 핵심 명사를 시드로 보내서
-  // 네이버 광고 API가 실제 검색 키워드를 반환하도록 함
-  const trendSeeds: Array<{ seed: string; blogType: string; source: string }> = []
-
-  if (naverSearchKey) {
-    for (const blogType of Array.from(userBlogTypes)) {
-      const queries = BLOG_TYPE_NEWS_QUERIES[blogType]
-      if (!queries) continue
-
-      // 카테고리별 뉴스에서 핵심 명사 추출
-      const categoryNouns = new Set<string>()
-
-      for (const query of queries.slice(0, 2)) { // 쿼리 2개씩만
-        try {
-          const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=5&sort=date`
-          const res = await fetch(url, {
-            headers: {
-              'X-Naver-Client-Id': naverSearchKey.clientId,
-              'X-Naver-Client-Secret': naverSearchKey.clientSecret,
-            },
-          })
-          if (!res.ok) continue
-
-          const data = await res.json()
-          for (const item of (data.items ?? [])) {
-            const title = (item.title || '').replace(/<[^>]*>/g, '').trim()
-            // 3~6글자 한국어 명사 후보 추출 (동사/형용사 제외)
-            const words = title.match(/[가-힣]{3,6}/g) ?? []
-            for (const word of words) {
-              // 동사/형용사/조사 패턴 필터 (끝나는 글자로 판단)
-              if (/[다지고서면며는된할를에게의로]$/.test(word)) continue
-              categoryNouns.add(word)
-            }
-          }
-        } catch { /* ignore */ }
-      }
-
-      // 카테고리별 상위 3개 명사를 시드로 사용
-      const nouns = Array.from(categoryNouns).slice(0, 3)
-      for (const noun of nouns) {
-        trendSeeds.push({ seed: noun, blogType, source: 'naver_news' })
-      }
-    }
+  // ──────────────────────────────────────────────
+  // 트렌드 시드 생성 전략:
+  // 뉴스 제목에서 단어를 추출하는 건 불안정 (동사/조사/오분류)
+  // 대신 검증된 카테고리 키워드 + 시간 요소를 조합하여 시드 생성
+  // 이 시드는 Scout의 고정 시드와 다르게 "최신", "2026" 등이 붙어
+  // 트렌드성 연관 키워드를 반환함
+  // ──────────────────────────────────────────────
+  const currentYear = new Date().getFullYear()
+  const TREND_SEED_TEMPLATES: Record<string, string[]> = {
+    'medical': [`건강트렌드${currentYear}`, `신약`, `건강검진`, `다이어트방법`, `면역력`],
+    'finance': [`주식전망${currentYear}`, `금리`, `재테크`, `투자트렌드`, `연금`],
+    'real-estate': [`부동산전망${currentYear}`, `전세`, `청약`, `분양`, `아파트시세`],
+    'entertainment': [`넷플릭스${currentYear}`, `콘서트`, `신작드라마`, `웹툰추천`, `공연`],
+    'it-tech': [`AI트렌드${currentYear}`, `스마트폰`, `노트북`, `프로그래밍`, `반도체`],
+    'food': [`맛집트렌드`, `레시피`, `카페`, `디저트`, `밀키트`],
+    'travel': [`여행트렌드${currentYear}`, `항공권`, `호텔`, `캠핑`, `관광`],
+    'pets': [`반려동물`, `강아지사료`, `고양이`, `펫보험`],
+    'sports': [`야구${currentYear}`, `축구`, `골프`, `등산`, `헬스`],
+    'education': [`자격증${currentYear}`, `토익`, `공무원시험`, `코딩교육`],
   }
 
-  // 소스 2: Google Trends 급상승 검색어
-  try {
-    const gRes = await fetch('https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR')
-    if (gRes.ok) {
-      const xml = await gRes.text()
-      const titles = xml.match(/<title>([^<]+)<\/title>/g) ?? []
-      for (const tag of titles) {
-        const keyword = tag.replace(/<\/?title>/g, '').trim().replace(/\s+/g, '')
-        if (keyword.length < 3 || keyword.length > 12 || keyword === 'DailySearchTrends') continue
-
-        const matchedType = matchBlogType(keyword, userBlogTypes)
-        if (matchedType) {
-          trendSeeds.push({ seed: keyword, source: 'google_trends', blogType: matchedType })
-        }
-      }
-    }
-  } catch { /* ignore */ }
-
-  _debug.trendSeeds = trendSeeds.map(s => `${s.seed}(${s.source}→${s.blogType})`)
-
-  // 시드를 네이버 광고 API에 넣어서 실제 검색 키워드 수집
   const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
 
-  for (const { seed, blogType } of trendSeeds) {
-    try {
-      const results = await naverAd.getKeywordStats([seed])
-      const valid = results
-        .filter(r => !existingSet.has(r.keyword))
-        .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
-        .slice(0, 8)
+  // 블로그 카테고리별 트렌드 시드 → 네이버 광고 API
+  for (const blogType of Array.from(userBlogTypes)) {
+    const seeds = TREND_SEED_TEMPLATES[blogType]
+    if (!seeds) continue
 
-      for (const r of valid) {
-        if (!matchedTrends.some(t => t.keyword === r.keyword)) {
-          matchedTrends.push({ keyword: r.keyword, source: 'naver_news', blogType })
+    for (const seed of seeds) {
+      try {
+        const results = await naverAd.getKeywordStats([seed])
+        const valid = results
+          .filter(r => !existingSet.has(r.keyword))
+          .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
+          .map(r => ({
+            keyword: r.keyword,
+            volume: r.monthlySearchVolume,
+            cpc: r.monthlyAvgCpc || 0,
+            competition: compScore(r.compIdx),
+            competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1),
+          }))
+          .sort((a, b) => b.competitiveness - a.competitiveness)
+          .slice(0, 5) // 시드당 경쟁력 상위 5개
+
+        for (const r of valid) {
+          matchedTrends.push({ keyword: r.keyword, source: `trend_${blogType}`, blogType })
           existingSet.add(r.keyword)
         }
-      }
-    } catch { /* 개별 시드 실패 무시 */ }
+      } catch { /* 개별 시드 실패 무시 */ }
+    }
   }
+
+  _debug.trendSeedTypes = Array.from(userBlogTypes)
 
   // 중복 제거 (시드 → 광고 API에서 이미 실제 검색 키워드를 받아옴)
   const seen = new Set<string>()
