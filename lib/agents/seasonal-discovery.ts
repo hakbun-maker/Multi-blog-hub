@@ -1,13 +1,17 @@
 /**
- * 시즌 키워드 발굴 — 별도 실행 (자동 파이프라인에 포함되지 않음)
+ * 시즌 키워드 발굴 — 연간 전체 (1~12월)
+ *
+ * 실행할 때마다 기존 시즌 키워드와 동기화:
+ * - 중복: 유지 (트렌드 데이터만 업데이트)
+ * - 구에만 있음: 삭제
+ * - 신규에만 있음: 추가
  *
  * 논리:
- * 1) ANNUAL_EVENTS에서 현재월+다음달 이벤트 추출
- * 2) DataLab API로 각 이벤트의 2년 트렌드 조회
- * 3) YoY 성장률 20%+ 또는 피크월이 현재/다음달인 것만 선별
- * 4) 선별된 시즌 키워드 × 블로그 카테고리 교차 시드
- * 5) 네이버 광고 API로 연관 키워드 + 데이터 수집
- * 6) 계절성 보너스 + 트렌드 정보 함께 저장
+ * 1) ANNUAL_EVENTS 1~12월 전체 이벤트 추출
+ * 2) DataLab API로 2년 트렌드 → YoY 성장률 + 피크월 + 계절성 보너스
+ * 3) 블로그 카테고리 × 시즌 교차 시드 생성
+ * 4) 네이버 광고 API로 연관 키워드 + 데이터 수집
+ * 5) 기존 시즌 키워드와 동기화 (추가/삭제/유지)
  */
 import { getServiceClient } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
@@ -15,31 +19,34 @@ import { NaverDataLabAPI } from '@/lib/monetize/apis/naver-datalab-api'
 import { ANNUAL_EVENTS } from '@/lib/monetize/constants'
 import { decrypt } from '@/lib/utils/encryption'
 
-// 시즌 × 카테고리 교차 시드 (공백 없는 단어)
+// 시즌 × 카테고리 교차 시드
 const SEASONAL_CROSS_SEEDS: Record<string, Record<string, string[]>> = {
   'medical': {
     '어버이날': ['어버이날건강선물', '영양제추천', '부모님건강검진'],
     '어린이날': ['어린이영양제', '어린이건강검진'],
-    '봄나들이': ['봄철알레르기', '황사마스크', '봄운동'],
+    '봄나들이': ['봄철알레르기', '황사마스크'],
     '겨울여행': ['면역력강화', '독감예방접종'],
     '여름휴가': ['식중독예방', '열사병증상'],
     '설날': ['소화불량', '명절건강'],
     '추석': ['추석건강관리', '명절다이어트'],
+    '여름준비': ['여름다이어트', '자외선차단'],
+    '가을준비': ['환절기건강', '독감예방'],
   },
   'finance': {
     '설날': ['세뱃돈재테크', '재무목표'],
     '근로자의날': ['주식시장휴장', '공모주일정'],
     '블랙프라이데이': ['해외주식', '연말절세'],
     '어버이날': ['효도보험', '부모님용돈'],
-    '봄나들이': ['여행자보험', '소비절약'],
     '수능': ['등록금마련', '학자금대출'],
+    '연말정산': ['연말정산', '세액공제'],
+    '신년': ['신년재테크', '새해투자'],
   },
   'real-estate': {
-    '봄나들이': ['봄이사철', '전세시세', '이사비용'],
+    '봄나들이': ['봄이사철', '전세시세'],
     '설날': ['부동산전망', '분양일정'],
-    '겨울여행': ['부동산매매', '겨울인테리어'],
     '어버이날': ['실버타운', '리모델링비용'],
-    '여름휴가': ['전세이동', '하반기부동산'],
+    '여름휴가': ['하반기부동산', '전세이동'],
+    '이사시즌': ['이사비용', '이사업체추천'],
   },
   'entertainment': {
     '코첼라': ['코첼라라인업', '코첼라일정'],
@@ -48,14 +55,15 @@ const SEASONAL_CROSS_SEEDS: Record<string, Record<string, string[]>> = {
     '핼러윈': ['핼러윈파티', '핼러윈이벤트'],
     '봄나들이': ['봄페스티벌', '봄전시회'],
     '여름휴가': ['여름페스티벌', '워터밤'],
+    '가을축제': ['가을공연', '단풍축제'],
   },
 }
 
-function getSeasonalSeedsForBlogType(blogType: string, seasonalBase: string[]): string[] {
+function getSeasonalSeedsForBlogType(blogType: string, events: string[]): string[] {
   const crossSeeds = SEASONAL_CROSS_SEEDS[blogType]
   if (!crossSeeds) return []
   const seeds: string[] = []
-  for (const event of seasonalBase) {
+  for (const event of events) {
     const eventSeeds = crossSeeds[event]
     if (eventSeeds) seeds.push(...eventSeeds)
   }
@@ -64,7 +72,9 @@ function getSeasonalSeedsForBlogType(blogType: string, seasonalBase: string[]): 
 
 export async function runSeasonalDiscovery(userId: string) {
   const supabase = getServiceClient()
-  let seasonFound = 0
+  let added = 0
+  let removed = 0
+  let kept = 0
   const _debug: Record<string, unknown> = {}
   const _errors: string[] = []
 
@@ -79,7 +89,7 @@ export async function runSeasonalDiscovery(userId: string) {
     (b: any) => (b.language === 'ko' || !b.language) && b.blog_type
   )
   if (koBlogsWithType.length === 0) {
-    return { seasonFound: 0, _debug, _errors: ['한국어 블로그 없음'] }
+    return { added: 0, removed: 0, kept: 0, _debug, _errors: ['한국어 블로그 없음'] }
   }
 
   // 2. API 키 조회
@@ -94,10 +104,10 @@ export async function runSeasonalDiscovery(userId: string) {
   const naverSearchKeyRaw = apiKeys?.find((k: any) => k.provider === 'naver_search')
 
   if (!naverAdKeyRaw) {
-    return { seasonFound: 0, _debug, _errors: ['네이버 광고 API 키 없음'] }
+    return { added: 0, removed: 0, kept: 0, _debug, _errors: ['네이버 광고 API 키 없음'] }
   }
 
-  let naverAdKey: { apiKey: string; secretKey: string; customerId: string } | null = null
+  let naverAdKey: { apiKey: string; secretKey: string; customerId: string }
   try {
     naverAdKey = {
       apiKey: decrypt(naverAdKeyRaw.encrypted_key),
@@ -105,7 +115,7 @@ export async function runSeasonalDiscovery(userId: string) {
       customerId: naverAdKeyRaw.encrypted_extra ? decrypt(naverAdKeyRaw.encrypted_extra) : '',
     }
   } catch {
-    return { seasonFound: 0, _debug, _errors: ['API 키 복호화 실패'] }
+    return { added: 0, removed: 0, kept: 0, _debug, _errors: ['API 키 복호화 실패'] }
   }
 
   const naverAd = new NaverAdAPI()
@@ -116,41 +126,27 @@ export async function runSeasonalDiscovery(userId: string) {
   const dataLab = new NaverDataLabAPI()
   if (naverSearchKeyRaw) {
     try {
-      const dlKey = decrypt(naverSearchKeyRaw.encrypted_key)
-      const dlSecret = naverSearchKeyRaw.encrypted_secret ? decrypt(naverSearchKeyRaw.encrypted_secret) : ''
-      dataLab.initializeWithKeys(dlKey, dlSecret)
+      dataLab.initializeWithKeys(
+        decrypt(naverSearchKeyRaw.encrypted_key),
+        naverSearchKeyRaw.encrypted_secret ? decrypt(naverSearchKeyRaw.encrypted_secret) : ''
+      )
       dataLabReady = true
     } catch { /* DataLab 키 복호화 실패 */ }
   }
   _debug.dataLabReady = dataLabReady
 
-  // 기존 키워드 (중복 방지)
-  const { data: existingAll } = await supabase
-    .from('keyword_pipeline')
-    .select('keyword_text')
-    .eq('user_id', userId)
-  const existingSet = new Set((existingAll ?? []).map((p: any) => p.keyword_text))
-
-  // 3. 현재월 + 다음달 시즌 이벤트 추출
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1
-
-  const seasonalBase: string[] = []
-  for (const month of [currentMonth, nextMonth]) {
-    const ae = ANNUAL_EVENTS.find(a => a.month === month)
-    if (ae) seasonalBase.push(...ae.events)
+  // ──────────────────────────────────────────────
+  // 3. 1~12월 전체 시즌 이벤트 추출 + DataLab 트렌드
+  // ──────────────────────────────────────────────
+  const currentMonth = new Date().getMonth() + 1
+  const allEvents: string[] = []
+  for (const ae of ANNUAL_EVENTS) {
+    allEvents.push(...ae.events)
   }
-  _debug.seasonalBase = seasonalBase
-  _debug.currentMonth = currentMonth
-  _debug.nextMonth = nextMonth
+  _debug.totalEvents = allEvents.length
 
-  if (seasonalBase.length === 0) {
-    return { seasonFound: 0, _debug, _errors: ['해당 월에 시즌 이벤트 없음'] }
-  }
-
-  // 4. DataLab 트렌드 분석 — 각 이벤트의 2년 트렌드 조회
-  const trendFiltered: Array<{
+  // 트렌드 분석 (DataLab)
+  const trendData: Array<{
     keyword: string
     trendIndex: number
     yoyGrowth: number
@@ -158,101 +154,155 @@ export async function runSeasonalDiscovery(userId: string) {
     seasonalBonus: number
   }> = []
 
-  for (const event of seasonalBase) {
+  for (const event of allEvents) {
+    let trendIndex = 50
+    let yoyGrowth = 0
+    let peakMonth: number | null = null
+    let seasonalBonus = 0
+
     if (dataLabReady) {
       try {
         const trend = await dataLab.getTrend(event)
+        trendIndex = trend.trendIndex
+        yoyGrowth = trend.yoyGrowth
 
-        const peakMonth = trend.seasonalMonths.length > 0
+        peakMonth = trend.seasonalMonths.length > 0
           ? trend.seasonalMonths.sort((a, b) =>
               Math.abs(a - currentMonth) - Math.abs(b - currentMonth)
             )[0]
           : null
 
-        // 계절성 보너스
-        let seasonalBonus = 0
         if (peakMonth !== null) {
           const monthsUntilPeak = ((peakMonth - currentMonth) + 12) % 12
           if (monthsUntilPeak === 1) seasonalBonus = 30
           else if (monthsUntilPeak === 2) seasonalBonus = 15
           else if (monthsUntilPeak === 0) seasonalBonus = 5
         }
-
-        // 현재월/다음달 이벤트는 시기적으로 이미 적합
-        // 트렌드 데이터는 탈락 기준이 아닌 보너스 점수로만 활용
-        trendFiltered.push({
-          keyword: event,
-          trendIndex: trend.trendIndex,
-          yoyGrowth: trend.yoyGrowth,
-          peakMonth,
-          seasonalBonus,
-        })
-      } catch {
-        trendFiltered.push({ keyword: event, trendIndex: 50, yoyGrowth: 0, peakMonth: null, seasonalBonus: 0 })
-      }
-    } else {
-      trendFiltered.push({ keyword: event, trendIndex: 50, yoyGrowth: 0, peakMonth: null, seasonalBonus: 0 })
+      } catch { /* 개별 이벤트 트렌드 실패 — 기본값 사용 */ }
     }
+
+    trendData.push({ keyword: event, trendIndex, yoyGrowth, peakMonth, seasonalBonus })
   }
 
-  _debug.trendFiltered = trendFiltered.map(t =>
-    `${t.keyword}(YoY:${t.yoyGrowth}%,peak:${t.peakMonth},bonus:${t.seasonalBonus},trend:${t.trendIndex})`
+  _debug.trendSample = trendData.slice(0, 10).map(t =>
+    `${t.keyword}(YoY:${t.yoyGrowth}%,peak:${t.peakMonth},bonus:${t.seasonalBonus})`
   )
 
-  // 5. 트렌드 통과한 시즌 키워드 × 블로그 카테고리 교차 시드
-  const filteredEventNames = trendFiltered.map(t => t.keyword)
+  // ──────────────────────────────────────────────
+  // 4. 블로그 카테고리 × 시즌 교차 시드 → 네이버 API
+  // ──────────────────────────────────────────────
   const allSeasonalSeeds = new Set<string>()
   for (const blog of koBlogsWithType) {
-    const crossSeeds = getSeasonalSeedsForBlogType((blog as any).blog_type!, filteredEventNames)
+    const crossSeeds = getSeasonalSeedsForBlogType((blog as any).blog_type!, allEvents)
     crossSeeds.forEach(s => allSeasonalSeeds.add(s))
   }
-  if (allSeasonalSeeds.size === 0) {
-    for (const t of trendFiltered) {
-      allSeasonalSeeds.add(t.keyword.replace(/\s+/g, ''))
-    }
+  // 교차 시드가 없는 이벤트는 이벤트명 자체를 시드로 사용
+  for (const event of allEvents) {
+    allSeasonalSeeds.add(event.replace(/\s+/g, ''))
   }
-  _debug.seasonalSeeds = Array.from(allSeasonalSeeds)
+  _debug.totalSeeds = allSeasonalSeeds.size
 
-  // 6. 네이버 광고 API로 연관 키워드 수집
+  // 네이버 광고 API로 연관 키워드 수집
   const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
-  const seedArray = Array.from(allSeasonalSeeds)
+  const newKeywordsMap = new Map<string, {
+    keyword_text: string
+    monthly_search_volume: number
+    cpc_estimate: number
+    competition_score: number
+    trend_index: number
+  }>()
 
+  const seedArray = Array.from(allSeasonalSeeds)
   for (let i = 0; i < seedArray.length; i += 5) {
     try {
       const batch = seedArray.slice(i, i + 5)
-      const seasonResults = await naverAd.getKeywordStats(batch)
+      const results = await naverAd.getKeywordStats(batch)
 
-      const validSeasonal = seasonResults
-        .filter(r => !existingSet.has(r.keyword))
+      const valid = results
         .filter(r => r.monthlySearchVolume >= 50)
         .filter(r => r.keyword.length >= 4)
         .map(r => ({ ...r, competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1) }))
         .sort((a, b) => b.competitiveness - a.competitiveness)
         .slice(0, 15)
 
-      if (validSeasonal.length > 0) {
-        const batchTrend = trendFiltered.find(t =>
-          batch.some(seed => seed.includes(t.keyword.replace(/\s+/g, '')))
-        )
+      // 시드에 매칭되는 트렌드 정보
+      const batchTrend = trendData.find(t =>
+        batch.some(seed => seed.includes(t.keyword.replace(/\s+/g, '')))
+      )
 
-        const rows = validSeasonal.map(r => ({
-          user_id: userId,
-          keyword_text: r.keyword,
-          keyword_type: 'seasonal' as const,
-          stage: 'discovered' as const,
-          monthly_search_volume: r.monthlySearchVolume,
-          cpc_estimate: r.monthlyAvgCpc || 0,
-          competition_score: compScore(r.compIdx),
-          trend_index: batchTrend?.trendIndex ?? 50,
-        }))
-        await supabase.from('keyword_pipeline').insert(rows)
-        seasonFound += validSeasonal.length
-        validSeasonal.forEach(r => existingSet.add(r.keyword))
+      for (const r of valid) {
+        if (!newKeywordsMap.has(r.keyword)) {
+          newKeywordsMap.set(r.keyword, {
+            keyword_text: r.keyword,
+            monthly_search_volume: r.monthlySearchVolume,
+            cpc_estimate: r.monthlyAvgCpc || 0,
+            competition_score: compScore(r.compIdx),
+            trend_index: batchTrend?.trendIndex ?? 50,
+          })
+        }
       }
     } catch (err: any) {
-      _errors.push(`Seasonal batch: ${err.message}`)
+      _errors.push(`API batch: ${err.message}`)
     }
   }
 
-  return { seasonFound, _debug, _errors }
+  _debug.newKeywordsFound = newKeywordsMap.size
+
+  // ──────────────────────────────────────────────
+  // 5. 기존 시즌 키워드와 동기화
+  //    - 중복: 유지 (트렌드 업데이트)
+  //    - 구에만 있음: 삭제
+  //    - 신규에만 있음: 추가
+  // ──────────────────────────────────────────────
+  const { data: existingSeasonal } = await supabase
+    .from('keyword_pipeline')
+    .select('id, keyword_text')
+    .eq('user_id', userId)
+    .eq('keyword_type', 'seasonal')
+
+  const existingMap = new Map((existingSeasonal ?? []).map((e: any) => [e.keyword_text, e.id]))
+  const newKeywordSet = new Set(newKeywordsMap.keys())
+
+  // 삭제: 기존에만 있는 키워드
+  const toDelete: string[] = []
+  for (const [kwText, id] of Array.from(existingMap.entries())) {
+    if (!newKeywordSet.has(kwText)) {
+      toDelete.push(id)
+    }
+  }
+  if (toDelete.length > 0) {
+    for (let i = 0; i < toDelete.length; i += 50) {
+      await supabase.from('keyword_pipeline').delete().in('id', toDelete.slice(i, i + 50))
+    }
+    removed = toDelete.length
+  }
+
+  // 추가: 신규에만 있는 키워드
+  const toInsert: Array<Record<string, unknown>> = []
+  for (const [kwText, data] of Array.from(newKeywordsMap.entries())) {
+    if (!existingMap.has(kwText)) {
+      toInsert.push({
+        user_id: userId,
+        keyword_text: data.keyword_text,
+        keyword_type: 'seasonal',
+        stage: 'discovered',
+        monthly_search_volume: data.monthly_search_volume,
+        cpc_estimate: data.cpc_estimate,
+        competition_score: data.competition_score,
+        trend_index: data.trend_index,
+      })
+    } else {
+      kept++
+    }
+  }
+  if (toInsert.length > 0) {
+    for (let i = 0; i < toInsert.length; i += 50) {
+      await supabase.from('keyword_pipeline').insert(toInsert.slice(i, i + 50))
+    }
+    added = toInsert.length
+  }
+
+  _debug.summary = `추가: ${added}, 삭제: ${removed}, 유지: ${kept}`
+
+  return { added, removed, kept, seasonFound: added, _debug, _errors }
 }

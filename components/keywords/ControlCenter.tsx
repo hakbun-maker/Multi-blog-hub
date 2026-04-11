@@ -366,11 +366,9 @@ export function ControlCenter() {
               try {
                 const res = await fetch('/api/agents/seasonal', { method: 'POST' })
                 const json = await res.json()
-                if (json.seasonFound > 0) {
-                  alert(`시즌 키워드 ${json.seasonFound}개를 발굴했습니다.`)
-                } else {
-                  alert(`시즌 키워드를 찾지 못했습니다.\n${json._errors?.join('\n') || ''}`)
-                }
+                const msg = [`시즌 키워드 동기화 완료`, `추가: ${json.added ?? 0}개`, `삭제: ${json.removed ?? 0}개`, `유지: ${json.kept ?? 0}개`]
+                if (json._errors?.length > 0) msg.push(`\n에러: ${json._errors.join(', ')}`)
+                alert(msg.join('\n'))
                 await fetchData(true, 1)
               } catch { /* ignore */ }
               finally { setRunningPipeline(false) }
