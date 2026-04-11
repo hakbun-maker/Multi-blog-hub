@@ -178,20 +178,15 @@ export async function runSeasonalDiscovery(userId: string) {
           else if (monthsUntilPeak === 0) seasonalBonus = 5
         }
 
-        // 선별 조건
-        const isPeakSoon = peakMonth === currentMonth || peakMonth === nextMonth
-        const isGrowing = trend.yoyGrowth >= 20
-        const isHighTrend = trend.trendIndex >= 60
-
-        if (isPeakSoon || isGrowing || isHighTrend) {
-          trendFiltered.push({
-            keyword: event,
-            trendIndex: trend.trendIndex,
-            yoyGrowth: trend.yoyGrowth,
-            peakMonth,
-            seasonalBonus,
-          })
-        }
+        // 현재월/다음달 이벤트는 시기적으로 이미 적합
+        // 트렌드 데이터는 탈락 기준이 아닌 보너스 점수로만 활용
+        trendFiltered.push({
+          keyword: event,
+          trendIndex: trend.trendIndex,
+          yoyGrowth: trend.yoyGrowth,
+          peakMonth,
+          seasonalBonus,
+        })
       } catch {
         trendFiltered.push({ keyword: event, trendIndex: 50, yoyGrowth: 0, peakMonth: null, seasonalBonus: 0 })
       }
