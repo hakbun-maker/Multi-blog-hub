@@ -184,11 +184,11 @@ export function ControlCenter() {
     }).catch(() => {})
   }, [])
 
-  // 30초마다 자동 갱신
+  // 자동 갱신: 실행 중일 때 3초, 평소 30초
   useEffect(() => {
-    const interval = setInterval(() => fetchData(true), 30000)
+    const interval = setInterval(() => fetchData(true), runningPipeline ? 3000 : 30000)
     return () => clearInterval(interval)
-  }, [fetchData])
+  }, [fetchData, runningPipeline])
 
   // 수동 파이프라인 실행
   const handleRunNow = async () => {
@@ -196,7 +196,6 @@ export function ControlCenter() {
     try {
       const res = await fetch('/api/agents/run', { method: 'POST' })
       if (res.ok) {
-        // 완료 후 데이터 새로고침
         await fetchData(true)
       }
     } catch { /* ignore */ }
@@ -441,23 +440,32 @@ export function ControlCenter() {
         {VISIBLE_AGENTS.map(agentType => {
           const agent = agents.find(a => a.agentType === agentType)
           const config = AGENT_CONFIG[agentType]
-          // 파이프라인 실행 중이면 모든 에이전트를 '실행 중' 또는 '대기'로 표시
-          const displayStatus = runningPipeline
-            ? STATUS_CONFIG.running
-            : STATUS_CONFIG[agent?.status ?? 'idle'] ?? STATUS_CONFIG.idle
-          const isRunning = runningPipeline
+          // 실제 agent_logs 상태를 반영 (3초마다 갱신됨)
+          const actualStatus = agent?.status ?? 'idle'
+          const isAgentRunning = actualStatus === 'running'
+          const statusCfg = STATUS_CONFIG[actualStatus] ?? STATUS_CONFIG.idle
 
           return (
-            <div key={agentType} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border ${isRunning ? 'border-yellow-300 bg-yellow-50/30' : 'border-gray-200'}`}>
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? 'bg-yellow-500 animate-pulse' : displayStatus.dot}`} />
+            <div key={agentType} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-all ${
+              isAgentRunning ? 'border-yellow-400 bg-yellow-50 shadow-sm' :
+              actualStatus === 'completed' ? 'border-green-200 bg-green-50/30' :
+              actualStatus === 'error' ? 'border-red-200 bg-red-50/30' :
+              'border-gray-200'
+            }`}>
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusCfg.dot}`} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-semibold text-gray-800">{config?.label}</span>
-                  <span className={`text-[10px] ${isRunning ? 'text-yellow-600' : displayStatus.color}`}>
-                    {isRunning ? '실행 중...' : displayStatus.label}
-                  </span>
+                  {isAgentRunning ? (
+                    <span className="text-[10px] text-yellow-600 font-medium flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      진행 중
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
+                  )}
                 </div>
-                {!runningPipeline && agent?.summary && Object.keys(agent.summary).length > 0 && (
+                {!isAgentRunning && agent?.summary && Object.keys(agent.summary).length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-0.5">
                     {Object.entries(agent.summary)
                       .filter(([key, val]) => !key.startsWith('_') && (typeof val === 'number' || typeof val === 'string'))
