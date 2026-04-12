@@ -510,30 +510,53 @@ export class EventAPI {
    */
   static extractDate(text: string): string | null {
     if (!text) return null
+    const year = new Date().getFullYear()
 
-    // ISO / slash format
+    // 1. ISO / slash format: 2025-07-15, 2025/7/15
     const iso = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
     if (iso) {
       const [, y, m, d] = iso
       return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
     }
 
-    // Korean full date: 2025년 7월 15일
-    const fullKo = text.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/)
+    // 2. Dot format: 2025.7.15, 2025.07.15
+    const dot = text.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/)
+    if (dot) {
+      const [, y, m, d] = dot
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    }
+
+    // 3. Korean full date: 2025년 7월 15일 (공백 유무 무관)
+    const fullKo = text.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/)
     if (fullKo) {
       const [, y, m, d] = fullKo
       return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
     }
 
-    // Korean partial date: 7월 15일 (assume current year)
-    const partialKo = text.match(/(\d{1,2})월\s*(\d{1,2})일/)
+    // 4. Korean partial date: 7월 15일, 7월15일 (공백 유무 무관, 올해 가정)
+    const partialKo = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/)
     if (partialKo) {
       const [, m, d] = partialKo
-      const year = new Date().getFullYear()
       return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
     }
 
-    // RFC 2822: "Mon, 14 Jul 2025 12:00:00 +0900"
+    // 5. "오는 N일", "이번 달 N일" (올해+현재월 가정)
+    const thisMonth = text.match(/(?:오는|이번\s*달?)\s*(\d{1,2})일/)
+    if (thisMonth) {
+      const month = new Date().getMonth() + 1
+      return `${year}-${String(month).padStart(2, '0')}-${thisMonth[1].padStart(2, '0')}`
+    }
+
+    // 6. "다음 달 N일" (올해+다음달 가정)
+    const nextMonth = text.match(/다음\s*달?\s*(\d{1,2})일/)
+    if (nextMonth) {
+      const month = new Date().getMonth() + 2 // 다음달
+      const adjYear = month > 12 ? year + 1 : year
+      const adjMonth = month > 12 ? month - 12 : month
+      return `${adjYear}-${String(adjMonth).padStart(2, '0')}-${nextMonth[1].padStart(2, '0')}`
+    }
+
+    // 7. RFC 2822: "Mon, 14 Jul 2025 12:00:00 +0900"
     const rfc = text.match(/\d{1,2}\s+\w{3}\s+\d{4}/)
     if (rfc) {
       const parsed = new Date(rfc[0])

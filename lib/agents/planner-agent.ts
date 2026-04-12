@@ -360,6 +360,22 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
       }
     }
 
+    // ──── 마지막: scored 단계에 남아있는 잔여 키워드 전부 삭제 ────
+    // 스케줄 확정되지 못한 키워드는 파이프라인에 방치하지 않음
+    const { data: leftover } = await supabase
+      .from('keyword_pipeline')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('stage', 'scored')
+
+    const leftoverIds = (leftover ?? []).map((r: any) => r.id)
+    if (leftoverIds.length > 0) {
+      for (let i = 0; i < leftoverIds.length; i += 50) {
+        await supabase.from('keyword_pipeline').delete().in('id', leftoverIds.slice(i, i + 50))
+      }
+      deletedMismatch += leftoverIds.length
+    }
+
     return { assigned, deletedMismatch, deletedLowScore, multiLangExpanded }
   })
 }
