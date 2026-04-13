@@ -179,16 +179,33 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
           firstCallDone = true
         }
 
-        // 경쟁력 기반 선별: 검색량 있고 경쟁도 낮은 롱테일 우선
-        // 경쟁력 점수 = 검색량 / (경쟁도 점수 + 1)
-        // 경쟁도: 높음=80, 중간=50, 낮음=20
+        // 황금 키워드 선별 (기획서: 네이버 검색 api 키워드 기반 선별전략.txt)
+        // ✅ 검색량 1,000~30,000 (너무 작으면 유입 없음, 너무 크면 경쟁 과열)
+        // ✅ 경쟁도 "중간"이 최적 (낮으면 CPC도 낮음, 높으면 뚫기 어려움)
+        // ✅ PC 비율 40%+ 가중치 (PC 사용자 = 고구매력)
+        // ✅ 4글자 이상 키워드
         const compScore = (compIdx: string) => compIdx === '높음' ? 80 : compIdx === '낮음' ? 20 : 50
         const newKeywords = results
           .filter(r => !existingSet.has(r.keyword))
-          .filter(r => r.monthlySearchVolume >= 50)        // 최소 검색량 50 (롱테일 포함)
-          .filter(r => r.keyword.length >= 4)               // 너무 짧은 단일 단어 제외 (예: "약", "차")
-          .map(r => ({ ...r, competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1) }))
-          .sort((a, b) => b.competitiveness - a.competitiveness) // 경쟁력 높은 순
+          .filter(r => r.monthlySearchVolume >= 500)                    // 최소 검색량 500 (유입 가능)
+          .filter(r => r.monthlySearchVolume <= 50000)                  // 최대 50,000 (경쟁 과열 방지)
+          .filter(r => r.keyword.length >= 4)
+          .map(r => {
+            const comp = compScore(r.compIdx)
+            const pcRatio = r.monthlySearchVolume > 0
+              ? r.monthlyPcQcCnt / r.monthlySearchVolume
+              : 0
+            // 황금 키워드 점수:
+            // - 경쟁도 중간(50)이 최적 → |경쟁-50|이 작을수록 높은 점수
+            // - 검색량 3,000~20,000 구간이 최적
+            // - PC 비율 40%+ 보너스
+            const compOptimal = 30 - Math.abs(comp - 50) * 0.5  // 중간 경쟁이면 30, 높음/낮음이면 15
+            const volumeOptimal = r.monthlySearchVolume >= 3000 && r.monthlySearchVolume <= 20000 ? 20 : 10
+            const pcBonus = pcRatio >= 0.4 ? 10 : pcRatio >= 0.25 ? 5 : 0
+            const goldScore = compOptimal + volumeOptimal + pcBonus
+            return { ...r, goldScore }
+          })
+          .sort((a, b) => b.goldScore - a.goldScore)
           .slice(0, 30)
 
         _debug[`gold_${blogType}_newKeywords`] = newKeywords.length
