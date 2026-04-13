@@ -8,6 +8,7 @@
  * 4. 블로그별 발행 시간은 모두 다르게 배정
  */
 import { getServiceClient, runAgent } from './agent-runner'
+import { EVENT_PHASES, inferEventCategory } from './shared'
 import type { AgentRunResult, EventPhase } from './types'
 import type { IntentType } from '@/types/monetize'
 
@@ -97,35 +98,7 @@ function matchScore(keywordText: string, blog: BlogInfo): number {
   return score
 }
 
-// ─── Event Phase Config ─────────────────────────────────────────────────────
-
-const EVENT_PHASE_CONFIG: Record<string, { dDayOffset: number; intentType: IntentType; suffix: string }[]> = {
-  concert: [
-    { dDayOffset: -30, intentType: 'INFO', suffix: '정보 총정리' },
-    { dDayOffset: -14, intentType: 'COMPARE', suffix: '좌석 추천 가격 비교' },
-    { dDayOffset: -7, intentType: 'AD', suffix: '준비물 주변 맛집' },
-    { dDayOffset: 1, intentType: 'REVIEW', suffix: '후기 현장 리뷰' },
-  ],
-  sports: [
-    { dDayOffset: -7, intentType: 'INFO', suffix: '경기 일정 정보' },
-    { dDayOffset: -1, intentType: 'COMPARE', suffix: '승부 예측 분석' },
-    { dDayOffset: 1, intentType: 'REVIEW', suffix: '경기 결과 하이라이트' },
-  ],
-  festival: [
-    { dDayOffset: -21, intentType: 'INFO', suffix: '일정 프로그램 안내' },
-    { dDayOffset: -7, intentType: 'AD', suffix: '입장권 교통편 준비' },
-    { dDayOffset: 1, intentType: 'REVIEW', suffix: '축제 후기 현장' },
-  ],
-  exhibition: [
-    { dDayOffset: -14, intentType: 'INFO', suffix: '전시 정보 관람 포인트' },
-    { dDayOffset: -3, intentType: 'AD', suffix: '티켓 예매 할인' },
-    { dDayOffset: 1, intentType: 'REVIEW', suffix: '관람 후기' },
-  ],
-  other: [
-    { dDayOffset: -7, intentType: 'INFO', suffix: '정보' },
-    { dDayOffset: 1, intentType: 'REVIEW', suffix: '후기' },
-  ],
-}
+// EVENT_PHASES, inferEventCategory는 shared.ts에서 import
 
 // ─── Main Agent ─────────────────────────────────────────────────────────────
 
@@ -247,7 +220,7 @@ export async function runPlannerAgent(userId: string): Promise<AgentRunResult> {
         if (!existingCluster || existingCluster.length === 0) {
           const eventDate = new Date(kw.event_date)
           const category = inferEventCategory(kw.event_title)
-          const phases = EVENT_PHASE_CONFIG[category] ?? EVENT_PHASE_CONFIG.other
+          const phases = EVENT_PHASES[category] ?? EVENT_PHASES.other
           const { blog: bestBlog, score: bestScore } = findBestBlogWithScore(blogs, kw.event_title ?? kw.keyword_text)
 
           if (bestScore < MIN_MATCH_SCORE) {
@@ -397,10 +370,4 @@ function findBestBlogWithScore(blogs: BlogInfo[], keywordText: string): { blog: 
   return { blog: bestBlog, score: bestScore }
 }
 
-function inferEventCategory(title: string): string {
-  if (/콘서트|공연|뮤지컬|팬미팅|가수|아이돌/.test(title)) return 'concert'
-  if (/야구|축구|농구|KBO|K리그|경기/.test(title)) return 'sports'
-  if (/축제|페스티벌|코첼라/.test(title)) return 'festival'
-  if (/전시|박람회|미술/.test(title)) return 'exhibition'
-  return 'other'
-}
+// inferEventCategory는 shared.ts에서 import

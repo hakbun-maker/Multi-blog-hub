@@ -9,7 +9,6 @@
  */
 import { getServiceClient, runAgent } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
-import { EventAPI } from '@/lib/monetize/apis/event-api'
 import { decrypt } from '@/lib/utils/encryption'
 import type { AgentRunResult } from './types'
 
@@ -76,7 +75,6 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
   return runAgent(userId, 'scout', async () => {
     const supabase = getServiceClient()
     let goldFound = 0
-    let eventFound = 0
     // 디버그 정보 수집 (API 응답에 포함하여 원인 추적)
     const _debug: Record<string, unknown> = {}
     const _errors: string[] = []
@@ -230,46 +228,9 @@ export async function runScoutAgent(userId: string): Promise<AgentRunResult> {
       }
     }
 
-    // ──────────────────────────────────────────────
-    // 3. 이벤트 키워드 발굴 (공연/경기/축제)
-    // ──────────────────────────────────────────────
-    try {
-      const eventAPI = new EventAPI(userId)
-      await eventAPI.initializeWithClient(supabase)
-      const events = await eventAPI.fetchAllEvents()
+    // 이벤트/시즌/트렌드 키워드는 별도 버튼으로 분리됨
+    // "지금 시작"에서는 Gold 키워드만 실행
 
-      const eventKeywords = events
-        .filter(e => e.date && e.dDay !== null && e.dDay >= -3 && e.dDay <= 60)
-        .flatMap(e => e.keywords.slice(0, 3).map(kw => ({
-          keyword: kw,
-          eventTitle: e.title,
-          eventDate: e.date!,
-          dDay: e.dDay!,
-        })))
-        .filter(ek => !existingSet.has(ek.keyword))
-        .slice(0, 20)
-
-      if (eventKeywords.length > 0) {
-        const rows = eventKeywords.map(ek => ({
-          user_id: userId,
-          keyword_text: ek.keyword,
-          keyword_type: 'event' as const,
-          stage: 'discovered' as const,
-          event_title: ek.eventTitle,
-          event_date: ek.eventDate,
-          event_d_day: ek.dDay,
-        }))
-        await supabase.from('keyword_pipeline').insert(rows)
-        eventFound = eventKeywords.length
-        eventKeywords.forEach(ek => existingSet.add(ek.keyword))
-      }
-    } catch (err: any) {
-      _errors.push(`Event: ${err.message}`)
-    }
-
-    // 시즌 키워드는 별도 버튼(runSeasonalDiscovery)으로 분리됨
-    // "지금 시작"에서는 Gold + Event만 실행
-
-    return { goldFound, eventFound, seasonFound: 0, total: goldFound + eventFound, _debug, _errors }
+    return { goldFound, total: goldFound, _debug, _errors }
   })
 }

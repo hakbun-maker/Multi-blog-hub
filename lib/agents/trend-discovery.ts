@@ -11,6 +11,7 @@
 import { getServiceClient } from './agent-runner'
 import { NaverAdAPI } from '@/lib/monetize/apis/naver-ad-api'
 import { decrypt } from '@/lib/utils/encryption'
+import { competitionToNum } from './shared'
 
 // blog_type별 관련 키워드 매칭 (트렌드 키워드가 어떤 블로그에 적합한지 판단)
 // blog_type별 네이버 뉴스 검색 쿼리 (해당 분야 최신 이슈 수집용)
@@ -140,20 +141,20 @@ export async function runTrendDiscovery(userId: string) {
   // 트렌드성 연관 키워드를 반환함
   // ──────────────────────────────────────────────
   const currentYear = new Date().getFullYear()
+  // 트렌드 전용 시드 — Scout의 고정 시드와 겹치지 않음
+  // 연도 + "트렌드/전망/최신" 키워드로 시간성 반영
   const TREND_SEED_TEMPLATES: Record<string, string[]> = {
-    'medical': [`건강트렌드${currentYear}`, `신약`, `건강검진`, `다이어트방법`, `면역력`],
-    'finance': [`주식전망${currentYear}`, `금리`, `재테크`, `투자트렌드`, `연금`],
-    'real-estate': [`부동산전망${currentYear}`, `전세`, `청약`, `분양`, `아파트시세`],
-    'entertainment': [`넷플릭스${currentYear}`, `콘서트`, `신작드라마`, `웹툰추천`, `공연`],
-    'it-tech': [`AI트렌드${currentYear}`, `스마트폰`, `노트북`, `프로그래밍`, `반도체`],
-    'food': [`맛집트렌드`, `레시피`, `카페`, `디저트`, `밀키트`],
-    'travel': [`여행트렌드${currentYear}`, `항공권`, `호텔`, `캠핑`, `관광`],
-    'pets': [`반려동물`, `강아지사료`, `고양이`, `펫보험`],
-    'sports': [`야구${currentYear}`, `축구`, `골프`, `등산`, `헬스`],
-    'education': [`자격증${currentYear}`, `토익`, `공무원시험`, `코딩교육`],
+    'medical': [`건강트렌드${currentYear}`, `신약승인`, `면역력강화`, `건강기능식품`, `원격진료`],
+    'finance': [`주식전망${currentYear}`, `금리전망`, `투자트렌드`, `가상자산`, `공모주`],
+    'real-estate': [`부동산전망${currentYear}`, `청약일정`, `분양권`, `전세대출`, `재건축`],
+    'entertainment': [`넷플릭스${currentYear}`, `신작드라마`, `웹툰추천`, `페스티벌`, `신곡`],
+    'it-tech': [`AI트렌드${currentYear}`, `신제품`, `반도체전망`, `클라우드`, `로봇`],
+    'food': [`맛집트렌드${currentYear}`, `신메뉴`, `디저트`, `밀키트신상`, `카페추천`],
+    'travel': [`여행트렌드${currentYear}`, `항공권특가`, `신규호텔`, `캠핑장추천`, `비자`],
+    'pets': [`반려동물트렌드`, `신제품사료`, `펫보험`, `동물병원`],
+    'sports': [`야구${currentYear}`, `축구이적`, `골프장추천`, `러닝대회`, `올림픽`],
+    'education': [`자격증${currentYear}`, `공무원시험일정`, `코딩교육`, `온라인강의`],
   }
-
-  const compScore = (c: string) => c === '높음' ? 80 : c === '낮음' ? 20 : 50
 
   // 블로그 카테고리별 트렌드 시드 → 네이버 광고 API
   for (const blogType of Array.from(userBlogTypes)) {
@@ -175,8 +176,8 @@ export async function runTrendDiscovery(userId: string) {
             keyword: r.keyword,
             volume: r.monthlySearchVolume,
             cpc: r.monthlyAvgCpc || 0,
-            competition: compScore(r.compIdx),
-            competitiveness: r.monthlySearchVolume / (compScore(r.compIdx) + 1),
+            competition: competitionToNum(r.compIdx),
+            competitiveness: r.monthlySearchVolume / (competitionToNum(r.compIdx) + 1),
           }))
           .sort((a, b) => b.competitiveness - a.competitiveness)
           .slice(0, 5)
@@ -224,7 +225,7 @@ export async function runTrendDiscovery(userId: string) {
           keyword: r.keyword,
           volume: r.monthlySearchVolume,
           cpc: r.monthlyAvgCpc || 0,
-          competition: compScore(r.compIdx),
+          competition: competitionToNum(r.compIdx),
         }))
         .sort((a, b) => (b.volume / (b.competition + 1)) - (a.volume / (a.competition + 1)))
         .slice(0, 6)
