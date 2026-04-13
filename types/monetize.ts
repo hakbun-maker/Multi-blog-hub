@@ -21,14 +21,20 @@ export type CheckType = 'standard' | 'event'
 // 블로그 언어
 export type BlogLanguage = 'ko' | 'en' | 'ja' | 'de' | 'pt_br' | 'es'
 
-// Revenue Score 결과
+// 키워드 등급 평가 4축 (100점 만점)
 export interface RevenueScore {
-  traffic: number    // 25%
-  revenue: number    // 40%
-  difficulty: number // 25%
-  trend: number      // 10%
-  total: number
+  intentScore: number       // ① 검색 의도 강도 (40점)
+  competitionScore: number  // ② 경쟁 강도 역산 (30점)
+  revenueScore: number      // ③ 수익 연결성 (20점)
+  expansionScore: number    // ④ 콘텐츠 확장성 (10점)
+  categoryBonus: number     // 카테고리 보정값
+  total: number             // 합계 (4축 + 보정)
   grade: Grade
+  // 하위 호환 필드 (기존 코드 참조용)
+  traffic: number
+  revenue: number
+  difficulty: number
+  trend: number
 }
 
 // 키워드

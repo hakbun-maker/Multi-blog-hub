@@ -1,10 +1,14 @@
 /**
  * Analyst 에이전트 — expanded 키워드의 점수를 계산하고 등급을 매깁니다.
  *
- * Scout/Expander가 이미 검색량/CPC/경쟁도를 저장했으므로 API 재호출 없이
- * 기존 데이터로 Revenue Score를 계산합니다.
+ * 4축 평가 체계:
+ * ① 검색 의도 강도 (40점) — Intent 패턴 기반
+ * ② 경쟁 강도 역산 (30점) — 경쟁도 + 키워드 길이(롱테일)
+ * ③ 수익 연결성   (20점) — Intent + CPC
+ * ④ 콘텐츠 확장성 (10점) — 키워드 구조
+ * + 카테고리 보정 — blog_type별 등급컷 하향
  *
- * expanded → scored 단계로 전환합니다.
+ * API 재호출 없음 — Scout/Expander가 이미 데이터를 저장함.
  */
 import { getServiceClient, runAgent } from './agent-runner'
 import { scoreKeyword } from '@/lib/monetize/engines/keyword-scorer'
@@ -15,7 +19,7 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
   return runAgent(userId, 'analyst', async () => {
     const supabase = getServiceClient()
 
-    // 1. expanded 단계 키워드 가져오기 (Scout/Expander가 데이터를 이미 저장함)
+    // 1. expanded 단계 키워드
     const { data: pending } = await supabase
       .from('keyword_pipeline')
       .select('id, keyword_text, keyword_type, monthly_search_volume, cpc_estimate, competition_score, trend_index')
@@ -26,20 +30,28 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
 
     if (!pending || pending.length === 0) return { analyzed: 0, scored: 0 }
 
+    // 2. 사용자 블로그 목록 (카테고리 보정값 적용을 위해)
+    const { data: blogs } = await supabase
+      .from('blogs')
+      .select('blog_type')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+
+    // 가장 주된 blog_type을 기본 카테고리로 사용
+    const blogTypes = (blogs ?? []).map((b: any) => b.blog_type).filter(Boolean)
+    const primaryBlogType = blogTypes[0] ?? null
+
     let scoredCount = 0
 
-    // 2. 점수 계산 (API 호출 없음 — 이미 데이터가 있음)
+    // 3. 4축 점수 계산
     for (const p of pending) {
       const volume = p.monthly_search_volume ?? 0
       const cpc = p.cpc_estimate ?? 0
       const competition = p.competition_score ?? 50
 
-      // 검색량이 0이면 점수를 매길 수 없음
+      // 검색량 0이면 삭제
       if (volume === 0) {
-        await supabase
-          .from('keyword_pipeline')
-          .delete()
-          .eq('id', p.id)
+        await supabase.from('keyword_pipeline').delete().eq('id', p.id)
         continue
       }
 
@@ -53,25 +65,15 @@ export async function runAnalystAgent(userId: string): Promise<AgentRunResult> {
         trendIndex: p.trend_index ?? undefined,
       }
 
-      const scored = scoreKeyword(apiData, p.keyword_type ?? 'gold')
-
-      // 시즌 키워드 계절성 보너스 (기획서 기준: 피크 1개월 전 +30, 2개월 전 +15, 당월 +5)
-      let finalScore = scored.revenueScore.total
-      if (p.keyword_type === 'seasonal' && p.trend_index && p.trend_index > 50) {
-        // 트렌드 지수가 높을수록 보너스 증가 (최대 +30)
-        const trendBonus = Math.min(Math.round((p.trend_index - 50) * 0.6), 30)
-        finalScore = Math.min(finalScore + trendBonus, 100)
-      }
-
-      // 보너스 적용 후 등급 재계산
-      const finalGrade = finalScore >= 80 ? 'S' : finalScore >= 65 ? 'A' : finalScore >= 50 ? 'B' : finalScore >= 35 ? 'C' : 'D'
+      // blogType 전달하여 카테고리 보정 적용
+      const scored = scoreKeyword(apiData, p.keyword_type ?? 'gold', primaryBlogType)
 
       await supabase
         .from('keyword_pipeline')
         .update({
           stage: 'scored',
-          revenue_score: finalScore,
-          keyword_grade: finalGrade,
+          revenue_score: scored.revenueScore.total,
+          keyword_grade: scored.revenueScore.grade,
           intent_type: scored.intentType,
           trend_index: scored.trendIndex,
           scored_at: new Date().toISOString(),

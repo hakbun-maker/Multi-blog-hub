@@ -64,24 +64,32 @@ function classifyIntent(keyword: string): IntentType | null {
   return null
 }
 
-/** Score a single keyword from API data */
-export function scoreKeyword(data: KeywordApiData, keywordType: KeywordType = 'gold'): ScoredKeyword {
+/** Score a single keyword (4축 평가 체계) */
+export function scoreKeyword(
+  data: KeywordApiData,
+  keywordType: KeywordType = 'gold',
+  blogType?: string | null
+): ScoredKeyword {
   const searchVolume = data.monthlySearchVolume || ((data.pcSearchVolume || 0) + (data.mobileSearchVolume || 0))
   const cpc = data.cpcEstimate || 0
   const competition = competitionToScore(data.competitionIndex)
   const trendIndex = data.trendIndex || 50
+  const intentType = classifyIntent(data.keyword)
 
   const revenueScore = calculateRevenueScore({
     searchVolume,
     cpc,
     competition,
     trendIndex,
+    intentType,
+    keyword: data.keyword,
+    blogType: blogType ?? null,
   })
 
   return {
     keyword: data.keyword,
     keywordType,
-    intentType: classifyIntent(data.keyword),
+    intentType,
     revenueScore,
     monthlySearchVolume: searchVolume,
     cpcEstimate: cpc,

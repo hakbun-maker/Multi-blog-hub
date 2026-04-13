@@ -1,13 +1,58 @@
 import type { Grade, IntentType, PasonaWeights, BlogLanguage } from '@/types/monetize'
 
-// SEO Opportunity Score 가중치
-// 블로그 SEO 핵심: "경쟁 낮고 검색량 있는 키워드" = 상위 노출 가능성
-// CPC는 네이버 API가 직접 제공하지 않으므로 비중 최소화
+// ─── 키워드 등급 평가 4축 (기획서 기준) ───────────────────────────
+// ① 검색 의도 강도: 40점 — 구매/행동 의도가 구체적일수록 높은 점수
+// ② 경쟁 강도 역산: 30점 — 롱테일 + 낮은 경쟁 = 상위 노출 가능
+// ③ 수익 연결성:   20점 — 제품 구매/고CPC 카테고리 직결
+// ④ 콘텐츠 확장성: 10점 — 시리즈/내부링크 확장 가능성
+
+// Intent별 검색 의도 점수 (40점 만점)
+export const INTENT_SCORE: Record<IntentType, number> = {
+  AD: 40,       // 구매/행동 직전
+  COMPARE: 30,  // 비교/선택
+  REVIEW: 25,   // 경험 검증
+  CRITIC: 20,   // 비판적 탐색
+  INFO: 15,     // 정보 수집
+  TREND: 10,    // 트렌드/뉴스
+}
+
+// AdSense 카테고리별 보정값 (기획서: AdSense 카테고리별 가중치.txt)
+export const CATEGORY_BONUS: Record<string, {
+  intentBonus: number
+  competitionBonus: number
+  revenueBonus: number
+  expansionBonus: number
+  total: number
+  gradeOffset: number // S등급 기준 하향폭
+}> = {
+  'medical':       { intentBonus: 5, competitionBonus: -3, revenueBonus: 7, expansionBonus: 4, total: 13, gradeOffset: 13 },
+  'finance':       { intentBonus: 5, competitionBonus: -3, revenueBonus: 8, expansionBonus: 3, total: 13, gradeOffset: 13 },
+  'real-estate':   { intentBonus: 4, competitionBonus: -3, revenueBonus: 7, expansionBonus: 3, total: 11, gradeOffset: 11 },
+  'entertainment': { intentBonus: 1, competitionBonus: 0,  revenueBonus: 1, expansionBonus: 2, total: 4,  gradeOffset: 4 },
+  'it-tech':       { intentBonus: 3, competitionBonus: -2, revenueBonus: 4, expansionBonus: 3, total: 8,  gradeOffset: 8 },
+  'food':          { intentBonus: 1, competitionBonus: 0,  revenueBonus: 2, expansionBonus: 2, total: 5,  gradeOffset: 5 },
+  'travel':        { intentBonus: 2, competitionBonus: -1, revenueBonus: 3, expansionBonus: 3, total: 7,  gradeOffset: 7 },
+  'pets':          { intentBonus: 2, competitionBonus: -1, revenueBonus: 3, expansionBonus: 2, total: 6,  gradeOffset: 6 },
+  'sports':        { intentBonus: 2, competitionBonus: -1, revenueBonus: 3, expansionBonus: 3, total: 7,  gradeOffset: 7 },
+  'education':     { intentBonus: 3, competitionBonus: -2, revenueBonus: 4, expansionBonus: 3, total: 8,  gradeOffset: 8 },
+}
+
+// 등급 기준 (보정 전 기본 — 100점 만점)
+// 카테고리 보정으로 등급컷이 하향됨 (medical S: 85-13=72점)
+export const GRADE_THRESHOLDS: Record<Grade, { min: number; max: number }> = {
+  S: { min: 85, max: 100 },
+  A: { min: 70, max: 84 },
+  B: { min: 55, max: 69 },
+  C: { min: 40, max: 54 },
+  D: { min: 0, max: 39 },
+}
+
+// 하위 호환: 기존 코드에서 참조하는 가중치 (utils.ts에서 사용)
 export const REVENUE_SCORE_WEIGHTS = {
-  traffic: 0.25,     // 검색량 — 충분한 트래픽이 있는가
-  revenue: 0.10,     // CPC — 추정값이므로 비중 최소
-  difficulty: 0.45,  // 경쟁도 — 가장 중요! 낮을수록 높은 점수
-  trend: 0.20,       // 트렌드 — 상승 중인 키워드 우대
+  traffic: 0,      // 사용 안 함 (새 4축 체계로 대체)
+  revenue: 0,
+  difficulty: 0,
+  trend: 0,
 } as const
 
 // 자동 발행 임계값
@@ -15,16 +60,6 @@ export const AUTO_PUBLISH_THRESHOLD = 45
 
 // 검수 만점
 export const MAX_QUALITY_SCORE = 50
-
-// 등급 기준 (블로그 SEO 기준)
-// 경쟁도 비중이 높으므로 롱테일 키워드가 A/S 등급에 도달 가능
-export const GRADE_THRESHOLDS: Record<Grade, { min: number; max: number }> = {
-  S: { min: 80, max: 100 },
-  A: { min: 65, max: 79 },
-  B: { min: 50, max: 64 },
-  C: { min: 35, max: 49 },
-  D: { min: 0, max: 34 },
-}
 
 // Intent 우선순위 점수 (IPS)
 export const INTENT_PRIORITY: Record<IntentType, number> = {
