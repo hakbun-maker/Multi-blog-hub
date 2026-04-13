@@ -141,7 +141,7 @@ export async function runSeasonalDiscovery(userId: string) {
   }
 
   // DataLab 트렌드 조회 (보너스용)
-  const trendByEvent = new Map<string, { trendIndex: number; seasonalBonus: number }>()
+  const trendByEvent = new Map<string, { trendIndex: number; seasonalBonus: number; yoyGrowth: number; publishTiming: string }>()
   if (dataLabReady) {
     for (const event of seasonalBase) {
       try {
@@ -156,20 +156,35 @@ export async function runSeasonalDiscovery(userId: string) {
           else if (until === 2) bonus = 15
           else if (until === 0) bonus = 5
         }
-        trendByEvent.set(event, { trendIndex: trend.trendIndex, seasonalBonus: bonus })
-      } catch { /* 기본값 */ }
+        // 시즌 키워드 3가지 검증 (기획서: 시즌 키워드 추출 로직.txt)
+        // ① 2년 연속 동일 월 상승: yoyGrowth로 판단 (isSeasonal은 DataLab에서 계산)
+        // ② 상승 기울기 20%+: yoyGrowth >= 20이면 즉시 발행
+        // ③ 연도별 편차 20포인트 이내: isSeasonal이 true이면 안정적
+        const isVerifiedSeason = trend.isSeasonal || trend.yoyGrowth >= 20 || trend.trendIndex >= 60
+        const publishTiming = trend.yoyGrowth >= 20 ? '즉시' : '다음달선점'
+
+        if (isVerifiedSeason) {
+          trendByEvent.set(event, { trendIndex: trend.trendIndex, seasonalBonus: bonus, yoyGrowth: trend.yoyGrowth, publishTiming })
+        }
+      } catch { /* 기본값 — DataLab 실패 시 포함 */
+        trendByEvent.set(event, { trendIndex: 50, seasonalBonus: 0, yoyGrowth: 0, publishTiming: '기본' })
+      }
     }
   }
-  _debug.trendData = Array.from(trendByEvent.entries()).map(([k, v]) => `${k}(trend:${v.trendIndex},bonus:${v.seasonalBonus})`)
+  _debug.trendData = Array.from(trendByEvent.entries()).map(([k, v]) => `${k}(trend:${v.trendIndex},YoY:${v.yoyGrowth}%,${v.publishTiming})`)
 
   // ──────────────────────────────────────────────
   // 4. 1차 발굴: 교차 시드 → 네이버 API
   // ──────────────────────────────────────────────
+  // 검증된 이벤트만 시드로 사용 (DataLab 검증 통과한 것만)
+  const verifiedEvents = Array.from(trendByEvent.keys())
+  _debug.verifiedEvents = verifiedEvents
+
   const allSeeds = new Set<string>()
   for (const blog of koBlogsWithType) {
-    getSeasonalSeedsForBlogType((blog as any).blog_type!, seasonalBase).forEach(s => allSeeds.add(s))
+    getSeasonalSeedsForBlogType((blog as any).blog_type!, verifiedEvents).forEach(s => allSeeds.add(s))
   }
-  for (const event of seasonalBase) {
+  for (const event of verifiedEvents) {
     allSeeds.add(event.replace(/\s+/g, ''))
   }
 
@@ -193,7 +208,7 @@ export async function runSeasonalDiscovery(userId: string) {
       )
 
       const valid = results
-        .filter(r => r.monthlySearchVolume >= 50 && r.keyword.length >= 4)
+        .filter(r => r.monthlySearchVolume >= 500 && r.keyword.length >= 4) // 기획서: 검색량 1,000 미만 제외
         .map(r => ({
           keyword: r.keyword,
           volume: r.monthlySearchVolume,
