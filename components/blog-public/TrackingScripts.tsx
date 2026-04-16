@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import Script from 'next/script'
 
 interface TrackingConfig {
   ga4_id?: string
@@ -16,66 +16,58 @@ export default function BlogTrackingScripts({ tracking, adsensePubId }: {
   tracking: TrackingConfig
   adsensePubId?: string
 }) {
-  useEffect(() => {
-    const injected: HTMLElement[] = []
+  const pubId = adsensePubId || tracking.adsense_pub_id
+  const normalizedPubId = pubId ? (pubId.startsWith('ca-pub-') ? pubId : `ca-${pubId}`) : null
 
-    if (tracking.ga4_id) {
-      const s1 = document.createElement('script')
-      s1.src = `https://www.googletagmanager.com/gtag/js?id=${tracking.ga4_id}`
-      s1.async = true
-      document.head.appendChild(s1)
-      injected.push(s1)
+  return (
+    <>
+      {/* GA4 */}
+      {tracking.ga4_id && (
+        <>
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${tracking.ga4_id}`}
+            strategy="afterInteractive"
+          />
+          <Script id="ga4-init" strategy="afterInteractive">
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${tracking.ga4_id}');`}
+          </Script>
+        </>
+      )}
 
-      const s2 = document.createElement('script')
-      s2.innerHTML = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${tracking.ga4_id}');`
-      document.head.appendChild(s2)
-      injected.push(s2)
-    }
+      {/* Naver verification (meta tag - rendered in head via metadata, this is fallback) */}
+      {tracking.naver_code && (
+        <Script id="naver-verify" strategy="afterInteractive">
+          {`(function(){var m=document.createElement('meta');m.name='naver-site-verification';m.content='${tracking.naver_code}';document.head.appendChild(m);})();`}
+        </Script>
+      )}
 
-    if (tracking.naver_code) {
-      const meta = document.createElement('meta')
-      meta.name = 'naver-site-verification'
-      meta.content = tracking.naver_code
-      document.head.appendChild(meta)
-      injected.push(meta)
-    }
+      {/* Kakao Pixel */}
+      {tracking.kakao_pixel && (
+        <Script id="kakao-pixel" strategy="lazyOnload">
+          {`!function(e,t){if(!e.kakaoPixel){var n=function(){n.q.push(arguments)};n.q=[],e.kakaoPixel=n;var a=t.createElement("script");a.async=1,a.src="//t1.daumcdn.net/kas/static/kp.js";var i=t.getElementsByTagName("script")[0];i.parentNode.insertBefore(a,i)}}(window,document);kakaoPixel('${tracking.kakao_pixel}');kakaoPixel('${tracking.kakao_pixel}').pageView();`}
+        </Script>
+      )}
 
-    if (tracking.kakao_pixel) {
-      const s = document.createElement('script')
-      s.innerHTML = `!function(e,t){if(!e.kakaoPixel){var n=function(){n.q.push(arguments)};n.q=[],e.kakaoPixel=n;var a=t.createElement("script");a.async=1,a.src="//t1.daumcdn.net/kas/static/kp.js";var i=t.getElementsByTagName("script")[0];i.parentNode.insertBefore(a,i)}}(window,document);kakaoPixel('${tracking.kakao_pixel}');kakaoPixel('${tracking.kakao_pixel}').pageView();`
-      document.head.appendChild(s)
-      injected.push(s)
-    }
+      {/* AdSense */}
+      {normalizedPubId && (
+        <Script
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${normalizedPubId}`}
+          strategy="lazyOnload"
+          crossOrigin="anonymous"
+        />
+      )}
 
-    if (tracking.custom_head) {
-      const div = document.createElement('div')
-      div.innerHTML = tracking.custom_head
-      Array.from(div.children).forEach(child => {
-        document.head.appendChild(child)
-        injected.push(child as HTMLElement)
-      })
-    }
+      {/* Custom head scripts */}
+      {tracking.custom_head && (
+        <Script id="custom-head" strategy="afterInteractive">
+          {`(function(){var d=document.createElement('div');d.innerHTML=${JSON.stringify(tracking.custom_head)};Array.from(d.children).forEach(function(c){document.head.appendChild(c);});})();`}
+        </Script>
+      )}
 
-    const pubId = adsensePubId || tracking.adsense_pub_id
-    if (pubId) {
-      const normalizedId = pubId.startsWith('ca-pub-') ? pubId : `ca-${pubId}`
-      const s = document.createElement('script')
-      s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${normalizedId}`
-      s.async = true
-      s.crossOrigin = 'anonymous'
-      document.head.appendChild(s)
-      injected.push(s)
-    }
-
-    return () => {
-      injected.forEach(el => {
-        try { el.parentNode?.removeChild(el) } catch { /* ignore */ }
-      })
-    }
-  }, [])
-
-  if (tracking.custom_body) {
-    return <div dangerouslySetInnerHTML={{ __html: tracking.custom_body }} />
-  }
-  return null
+      {/* Custom body */}
+      {tracking.custom_body && (
+        <div dangerouslySetInnerHTML={{ __html: tracking.custom_body }} />
+      )}
+    </>
+  )
 }

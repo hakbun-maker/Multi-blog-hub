@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { submitUrlToGoogle } from '@/lib/google/indexing-api'
 
 export async function GET(request: Request) {
   const supabase = createClient()
@@ -69,6 +70,10 @@ export async function POST(request: Request) {
     resolvedCategoryId = blogData?.default_category_id ?? null
   }
 
+  // SEO 필드 안전 트렁케이션 (DB varchar 제한 대응, adapter에서 이미 처리되지만 2중 안전장치)
+  const safeSeoTitle = (seoMeta?.title ?? '').slice(0, 60)
+  const safeMetaDesc = (seoMeta?.description ?? '').slice(0, 160)
+
   const { data, error } = await supabase
     .from('posts')
     .insert({
@@ -80,13 +85,45 @@ export async function POST(request: Request) {
       content_html: htmlContent ?? '',
       status: status ?? 'draft',
       keyword: Array.isArray(tags) ? tags.join(',') : '',
-      seo_title: seoMeta?.title ?? '',
-      meta_description: seoMeta?.description ?? '',
+      seo_title: safeSeoTitle,
+      meta_description: safeMetaDesc,
       ...(status === 'published' && { published_at: new Date().toISOString() }),
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
+
+  // 글 발행 시 Google Indexing API 자동 호출
+  let indexing: { requested: boolean; ok?: boolean; error?: string } = { requested: false }
+
+  if (status === 'published' && data && blogId) {
+    try {
+      const { data: blog } = await supabase
+        .from('blogs')
+        .select('slug, custom_domain, layout_config')
+        .eq('id', blogId)
+        .single()
+
+      if (blog) {
+        const tracking = (blog.layout_config as Record<string, unknown>)?.tracking as Record<string, unknown> | undefined
+        if (tracking?.gsc_auto_index) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+          const blogBase = blog.custom_domain
+            ? `https://${blog.custom_domain}`
+            : `${appUrl}/blog/${blog.slug}`
+          const postUrl = `${blogBase}/${data.slug}`
+
+          const result = await submitUrlToGoogle(user.id, postUrl)
+          indexing = { requested: true, ok: result.ok, error: result.error }
+          if (!result.ok) console.error('Google Indexing 실패:', result.error)
+        }
+      }
+    } catch (e) {
+      console.error('Google Indexing 처리 중 오류:', e)
+      indexing = { requested: true, ok: false, error: 'Indexing API 호출 중 오류 발생' }
+    }
+  }
+
+  return NextResponse.json({ data, indexing }, { status: 201 })
 }

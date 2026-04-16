@@ -115,8 +115,8 @@ async function runJob(supabase: ReturnType<typeof createClient>, job: Record<str
             slug: generated.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now(),
             content_html: finalHtml,
             keyword: Array.isArray(generated.tags) ? generated.tags.join(',') : '',
-            seo_title: generated.seoMeta?.title ?? '',
-            meta_description: generated.seoMeta?.description ?? '',
+            seo_title: (generated.seoMeta?.title ?? '').slice(0, 60),
+            meta_description: (generated.seoMeta?.description ?? '').slice(0, 155),
             status: 'published',
             published_at: new Date().toISOString(),
           })

@@ -79,14 +79,14 @@ const SNS_LABELS: Record<string, string> = {
   blog: 'Blog',
 }
 
-function getFontLink(font: string): string | null {
+function getFontLink(font: string): { href: string; preconnect?: string } | null {
   switch (font) {
     case 'Pretendard':
-      return 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css'
+      return { href: 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css', preconnect: 'https://cdn.jsdelivr.net' }
     case 'Noto Sans KR':
-      return 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap'
+      return { href: 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap', preconnect: 'https://fonts.googleapis.com' }
     case 'NanumGothic':
-      return 'https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap'
+      return { href: 'https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap', preconnect: 'https://fonts.googleapis.com' }
     default:
       return null
   }
@@ -109,40 +109,46 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
   // 블로그 조회
   const { data: blog } = await supabase
     .from('blogs')
-    .select('*')
+    .select('id, name, slug, description, color, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
   if (!blog) return null
 
-  // 카테고리 조회 (service role for RLS)
-  const { data: catData } = await supabaseAdmin
-    .from('categories')
-    .select('id, name, slug, sort_order')
-    .eq('blog_id', blog.id)
-    .order('sort_order', { ascending: true })
+  // 카테고리 + 포스트 병렬 조회
+  const [{ data: catData }, { data: postsData }] = await Promise.all([
+    supabaseAdmin
+      .from('categories')
+      .select('id, name, slug, sort_order')
+      .eq('blog_id', blog.id)
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('posts')
+      .select('id, title, slug, meta_description, published_at, content_html')
+      .eq('blog_id', blog.id)
+      .eq('status', 'published')
+      .order('published_at', { ascending: false }),
+  ])
 
   const categories = (catData ?? []) as Category[]
+  let posts = (postsData ?? []) as Post[]
 
-  let categoryId: string | null = null
+  // 카테고리 필터 (이미 로드된 데이터에서 필터링)
   if (categorySlug && categories.length) {
     const found = categories.find((c: Category) => c.slug === categorySlug)
-    if (found) categoryId = found.id
+    if (found) {
+      // 카테고리 필터가 있으면 별도 쿼리 (이미 로드된 전체 목록 대신)
+      const { data: filteredPosts } = await supabase
+        .from('posts')
+        .select('id, title, slug, meta_description, published_at, content_html')
+        .eq('blog_id', blog.id)
+        .eq('status', 'published')
+        .eq('category_id', found.id)
+        .order('published_at', { ascending: false })
+      posts = (filteredPosts ?? []) as Post[]
+    }
   }
-
-  // 포스트 조회
-  let query = supabase
-    .from('posts')
-    .select('id, title, slug, meta_description, published_at, content_html')
-    .eq('blog_id', blog.id)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-
-  if (categoryId) query = query.eq('category_id', categoryId)
-
-  const { data: postsData } = await query
-  const posts = (postsData ?? []) as Post[]
 
   return { blog: blog as Blog, posts, categories }
 }
@@ -163,7 +169,7 @@ export default async function PublicBlogPage({
   const cfg = mergeConfig(blog.layout_config)
   const color = blog.color ?? '#3b82f6'
   const activeCategory = searchParams.category ?? ''
-  const fontLink = getFontLink(cfg.layout.font)
+  const fontInfo = getFontLink(cfg.layout.font)
 
   const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
   const isMagazine = cfg.layout.preset === 'magazine'
@@ -183,8 +189,10 @@ export default async function PublicBlogPage({
       {/* JSON-LD 구조화 데이터 */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* 폰트 로드 */}
-      {fontLink && <link rel="stylesheet" href={fontLink} />}
+      {/* 폰트 로드 (preconnect + preload로 렌더 블로킹 방지) */}
+      {fontInfo?.preconnect && <link rel="preconnect" href={fontInfo.preconnect} crossOrigin="anonymous" />}
+      {fontInfo && <link rel="preload" as="style" href={fontInfo.href} />}
+      {fontInfo && <link rel="stylesheet" href={fontInfo.href} />}
 
       {/* 트래킹 스크립트 (클라이언트) */}
       <BlogTrackingScripts tracking={cfg.tracking} adsensePubId={cfg.ads.adsense_pub_id} />
@@ -292,7 +300,7 @@ export default async function PublicBlogPage({
                       className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
                       {thumbnail && (
                         <div className="w-full h-40">
-                          <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                          <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" loading="lazy" />
                         </div>
                       )}
                       <div className="p-4">
@@ -325,7 +333,7 @@ export default async function PublicBlogPage({
                         </div>
                         {thumbnail && (
                           <div className="w-24 sm:w-40 flex-shrink-0">
-                            <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" />
+                            <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" loading="lazy" />
                           </div>
                         )}
                       </div>

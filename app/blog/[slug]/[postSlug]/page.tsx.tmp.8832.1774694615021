@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { unstable_noStore as noStore } from 'next/cache'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { ArrowLeft, Calendar, Tag } from 'lucide-react'
@@ -7,8 +8,9 @@ import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 
-// ISR: 1시간마다 백그라운드 갱신 (크롤러/방문자에게 캐시된 빠른 응답 제공)
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
 
@@ -19,7 +21,6 @@ interface Blog {
   name: string
   slug: string
   color?: string
-  blog_type?: string | null
   layout_config?: Partial<LayoutConfig> | null
 }
 
@@ -55,14 +56,14 @@ function mergeConfig(saved: Partial<LayoutConfig> | null | undefined): LayoutCon
   }
 }
 
-function getFontLink(font: string): { href: string; preconnect?: string } | null {
+function getFontLink(font: string): string | null {
   switch (font) {
     case 'Pretendard':
-      return { href: 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css', preconnect: 'https://cdn.jsdelivr.net' }
+      return 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css'
     case 'Noto Sans KR':
-      return { href: 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap', preconnect: 'https://fonts.googleapis.com' }
+      return 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap'
     case 'NanumGothic':
-      return { href: 'https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap', preconnect: 'https://fonts.googleapis.com' }
+      return 'https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap'
     default:
       return null
   }
@@ -105,14 +106,18 @@ const SNS_LABELS: Record<string, string> = {
 // ─── 데이터 패치 (서버) ───
 
 async function fetchPostData(slug: string, postSlug: string) {
+  noStore()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: (u: any, o: any) => fetch(u, { ...o, cache: 'no-store' }) } },
   )
 
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, color, blog_type, layout_config')
+    .select('*')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -139,7 +144,7 @@ async function fetchPostData(slug: string, postSlug: string) {
       .eq('blog_id', blog.id)
       .eq('status', 'published')
       .neq('id', post.id)
-      .order('published_at', { ascending: false })
+      .order(orderCol, { ascending: false })
       .limit(cfg.related_posts.count)
     relatedPosts = (related ?? []) as RelatedPost[]
   }
@@ -157,13 +162,11 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const { blog, post, relatedPosts } = data
   const cfg = mergeConfig(blog.layout_config)
   const color = blog.color ?? '#3b82f6'
-  const fontInfo = getFontLink(cfg.layout.font)
+  const fontLink = getFontLink(cfg.layout.font)
   const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const tags = post.keyword ? post.keyword.split(',').map(t => t.trim()).filter(Boolean) : []
 
   let contentHtml = post.content_html || ''
-  // 본문 이미지에 lazy loading 추가
-  contentHtml = contentHtml.replace(/<img(?![^>]*loading=)/g, '<img loading="lazy"')
   if (cfg.ads.in_article.enabled && cfg.ads.in_article.code) {
     contentHtml = injectInArticleAd(contentHtml, cfg.ads.in_article.code)
   }
@@ -173,16 +176,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const postUrl = `${APP_URL}/blog/${blog.slug}/${decodedPostSlug}`
   const thumbnail = extractFirstImage(post.content_html)
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
-
-  const BLOG_TYPE_SECTION: Record<string, string> = {
-    legal: 'Legal', finance: 'Finance', medical: 'Health & Medical', 'it-tech': 'Technology',
-    education: 'Education', 'beauty-fashion': 'Beauty & Fashion', food: 'Food & Cooking',
-    travel: 'Travel', parenting: 'Parenting', lifestyle: 'Lifestyle', 'real-estate': 'Real Estate',
-    business: 'Business', entertainment: 'Entertainment', sports: 'Sports', pets: 'Pets',
-    automotive: 'Automotive', interior: 'Interior Design', news: 'News', science: 'Science',
-  }
-
-  const articleSection = blog.blog_type ? BLOG_TYPE_SECTION[blog.blog_type] : undefined
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -195,7 +188,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
     publisher: { '@type': 'Organization', name: blog.name },
     ...(thumbnail ? { image: thumbnail } : {}),
     ...(tags.length > 0 ? { keywords: tags.join(', ') } : {}),
-    ...(articleSection ? { articleSection } : {}),
   }
 
   return (
@@ -204,10 +196,8 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
       {/* JSON-LD 구조화 데이터 */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* 폰트 로드 (preconnect + preload로 렌더 블로킹 방지) */}
-      {fontInfo?.preconnect && <link rel="preconnect" href={fontInfo.preconnect} crossOrigin="anonymous" />}
-      {fontInfo && <link rel="preload" as="style" href={fontInfo.href} />}
-      {fontInfo && <link rel="stylesheet" href={fontInfo.href} />}
+      {/* 폰트 로드 */}
+      {fontLink && <link rel="stylesheet" href={fontLink} />}
 
       {/* 트래킹 스크립트 (클라이언트) */}
       <BlogTrackingScripts tracking={cfg.tracking} adsensePubId={cfg.ads.adsense_pub_id} />
@@ -219,8 +209,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         </div>
       )}
 
-      {/* 헤더 — AdSense 문맥 분석 제외 */}
-      {/* google_ad_section_start(weight=ignore) */}
+      {/* 헤더 */}
       <header
         className={`border-b border-gray-100 ${cfg.header.sticky ? 'sticky top-0 z-10 backdrop-blur' : ''}`}
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
@@ -247,7 +236,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
           )}
         </div>
       </header>
-      {/* google_ad_section_end */}
 
       {/* 상단 광고 */}
       {cfg.ads.top_banner.enabled && cfg.ads.top_banner.code && (
@@ -278,6 +266,9 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />{date}
             </span>
+            <span className="flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" />{(post.view_count ?? 0).toLocaleString()}회
+            </span>
           </div>
 
           {cfg.ads.below_title.enabled && cfg.ads.below_title.code && (
@@ -286,10 +277,9 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
             </div>
           )}
 
-          {/* Google AdSense Section Targeting: 본문 콘텐츠 영역 강조 */}
           <div
             className="prose prose-gray max-w-none overflow-hidden [&_img]:max-w-full [&_iframe]:max-w-full [&_ins]:max-w-full"
-            dangerouslySetInnerHTML={{ __html: `<!-- google_ad_section_start -->${contentHtml}<!-- google_ad_section_end -->` }}
+            dangerouslySetInnerHTML={{ __html: contentHtml }}
           />
 
           {tags.length > 0 && (
@@ -335,6 +325,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{p.title}</p>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span>{new Date(p.published_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</span>
+                  <span>{(p.view_count ?? 0).toLocaleString()}회</span>
                 </div>
               </Link>
             ))}
@@ -342,8 +333,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         </div>
       )}
 
-      {/* 푸터 — AdSense 문맥 분석 제외 */}
-      {/* google_ad_section_start(weight=ignore) */}
+      {/* 푸터 */}
       <footer style={{ backgroundColor: cfg.footer.bg_color, color: cfg.footer.text_color }}>
         <div className="mx-auto px-4 py-6 lg:py-10" style={{ maxWidth: cfg.layout.max_width }}>
           {cfg.footer.column_data.length > 0 && (
@@ -385,7 +375,6 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
           )}
         </div>
       </footer>
-      {/* google_ad_section_end */}
     </div>
   )
 }

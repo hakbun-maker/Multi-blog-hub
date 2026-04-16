@@ -22,5 +22,5 @@ export default function AdSlotServer({ code, className }: { code: string; classN
   }, [code])
 
   if (!code) return null
-  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%' }} />
+  return <div ref={containerRef} className={`relative overflow-hidden ${className ?? ''}`} style={{ maxWidth: '100%', width: '100%', minHeight: '90px' }} />
 }

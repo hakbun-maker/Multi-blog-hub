@@ -139,7 +139,13 @@ export default function EditorNewPage() {
       ? await fetch(`/api/posts/${currentPostId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       : await fetch('/api/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     setPublishing(false)
-    if (res.ok) router.push('/dashboard')
+    if (res.ok) {
+      const result = await res.json()
+      if (result.indexing?.requested && !result.indexing?.ok) {
+        alert(`발행 완료! (Google 색인 요청 실패: ${result.indexing.error || '알 수 없는 오류'})`)
+      }
+      router.push('/dashboard')
+    }
   }
 
   // 블로그별 default_category_id를 일괄 조회
@@ -186,6 +192,11 @@ export default function EditorNewPage() {
           if (!res.ok) {
             const data = await res.json().catch(() => ({ error: 'Unknown error' }))
             errors.push(`${s.blogName}: ${data.error}`)
+          } else {
+            const result = await res.json().catch(() => ({}))
+            if (result.indexing?.requested && !result.indexing?.ok) {
+              errors.push(`${s.blogName}: 발행 성공, 색인 실패 (${result.indexing.error || '알 수 없는 오류'})`)
+            }
           }
         } catch (err) {
           errors.push(`${s.blogName}: 네트워크 오류`)
@@ -193,7 +204,7 @@ export default function EditorNewPage() {
       }
       setPublishingAll(false)
       if (errors.length > 0) {
-        alert(`일부 블로그 발행 실패:\n${errors.join('\n')}`)
+        alert(`발행 결과 알림:\n${errors.join('\n')}`)
       }
       router.push('/dashboard')
     }
@@ -232,6 +243,11 @@ export default function EditorNewPage() {
         if (!res.ok) {
           const data = await res.json().catch(() => ({ error: 'Unknown error' }))
           errors.push(`${s.blogName}: ${data.error}`)
+        } else {
+          const result = await res.json().catch(() => ({}))
+          if (result.indexing?.requested && !result.indexing?.ok) {
+            errors.push(`${s.blogName}: 발행 성공, 색인 실패 (${result.indexing.error || '알 수 없는 오류'})`)
+          }
         }
       } catch (err) {
         errors.push(`${s.blogName}: 네트워크 오류`)
@@ -239,7 +255,7 @@ export default function EditorNewPage() {
     }
     setPublishingAll(false)
     if (errors.length > 0) {
-      alert(`일부 블로그 발행 실패:\n${errors.join('\n')}`)
+      alert(`발행 결과 알림:\n${errors.join('\n')}`)
     } else {
       router.push('/dashboard')
     }
@@ -302,13 +318,7 @@ export default function EditorNewPage() {
   const hasAiResults = Object.keys(aiResults).length > 0
   const activeResult = activeBlogTab ? aiResults[activeBlogTab] : null
 
-  // AI 결과의 H2 목차 추출
-  const aiTocHeadings = (() => {
-    if (!activeResult?.htmlContent) return []
-    const matches = activeResult.htmlContent.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)
-    if (!matches) return []
-    return matches.map(m => m.replace(/<[^>]*>/g, '').trim()).filter(Boolean)
-  })()
+  // AI 결과의 H2 목차는 본문 HTML에 이미 포함되므로 별도 추출 불필요
 
   return (
     <div className="space-y-4">
@@ -418,26 +428,7 @@ export default function EditorNewPage() {
                     className="text-xl font-bold border-0 border-b border-gray-200 rounded-none px-0 focus-visible:ring-0 h-auto py-2"
                     placeholder="제목" />
 
-                  {/* H2 목차 */}
-                  {aiTocHeadings.length > 0 && (
-                    <nav className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-blue-800 mb-2">목차</h4>
-                      <ol className="space-y-1 list-decimal list-inside">
-                        {aiTocHeadings.map((text, i) => (
-                          <li key={i}
-                            className="text-sm text-blue-700 hover:text-blue-900 cursor-pointer hover:underline"
-                            onClick={() => {
-                              const container = document.querySelector('.ProseMirror')
-                              if (!container) return
-                              const h2s = container.querySelectorAll('h2')
-                              h2s[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                            }}>
-                            {text}
-                          </li>
-                        ))}
-                      </ol>
-                    </nav>
-                  )}
+                  {/* AI 생성 HTML 본문에 이미 목차가 포함되어 있으므로 에디터 UI 목차는 표시하지 않음 */}
 
                   {/* 본문 편집 — key로 탭 전환 시 에디터 완전 재마운트 (CTA 등 콘텐츠 손실 방지) */}
                   <PostEditor

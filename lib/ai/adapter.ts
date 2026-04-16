@@ -126,6 +126,51 @@ const LANG_CONFIG: Record<string, { name: string; lengthMap: Record<string, stri
   es: { name: 'Español', lengthMap: { short: '300~500 palabras', medium: '800~1200 palabras', long: '1500~2500 palabras' }, cultureHint: 'Escribe de forma natural para un público hispanohablante. Usa referencias culturales y expresiones en español.' },
 }
 
+// 자연스러운 문장 단위 트렁케이션 (문장/단어 경계에서 끊기)
+function smartTruncate(text: string, maxLen: number): string {
+  if (!text || text.length <= maxLen) return text ?? ''
+
+  const trimmed = text.slice(0, maxLen)
+
+  // 1) 마지막 온전한 문장 경계 찾기 (. ! ? 。 뒤)
+  const sentenceEnd = Math.max(
+    trimmed.lastIndexOf('. '),
+    trimmed.lastIndexOf('! '),
+    trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf('。'),
+    trimmed.lastIndexOf('.'),
+  )
+  // 전체 길이의 절반 이상 위치에 문장 종결이 있으면 그 지점에서 끊기
+  if (sentenceEnd > maxLen * 0.5) {
+    return trimmed.slice(0, sentenceEnd + 1).trim()
+  }
+
+  // 2) 문장 종결이 없으면 마지막 공백/쉼표 위치에서 끊고 '...' 추가
+  const wordBoundary = Math.max(trimmed.lastIndexOf(' '), trimmed.lastIndexOf(','), trimmed.lastIndexOf(', '))
+  if (wordBoundary > maxLen * 0.5) {
+    return trimmed.slice(0, wordBoundary).trim() + '...'
+  }
+
+  // 3) 한국어 등 공백 없는 경우: 조사/어미 패턴 앞에서 끊기
+  const koreanBreak = trimmed.search(/[다요음됨임습죠네까](?=[^가-힣]|$)(?!.*[다요음됨임습죠네까])/)
+  if (koreanBreak > maxLen * 0.5) {
+    return trimmed.slice(0, koreanBreak + 1).trim()
+  }
+
+  // 4) 최후 수단: maxLen에서 잘라서 '...' 추가
+  return trimmed.trim() + '...'
+}
+
+// SEO 필드 안전 트렁케이션 (DB varchar 제한 대응)
+// 프롬프트에서 이미 글자수를 지시하므로 대부분 초과하지 않음.
+// 초과할 경우에만 자연스러운 문장/단어 단위로 잘라서 DB 에러를 방지.
+export function truncateSeoFields(seoMeta: { title: string; description: string }): { title: string; description: string } {
+  return {
+    title: smartTruncate(seoMeta.title, 60),
+    description: smartTruncate(seoMeta.description, 155),
+  }
+}
+
 // 공통 프롬프트 빌더
 export function buildPrompt(params: GeneratePostParams): string {
   const { keyword, relatedKeywords = [], characterConfig = {}, targetLength = 'medium', language = 'ko' } = params
@@ -168,8 +213,36 @@ You MUST write the ENTIRE blog post in ${langCfg.name}. This is non-negotiable.
 ${langCfg.cultureHint}
 `
 
+  // SEO 최적화 구조 지시 (공통)
+  const seoStructure = isKorean
+    ? `
+## SEO 최적화 글 구조 (반드시 준수)
+다음 구조를 포함하여 작성하세요:
+1. 도입부: 독자의 공감을 이끌어내는 문제 제기 또는 질문으로 시작
+2. 본문: 3~5개의 ## 소제목으로 구분. 각 섹션은 키워드를 자연스럽게 포함
+3. FAQ 섹션: 마지막 소제목으로 "## 자주 묻는 질문" 포함. Q&A 3개 이상
+4. 마무리: 핵심 요약 + 독자 행동 유도
+
+주의사항:
+- 목차(TOC)를 본문 content 안에 절대 포함하지 마세요 (시스템이 자동 생성합니다)
+- seoTitle은 반드시 60자 이내, seoDescription은 반드시 155자 이내로 작성
+- 태그는 5개 작성`
+    : `
+## SEO-OPTIMIZED STRUCTURE (MUST FOLLOW)
+Structure your post as follows:
+1. Introduction: Start with a relatable problem or question to engage readers
+2. Body: Use 3-5 ## subheadings. Naturally include keywords in each section
+3. FAQ Section: Include "## Frequently Asked Questions" as the last subheading with 3+ Q&As
+4. Conclusion: Key summary + call to action
+
+IMPORTANT RULES:
+- Do NOT include a table of contents (TOC) in the content (the system generates it automatically)
+- seoTitle MUST be under 60 characters. seoDescription MUST be under 155 characters
+- Include exactly 5 tags`
+
   return `${sections}
-${newsSection}${langDirective}
+${newsSection}${langDirective}${seoStructure}
+
 다음 조건으로 블로그 글을 작성하세요:
 - 주제 키워드: ${keyword}
 - 연관 키워드: ${relatedKeywords.join(', ') || '없음'}
@@ -182,23 +255,27 @@ ${params.newsArticles?.length ? '- 참고 뉴스 기사의 핵심 정보를 활�
 반드시 유효한 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력:
 - content 필드의 줄바꿈은 반드시 \\n으로 이스케이프
 - 큰따옴표는 \\"로 이스케이프
+- seoTitle: 반드시 60자(chars) 이내
+- seoDescription: 반드시 155자(chars) 이내
 {
   "title": "${isKorean ? '글 제목' : `Title in ${langCfg.name}`}",
-  "content": "${isKorean ? '마크다운 본문 전체 (줄바꿈은 \\n으로)' : `Full markdown body in ${langCfg.name} (newlines as \\\\n)`}",
-  "tags": ["${isKorean ? '태그1", "태그2", "태그3' : `tag1 in ${langCfg.name}", "tag2", "tag3`}"],
-  "seoTitle": "${isKorean ? 'SEO 메타 제목 (60자 이내)' : `SEO meta title in ${langCfg.name} (under 60 chars)`}",
-  "seoDescription": "${isKorean ? 'SEO 메타 설명 (160자 이내)' : `SEO meta description in ${langCfg.name} (under 160 chars)`}"
+  "content": "${isKorean ? '마크다운 본문 전체 (줄바꿈은 \\n으로). 목차는 포함하지 마세요.' : `Full markdown body in ${langCfg.name} (newlines as \\\\n). Do NOT include a table of contents.`}",
+  "tags": ["${isKorean ? '태그1", "태그2", "태그3", "태그4", "태그5' : `tag1 in ${langCfg.name}", "tag2", "tag3", "tag4", "tag5`}"],
+  "seoTitle": "${isKorean ? 'SEO 메타 제목 (60자 이내)' : `SEO meta title in ${langCfg.name} (MUST be under 60 chars)`}",
+  "seoDescription": "${isKorean ? 'SEO 메타 설명 (155자 이내)' : `SEO meta description in ${langCfg.name} (MUST be under 155 chars)`}"
 }`
 }
 
-// 마크다운 → HTML 변환
+// 마크다운 → HTML 변환 (SEO 최적화: 자동 TOC 생성 + H2 id 부여)
 export function markdownToHtml(markdown: string): string {
   if (!markdown?.trim()) return ''
 
   const lines = markdown.split('\n')
   const htmlParts: string[] = []
+  const h2Headings: { id: string; text: string }[] = []
   let inList = false
   let paragraphLines: string[] = []
+  let h2Counter = 0
 
   const flushParagraph = () => {
     if (paragraphLines.length > 0) {
@@ -229,7 +306,14 @@ export function markdownToHtml(markdown: string): string {
     const h3 = trimmed.match(/^### (.+)$/)
     if (h3) { flushParagraph(); flushList(); htmlParts.push(`<h3>${h3[1]}</h3>`); continue }
     const h2 = trimmed.match(/^## (.+)$/)
-    if (h2) { flushParagraph(); flushList(); htmlParts.push(`<h2>${h2[1]}</h2>`); continue }
+    if (h2) {
+      flushParagraph(); flushList()
+      h2Counter++
+      const sectionId = `section${h2Counter}`
+      h2Headings.push({ id: sectionId, text: h2[1] })
+      htmlParts.push(`<h2 id="${sectionId}">${h2[1]}</h2>`)
+      continue
+    }
     const h1 = trimmed.match(/^# (.+)$/)
     if (h1) { flushParagraph(); flushList(); htmlParts.push(`<h1>${h1[1]}</h1>`); continue }
 
@@ -251,9 +335,31 @@ export function markdownToHtml(markdown: string): string {
   flushList()
 
   // 인라인 스타일 적용
-  return htmlParts.join('\n')
+  let body = htmlParts.join('\n')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
+
+  // H2가 2개 이상이면 자동 TOC 생성 (본문 첫 H2 앞에 삽입)
+  if (h2Headings.length >= 2) {
+    const tocItems = h2Headings.map(h =>
+      `<li style="margin-bottom: 8px;"><a href="#${h.id}" style="text-decoration: none; color: #2563eb; font-weight: 500;">${h.text}</a></li>`
+    ).join('\n')
+    const tocHtml = `<nav style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px 25px; margin: 20px 0; border-radius: 10px;">
+<h3 style="font-size: 16px; font-weight: 700; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid #ccc; color: #333;">목차</h3>
+<ol style="margin: 0; padding-left: 20px;">
+${tocItems}
+</ol>
+</nav>`
+    // 첫 번째 H2 앞에 TOC 삽입
+    const firstH2Idx = body.indexOf('<h2 ')
+    if (firstH2Idx > -1) {
+      body = body.slice(0, firstH2Idx) + tocHtml + '\n' + body.slice(firstH2Idx)
+    } else {
+      body = tocHtml + '\n' + body
+    }
+  }
+
+  return body
 }
 
 export function parseAIResponse(text: string, blogId: string): GeneratedPost {
@@ -314,10 +420,10 @@ export function parseAIResponse(text: string, blogId: string): GeneratedPost {
         content,
         htmlContent: markdownToHtml(content),
         tags,
-        seoMeta: {
+        seoMeta: truncateSeoFields({
           title: seoTitleMatch?.[1]?.replace(/\\"/g, '"') ?? titleMatch?.[1] ?? '',
           description: seoDescMatch?.[1]?.replace(/\\"/g, '"') ?? '',
-        },
+        }),
       }
     }
 
@@ -331,10 +437,10 @@ export function parseAIResponse(text: string, blogId: string): GeneratedPost {
     content,
     htmlContent: markdownToHtml(content),
     tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-    seoMeta: {
+    seoMeta: truncateSeoFields({
       title: (parsed.seoTitle as string) ?? (parsed.title as string) ?? '',
       description: (parsed.seoDescription as string) ?? '',
-    },
+    }),
   }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Pencil, Trash2, Plus, Clock, Tag } from 'lucide-react'
+import { X, Pencil, Trash2, Plus, Clock } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { GradeBadge } from '@/components/monetize/shared/GradeBadge'

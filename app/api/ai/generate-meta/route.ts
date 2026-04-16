@@ -117,8 +117,8 @@ Respond ONLY in JSON format. All values must be in ${langName}:
 
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json({
-      seoTitle: parsed.seoTitle || title,
-      seoDescription: parsed.seoDescription || '',
+      seoTitle: (parsed.seoTitle || title || '').slice(0, 60),
+      seoDescription: (parsed.seoDescription || '').slice(0, 155),
       tags: Array.isArray(parsed.tags) ? parsed.tags : [],
     })
   } catch (e: unknown) {

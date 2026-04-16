@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(htmlContent !== undefined && { content_html: htmlContent }),
       ...(status !== undefined && { status }),
       ...(tags !== undefined && { keyword: Array.isArray(tags) ? tags.join(',') : '' }),
-      ...(seoMeta !== undefined && { seo_title: seoMeta?.title ?? '', meta_description: seoMeta?.description ?? '' }),
+      ...(seoMeta !== undefined && { seo_title: (seoMeta?.title ?? '').slice(0, 60), meta_description: (seoMeta?.description ?? '').slice(0, 155) }),
       ...(blogId !== undefined && { blog_id: blogId }),
       ...(categoryId !== undefined && { category_id: categoryId }),
       ...(status === 'published' && { published_at: new Date().toISOString() }),
