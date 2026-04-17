@@ -1352,10 +1352,32 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
                   </button>
                 </div>
                 {gscRegisterResult && (
-                  <p className={`text-[11px] -mt-1 ${gscRegisterResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                  <p className={`text-[11px] -mt-1 whitespace-pre-line ${gscRegisterResult.ok ? 'text-green-600' : 'text-red-500'}`}>
                     {gscRegisterResult.ok ? '✓ ' : '✗ '}{gscRegisterResult.message}
                   </p>
                 )}
+
+                {/* GSC 소유권 확인 코드 */}
+                <div className="py-1 border-t border-gray-100 mt-1">
+                  <p className="text-xs font-medium text-gray-700">소유권 확인 코드</p>
+                  <p className="text-[11px] text-gray-400 mb-1">
+                    GSC에서 HTML 태그 방식의 인증 코드(content 값)를 붙여넣으세요.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={config.tracking.gsc_code || ''}
+                      onChange={(e) => updateTracking({ gsc_code: e.target.value.trim() })}
+                      placeholder="예: AbCdEfGh1234..."
+                      className="flex-1 text-xs px-2 py-1.5 rounded-md border border-gray-300 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                  {config.tracking.gsc_code && (
+                    <p className="text-[10px] text-green-600 mt-1">
+                      ✓ 인증 코드가 설정되었습니다. 페이지 &lt;head&gt;에 메타 태그로 삽입됩니다.
+                    </p>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between py-1">
                   <div>
