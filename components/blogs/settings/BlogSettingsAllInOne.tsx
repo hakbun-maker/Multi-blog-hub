@@ -107,26 +107,7 @@ export function BlogSettingsAllInOne() {
 
   return (
     <div className="space-y-5">
-      {/* Level 2: 설정 유형 서브탭 */}
-      <div className="border-b border-gray-200 overflow-x-auto">
-        <div className="flex gap-0 min-w-max">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === t.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Level 3: 블로그 선택 탭 */}
+      {/* Level 2: 블로그 선택 (먼저 블로그를 고르고 → 설정 탭 선택) */}
       <div className="overflow-x-auto">
         <div className="flex gap-2 min-w-max">
           {blogs.map(blog => (
@@ -150,6 +131,25 @@ export function BlogSettingsAllInOne() {
                 />
                 {blog.name}
               </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Level 3: 설정 유형 서브탭 */}
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <div className="flex gap-0 min-w-max">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === t.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
             </button>
           ))}
         </div>
