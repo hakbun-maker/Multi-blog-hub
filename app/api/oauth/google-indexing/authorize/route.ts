@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/indexing https://www.googleapis.com/auth/webmasters https://www.googleapis.com/auth/userinfo.email',
+    scope: 'https://www.googleapis.com/auth/indexing https://www.googleapis.com/auth/webmasters https://www.googleapis.com/auth/siteverification https://www.googleapis.com/auth/userinfo.email',
     access_type: 'offline',
     prompt: 'consent select_account',
     state,

@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { registerBlogToGSC } from '@/lib/google/gsc-site'
 
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,9 +24,5 @@ export async function POST(request: NextRequest) {
 
   const result = await registerBlogToGSC(user.id, blog)
 
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
-  }
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json(result)
 }
