@@ -1377,10 +1377,28 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
                       value={config.tracking.gsc_code || ''}
                       onChange={(e) => {
                         let val = e.target.value.trim()
-                        // 전체 메타 태그를 붙여넣으면 content 값만 추출
                         const match = val.match(/content\s*=\s*["']([^"']+)["']/)
                         if (match) val = match[1]
                         updateTracking({ gsc_code: val })
+                      }}
+                      onBlur={async () => {
+                        // 포커스 해제 시 즉시 DB 저장 + ISR 무효화 (레이아웃 저장 안 눌러도 반영)
+                        if (config.tracking.gsc_code) {
+                          try {
+                            await fetch(`/api/blogs/${blogId}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ layoutConfig: config }),
+                            })
+                            if (blogSlug) {
+                              fetch('/api/revalidate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ blogSlug }),
+                              }).catch(() => {})
+                            }
+                          } catch { /* ignore */ }
+                        }
                       }}
                       placeholder='<meta name="google-site-verification" content="..." /> 전체 붙여넣기'
                       className="flex-1 text-xs px-2 py-1.5 rounded-md border border-gray-300 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
