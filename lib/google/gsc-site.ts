@@ -2,11 +2,9 @@
  * Google Search Console 사이트 자동 등록 유틸리티
  *
  * 순차적 등록 흐름:
- * 1. Site Verification API → 인증 토큰(메타태그) 요청
- * 2. 블로그 layout_config에 메타태그 자동 저장 → 페이지에 삽입
- * 3. Site Verification API → 소유권 확인 요청
- * 4. Webmasters API → 사이트 추가
- * 5. Webmasters API → 사이트맵 제출
+ * 1. GSC Webmasters API → 사이트 추가 (미확인 상태)
+ * 2. 소유권 확인은 별도 (블로그 설정에서 인증 코드 입력 → HTML 파일 자동 서빙)
+ * 3. 사이트맵 제출
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -36,7 +34,6 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
 
   let accessToken = decrypt(token.encrypted_access_token)
 
-  // 토큰 만료 시 갱신
   if (token.token_expires_at && new Date(token.token_expires_at) <= new Date()) {
     if (!token.encrypted_refresh_token) return null
     const refreshToken = decrypt(token.encrypted_refresh_token)
@@ -79,90 +76,7 @@ export function getBlogSiteUrl(blog: { slug: string; custom_domain?: string | nu
     : `${APP_URL}/blog/${blog.slug}`
 }
 
-// ─── Step 1: 소유권 인증 토큰 요청 ─────────────────────────────────────────
-
-/** Google Site Verification API로 META 태그 토큰 요청 */
-async function getVerificationToken(accessToken: string, siteUrl: string): Promise<{ ok: boolean; token?: string; error?: string }> {
-  const res = await fetch('https://www.googleapis.com/siteVerification/v1/token', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      site: { type: 'SITE', identifier: siteUrl },
-      verificationMethod: 'META',
-    }),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text()
-    console.error(`SiteVerification getToken error (${res.status}):`, errText)
-    return { ok: false, error: `인증 토큰 요청 실패 (${res.status})` }
-  }
-
-  const data = await res.json()
-  // data.token = '<meta name="google-site-verification" content="xxxxx" />'
-  // content 값만 추출
-  const match = data.token?.match(/content="([^"]+)"/)
-  const tokenValue = match ? match[1] : data.token
-
-  return { ok: true, token: tokenValue }
-}
-
-// ─── Step 2: 메타태그를 블로그에 저장 ───────────────────────────────────────
-
-async function saveVerificationTokenToBlog(blogId: string, token: string): Promise<void> {
-  const supabase = getServiceSupabase()
-
-  const { data: blogData } = await supabase
-    .from('blogs')
-    .select('layout_config')
-    .eq('id', blogId)
-    .single()
-
-  const layoutConfig = (blogData?.layout_config ?? {}) as Record<string, unknown>
-  const tracking = (layoutConfig.tracking ?? {}) as Record<string, unknown>
-
-  await supabase
-    .from('blogs')
-    .update({
-      layout_config: {
-        ...layoutConfig,
-        tracking: {
-          ...tracking,
-          gsc_code: token,
-        },
-      },
-    })
-    .eq('id', blogId)
-}
-
-// ─── Step 3: 소유권 확인 요청 ─────────────────────────────────────────────
-
-async function verifySiteOwnership(accessToken: string, siteUrl: string): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch('https://www.googleapis.com/siteVerification/v1/webResource?verificationMethod=META', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      site: { type: 'SITE', identifier: siteUrl },
-    }),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text()
-    console.error(`SiteVerification verify error (${res.status}):`, errText)
-    return { ok: false, error: `소유권 확인 실패 (${res.status}): 메타태그가 사이트에 반영되었는지 확인하세요.` }
-  }
-
-  return { ok: true }
-}
-
-// ─── Step 4: GSC에 사이트 추가 ──────────────────────────────────────────────
-
+/** GSC에 사이트(속성) 추가 */
 async function addSiteToGSC(accessToken: string, siteUrl: string): Promise<{ ok: boolean; error?: string }> {
   const encoded = encodeURIComponent(siteUrl)
   const res = await fetch(
@@ -182,8 +96,22 @@ async function addSiteToGSC(accessToken: string, siteUrl: string): Promise<{ ok:
   return { ok: true }
 }
 
-// ─── Step 5: 사이트맵 제출 ──────────────────────────────────────────────────
+/** GSC 사이트 소유권 확인 상태 조회 */
+async function checkSiteVerified(accessToken: string, siteUrl: string): Promise<boolean> {
+  const encoded = encodeURIComponent(siteUrl)
+  const res = await fetch(
+    `https://www.googleapis.com/webmasters/v3/sites/${encoded}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  )
+  if (!res.ok) return false
+  const data = await res.json()
+  return data.permissionLevel === 'siteOwner' || data.permissionLevel === 'siteFullUser'
+}
 
+/** 사이트맵 제출 */
 async function submitSitemapToGSC(accessToken: string, siteUrl: string): Promise<{ ok: boolean; error?: string }> {
   const sitemapUrl = `${siteUrl}/sitemap.xml`
   const encodedSite = encodeURIComponent(siteUrl)
@@ -206,66 +134,43 @@ async function submitSitemapToGSC(accessToken: string, siteUrl: string): Promise
   return { ok: true }
 }
 
-// ─── 통합: 순차적 등록 플로우 ─────────────────────────────────────────────
+// ─── 통합 등록 플로우 ─────────────────────────────────────────────
 
 export interface GSCRegistrationResult {
   ok: boolean
-  step: 'token' | 'save' | 'verify' | 'site' | 'sitemap' | 'complete'
+  step: 'auth' | 'site' | 'verify' | 'sitemap' | 'complete'
   error?: string
-  details?: {
-    verificationToken?: string
-    siteUrl?: string
-    needsRedeploy?: boolean
-  }
+  verified?: boolean
+  siteUrl?: string
 }
 
-/** 블로그를 GSC에 순차적으로 등록 (소유권 확인 포함) */
+/**
+ * 블로그를 GSC에 순차적으로 등록
+ *
+ * 흐름:
+ * 1. OAuth 토큰 확인
+ * 2. GSC에 사이트 추가
+ * 3. 소유권 확인 상태 체크
+ *    - 확인됨 → 사이트맵 제출
+ *    - 미확인 → 안내 메시지 반환 (블로그 설정에서 인증 코드 입력 필요)
+ * 4. 사이트맵 제출
+ */
 export async function registerBlogToGSC(
   userId: string,
   blog: { id: string; slug: string; custom_domain?: string | null }
 ): Promise<GSCRegistrationResult> {
   const accessToken = await getValidAccessToken(userId)
-  if (!accessToken) return { ok: false, step: 'token', error: 'Google 계정이 연결되지 않았습니다.' }
+  if (!accessToken) return { ok: false, step: 'auth', error: 'Google 계정이 연결되지 않았습니다.' }
 
   const siteUrl = getBlogSiteUrl(blog)
 
-  // Step 1: 인증 토큰 요청
-  const tokenResult = await getVerificationToken(accessToken, siteUrl)
-  if (!tokenResult.ok || !tokenResult.token) {
-    return { ok: false, step: 'token', error: tokenResult.error }
-  }
-
-  // Step 2: 메타태그를 블로그에 저장
-  await saveVerificationTokenToBlog(blog.id, tokenResult.token)
-
-  // Step 3: 소유권 확인 (메타태그가 페이지에 반영된 후 가능)
-  // ISR 캐시로 인해 즉시 반영이 안 될 수 있음 — 재시도 로직
-  let verifyResult = await verifySiteOwnership(accessToken, siteUrl)
-
-  if (!verifyResult.ok) {
-    // ISR 캐시 때문에 실패할 수 있으므로 5초 후 재시도
-    await new Promise(resolve => setTimeout(resolve, 5000))
-    verifyResult = await verifySiteOwnership(accessToken, siteUrl)
-  }
-
-  if (!verifyResult.ok) {
-    // 메타태그는 저장했지만 아직 반영 안 됨
-    return {
-      ok: false,
-      step: 'verify',
-      error: '메타태그가 저장되었지만 아직 사이트에 반영되지 않았습니다. 잠시 후 다시 시도하세요.',
-      details: { verificationToken: tokenResult.token, siteUrl, needsRedeploy: true },
-    }
-  }
-
-  // Step 4: GSC에 사이트 추가
+  // Step 1: GSC에 사이트 추가
   const addResult = await addSiteToGSC(accessToken, siteUrl)
-  if (!addResult.ok) return { ok: false, step: 'site', error: addResult.error }
+  if (!addResult.ok) return { ok: false, step: 'site', error: addResult.error, siteUrl }
 
-  // Step 5: 사이트맵 제출
-  const sitemapResult = await submitSitemapToGSC(accessToken, siteUrl)
+  // Step 2: 소유권 확인 상태 체크
+  const isVerified = await checkSiteVerified(accessToken, siteUrl)
 
-  // layout_config에 상태 기록
   const supabase = getServiceSupabase()
   const { data: blogData } = await supabase
     .from('blogs')
@@ -275,6 +180,30 @@ export async function registerBlogToGSC(
 
   const layoutConfig = (blogData?.layout_config ?? {}) as Record<string, unknown>
   const tracking = (layoutConfig.tracking ?? {}) as Record<string, unknown>
+
+  if (!isVerified) {
+    // 소유권 미확인 → 사이트는 추가했지만 인증이 필요
+    await supabase
+      .from('blogs')
+      .update({
+        layout_config: {
+          ...layoutConfig,
+          tracking: { ...tracking, gsc_auto_index: true },
+        },
+      })
+      .eq('id', blog.id)
+
+    return {
+      ok: false,
+      step: 'verify',
+      verified: false,
+      siteUrl,
+      error: '사이트가 GSC에 추가되었지만 소유권 확인이 필요합니다. GSC에서 소유권 확인을 완료한 후 다시 등록/갱신을 클릭하세요.',
+    }
+  }
+
+  // Step 3: 소유권 확인됨 → 사이트맵 제출
+  const sitemapResult = await submitSitemapToGSC(accessToken, siteUrl)
 
   await supabase
     .from('blogs')
@@ -292,10 +221,10 @@ export async function registerBlogToGSC(
     .eq('id', blog.id)
 
   if (!sitemapResult.ok) {
-    return { ok: false, step: 'sitemap', error: sitemapResult.error }
+    return { ok: false, step: 'sitemap', verified: true, siteUrl, error: sitemapResult.error }
   }
 
-  return { ok: true, step: 'complete', details: { siteUrl } }
+  return { ok: true, step: 'complete', verified: true, siteUrl }
 }
 
 /** 사용자의 모든 블로그를 GSC에 일괄 등록 */

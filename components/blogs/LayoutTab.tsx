@@ -535,13 +535,26 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
         body: JSON.stringify({ blogId }),
       })
       const data = await res.json()
-      if (res.ok) {
+
+      if (data.ok && data.step === 'complete') {
+        // 소유권 확인 + 사이트맵 제출 모두 완료
         setGscRegisterResult({ ok: true, message: 'GSC에 사이트가 등록되고, 자동 색인과 사이트맵이 설정되었습니다.' })
-        // 자동 색인이 활성화되었으므로 config 업데이트
         const now = new Date().toISOString()
         const updatedConfig = {
           ...config,
-          tracking: { ...config.tracking, gsc_auto_index: true, sitemap_submitted_at: now },
+          tracking: { ...config.tracking, gsc_auto_index: true, gsc_verified: true, sitemap_submitted_at: now },
+        }
+        setConfig(updatedConfig)
+        onConfigSaved?.(updatedConfig)
+      } else if (data.step === 'verify') {
+        // 사이트 추가됨 + 소유권 미확인
+        setGscRegisterResult({
+          ok: false,
+          message: `GSC에 사이트가 추가되었습니다.\n\n소유권 확인이 필요합니다:\n1. Google Search Console(${data.siteUrl || ''})에서 소유권 확인을 완료하세요.\n2. 완료 후 다시 [등록/갱신]을 클릭하면 사이트맵이 자동 제출됩니다.`,
+        })
+        const updatedConfig = {
+          ...config,
+          tracking: { ...config.tracking, gsc_auto_index: true },
         }
         setConfig(updatedConfig)
         onConfigSaved?.(updatedConfig)

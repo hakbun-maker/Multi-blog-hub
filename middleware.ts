@@ -30,6 +30,14 @@ export async function middleware(request: NextRequest) {
     if (slug) {
       const pathname = request.nextUrl.pathname
 
+      // Google 소유권 확인 파일 (google*.html) → API에서 서빙
+      const googleMatch = pathname.match(/^\/(google[a-f0-9]+)\.html$/)
+      if (googleMatch) {
+        const url = request.nextUrl.clone()
+        url.pathname = `/api/gsc/verify-file/${googleMatch[1]}`
+        return NextResponse.rewrite(url)
+      }
+
       // robots.txt → 루트 robots.ts가 커스텀 도메인 감지하여 처리
       if (pathname === '/robots.txt') {
         return NextResponse.next()
