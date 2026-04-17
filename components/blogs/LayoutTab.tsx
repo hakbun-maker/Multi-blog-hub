@@ -446,6 +446,14 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
       }
       onSuccess('레이아웃 설정이 저장되었습니다.')
       onConfigSaved?.(config)
+      // ISR 캐시 즉시 무효화 (GSC 인증 메타 태그 등 즉시 반영)
+      if (blogSlug) {
+        fetch('/api/revalidate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blogSlug }),
+        }).catch(() => {})
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.'
       setError(message)
