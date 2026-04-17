@@ -88,6 +88,12 @@ export async function submitUrlToGoogle(userId: string, url: string): Promise<{ 
   if (!res.ok) {
     const err = await res.text()
     console.error(`Google Indexing API error for ${url}:`, err)
+    if (res.status === 403) {
+      return {
+        ok: false,
+        error: 'Indexing API 오류: 403 — Google Cloud Console에서 "Web Search Indexing API"를 활성화하세요. (APIs & Services > Enable APIs > "Indexing API" 검색 > 사용 설정)',
+      }
+    }
     return { ok: false, error: `Indexing API 오류: ${res.status}` }
   }
 

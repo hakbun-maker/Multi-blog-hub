@@ -296,6 +296,18 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       const finalStates = useEditorStore.getState().pipelineStates
       onPipelineComplete(finalStates)
 
+      // 완료 후 자동 초기화 (블로그 선택은 유지)
+      const currentSelectedBlogIds = useEditorStore.getState().selectedBlogIds
+      setTimeout(() => {
+        resetPipeline()
+        // 블로그 선택 복원
+        for (const id of currentSelectedBlogIds) {
+          if (!useEditorStore.getState().selectedBlogIds.includes(id)) {
+            toggleBlogId(id)
+          }
+        }
+      }, 2000) // 2초 후 리셋 (결과 확인 시간)
+
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'AI 파이프라인 오류'
       if (msg === '__abort__') {
