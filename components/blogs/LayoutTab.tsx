@@ -1361,14 +1361,20 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
                 <div className="py-1 border-t border-gray-100 mt-1">
                   <p className="text-xs font-medium text-gray-700">소유권 확인 코드</p>
                   <p className="text-[11px] text-gray-400 mb-1">
-                    GSC에서 HTML 태그 방식의 인증 코드(content 값)를 붙여넣으세요.
+                    GSC에서 HTML 태그를 그대로 복사해서 붙여넣으세요.
                   </p>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={config.tracking.gsc_code || ''}
-                      onChange={(e) => updateTracking({ gsc_code: e.target.value.trim() })}
-                      placeholder="예: AbCdEfGh1234..."
+                      onChange={(e) => {
+                        let val = e.target.value.trim()
+                        // 전체 메타 태그를 붙여넣으면 content 값만 추출
+                        const match = val.match(/content\s*=\s*["']([^"']+)["']/)
+                        if (match) val = match[1]
+                        updateTracking({ gsc_code: val })
+                      }}
+                      placeholder='<meta name="google-site-verification" content="..." /> 전체 붙여넣기'
                       className="flex-1 text-xs px-2 py-1.5 rounded-md border border-gray-300 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
                   </div>
