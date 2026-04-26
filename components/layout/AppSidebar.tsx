@@ -44,7 +44,7 @@ const NAV_BOTTOM = [
   { href: '/settings', label: '설정',     icon: Settings },
 ]
 
-function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = false, onLockedClick }: {
+function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = false, onLockedClick, comingSoon = false }: {
   href: string
   label: string
   icon: React.ElementType
@@ -52,6 +52,7 @@ function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = 
   indent?: boolean
   locked?: boolean
   onLockedClick?: () => void
+  comingSoon?: boolean
 }) {
   const pathname = usePathname()
   // Exact match or prefix match, but avoid /monetize matching /monetize/writing
@@ -62,19 +63,23 @@ function NavLink({ href, label, icon: Icon, collapsed, indent = false, locked = 
     return (
       <button
         onClick={onLockedClick}
-        title={collapsed ? `${label} (잠금)` : undefined}
+        title={collapsed ? `${label} ${comingSoon ? '(준비중)' : '(잠금)'}` : undefined}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full',
           collapsed && 'justify-center px-0',
           indent && !collapsed && 'pl-8',
-          'text-gray-400 opacity-50 hover:opacity-70 cursor-pointer'
+          'text-gray-400 opacity-60 hover:opacity-80 cursor-pointer'
         )}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
         {!collapsed && (
           <>
             <span className="flex-1 text-left">{label}</span>
-            <Lock className="w-3.5 h-3.5 text-gray-300" />
+            {comingSoon ? (
+              <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded whitespace-nowrap">준비중</span>
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-gray-300" />
+            )}
           </>
         )}
       </button>
@@ -112,13 +117,23 @@ export function AppSidebar() {
   )
   const [monetizeOpen, setMonetizeOpen] = useState(isMonetizeActive)
 
+  // 수익화 로켓 메뉴는 정식 출시 전 — 전부 '준비중'으로 잠금 (플랜 권한 무시)
+  const isMonetizeHref = (href: string) =>
+    NAV_MONETIZE.some(m => m.href === href || href.startsWith(m.href + '/'))
+
   const getLockedState = (href: string) => {
+    if (isMonetizeHref(href)) return true // 준비중 — 강제 잠금
     const mapping = SIDEBAR_FEATURE_MAP[href]
     if (!mapping) return false
     return !hasFeature(mapping.featureKey)
   }
 
   const handleLockedClick = (href: string, label: string) => {
+    if (isMonetizeHref(href)) {
+      // 준비중 — 업그레이드 모달 대신 단순 안내
+      alert(`${label} — 준비중입니다.\n수익화 로켓 기능은 정식 출시 전 점검 중입니다.`)
+      return
+    }
     const mapping = SIDEBAR_FEATURE_MAP[href]
     if (!mapping) return
     setUpgradeModal({ open: true, minPlan: mapping.minPlan, featureName: label })
@@ -160,6 +175,7 @@ export function AppSidebar() {
                     {...item}
                     collapsed={collapsed}
                     locked={getLockedState(item.href)}
+                    comingSoon
                     onLockedClick={() => handleLockedClick(item.href, item.label)}
                   />
                 ))}
@@ -178,6 +194,7 @@ export function AppSidebar() {
                   <div className="flex items-center gap-3">
                     <Rocket className="w-5 h-5 flex-shrink-0" />
                     <span>수익화 로켓</span>
+                    <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded whitespace-nowrap">준비중</span>
                   </div>
                   {monetizeOpen
                     ? <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -193,6 +210,7 @@ export function AppSidebar() {
                         collapsed={collapsed}
                         indent
                         locked={getLockedState(item.href)}
+                        comingSoon
                         onLockedClick={() => handleLockedClick(item.href, item.label)}
                       />
                     ))}

@@ -1,11 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, Crown, Sparkles } from 'lucide-react'
+import { Check, Crown, Sparkles, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type { PlanId, FeatureKey } from '@/types/plan'
 import { PLAN_ORDER, FEATURE_LABELS } from '@/lib/plan/constants'
+
+// 수익화 로켓 관련 기능 — 정식 출시 전까지 '준비중' 표시
+const MONETIZE_FEATURES: Set<FeatureKey> = new Set<FeatureKey>([
+  'revenue_dashboard',
+  'keyword_explorer',
+  'scheduler',
+  'auto_writing_pipeline',
+  'auto_publish',
+  'coupang_affiliate',
+  'sns_auto_deploy',
+  'revenue_guide_panel',
+])
+
+// 수익화 로켓이 핵심 가치인 유료 플랜 — 업그레이드 차단
+const BLOCKED_PLANS: Set<PlanId> = new Set<PlanId>(['pro', 'growth', 'scale'])
 
 interface PlanData {
   id: PlanId
@@ -140,7 +155,7 @@ export function PlanSettingsTab({ currentPlanId, onPlanChange }: { currentPlanId
                   <p className="text-xs text-gray-500 mt-1">블로그 {plan.max_blogs}개</p>
                 </div>
 
-                {/* 기능 목록 */}
+                {/* 기능 목록 — 수익화 관련은 '준비중' 표시 */}
                 <div className="space-y-1.5 mb-4">
                   {DISPLAY_FEATURES.map(fk => {
                     const val = plan.features[fk] ?? 'false'
@@ -149,27 +164,53 @@ export function PlanSettingsTab({ currentPlanId, onPlanChange }: { currentPlanId
                       ? (val === 'unlimited' ? '무제한' : `월 ${val}건`)
                       : FEATURE_LABELS[fk]
                     const extra = val === 'readonly' ? ' (열람)' : fk === 'team_accounts' && val !== '0' ? ` (${val}명)` : ''
+                    const isMonetize = MONETIZE_FEATURES.has(fk)
+                    // 수익화 기능은 enabled 여부와 무관하게 회색 + 준비중 표시
+                    const showAsComingSoon = isMonetize && enabled
 
                     return (
-                      <div key={fk} className={`flex items-center gap-1.5 text-xs ${enabled ? 'text-gray-700' : 'text-gray-300'}`}>
-                        <Check className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? 'text-green-500' : 'text-gray-200'}`} />
+                      <div key={fk} className={`flex items-center gap-1.5 text-xs ${
+                        showAsComingSoon
+                          ? 'text-gray-400'
+                          : enabled
+                            ? 'text-gray-700'
+                            : 'text-gray-300'
+                      }`}>
+                        {showAsComingSoon
+                          ? <Clock className="w-3.5 h-3.5 flex-shrink-0 text-orange-300" />
+                          : <Check className={`w-3.5 h-3.5 flex-shrink-0 ${enabled ? 'text-green-500' : 'text-gray-200'}`} />}
                         <span>{label}{extra}</span>
+                        {showAsComingSoon && (
+                          <span className="ml-auto text-[10px] font-medium text-orange-500 bg-orange-50 border border-orange-200 px-1 rounded">준비중</span>
+                        )}
                       </div>
                     )
                   })}
                 </div>
 
-                <Button
-                  size="sm"
-                  className="w-full"
-                  variant={isCurrent ? 'outline' : isUpgrade ? 'default' : 'secondary'}
-                  disabled={isCurrent || changing !== null}
-                  onClick={() => handleSelect(plan.id)}
-                >
-                  {changing === plan.id ? '변경 중...' : isCurrent ? '사용 중' : isUpgrade ? (
-                    <><Sparkles className="w-3.5 h-3.5 mr-1" />업그레이드</>
-                  ) : '다운그레이드'}
-                </Button>
+                {(() => {
+                  const blocked = BLOCKED_PLANS.has(plan.id) && !isCurrent
+                  return (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      variant={isCurrent ? 'outline' : blocked ? 'secondary' : isUpgrade ? 'default' : 'secondary'}
+                      disabled={isCurrent || changing !== null || blocked}
+                      onClick={() => handleSelect(plan.id)}
+                      title={blocked ? '수익화 로켓 정식 출시 후 활성화됩니다' : undefined}
+                    >
+                      {changing === plan.id
+                        ? '변경 중...'
+                        : isCurrent
+                          ? '사용 중'
+                          : blocked
+                            ? <><Clock className="w-3.5 h-3.5 mr-1" />준비중</>
+                            : isUpgrade
+                              ? <><Sparkles className="w-3.5 h-3.5 mr-1" />업그레이드</>
+                              : '다운그레이드'}
+                    </Button>
+                  )
+                })()}
               </CardContent>
             </Card>
           )
