@@ -32,7 +32,7 @@ export class ClaudeAdapter implements AIAdapter {
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
     const text = await this.callClaude(buildPrompt(params))
-    return parseAIResponse(text, params.blogId)
+    return parseAIResponse(text, params.blogId, params.useToc ?? false)
   }
 
   async generateText(prompt: string): Promise<string> {

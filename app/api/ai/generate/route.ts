@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { keyword, relatedKeywords = [], blogIds = [], imageCount = 0, newsArticles } = body
+  const { keyword, relatedKeywords = [], blogIds = [], imageCount = 0, newsArticles, useToc = false } = body
 
   if (!keyword) return NextResponse.json({ error: 'keyword는 필수입니다.' }, { status: 400 })
   if (!blogIds.length) return NextResponse.json({ error: '블로그를 1개 이상 선택하세요.' }, { status: 400 })
@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         blogId: blog.id,
         newsArticles,
         language: blog.language ?? 'ko',
+        useToc,
       }))
     })
   )

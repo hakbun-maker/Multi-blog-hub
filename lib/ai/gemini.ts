@@ -40,7 +40,7 @@ export class GeminiAdapter implements AIAdapter {
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
     const text = await this.callGemini(buildPrompt(params))
-    return parseAIResponse(text, params.blogId)
+    return parseAIResponse(text, params.blogId, params.useToc ?? false)
   }
 
   async generateText(prompt: string): Promise<string> {

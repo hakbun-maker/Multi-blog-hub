@@ -41,6 +41,7 @@ interface EditorStore {
   autoPublish: boolean
   useExpertMode: boolean
   useToc: boolean
+  useMonetize: boolean
 
   // 직접 작성 모드 (현재 편집 중인 글)
   currentPostId: string | null
@@ -70,6 +71,7 @@ interface EditorStore {
   setAutoPublish: (v: boolean) => void
   setUseExpertMode: (v: boolean) => void
   setUseToc: (v: boolean) => void
+  setUseMonetize: (v: boolean) => void
   resetPipeline: () => void
   resetEditor: () => void
 }
@@ -86,6 +88,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   autoPublish: typeof window !== 'undefined' ? localStorage.getItem('ai_auto_publish') === 'true' : false,
   useExpertMode: typeof window !== 'undefined' ? localStorage.getItem('ai_expert_mode') === 'true' : false,
   useToc: typeof window !== 'undefined' ? localStorage.getItem('ai_use_toc') !== 'false' : true,
+  useMonetize: typeof window !== 'undefined' ? localStorage.getItem('ai_use_monetize') === 'true' : false,
   currentPostId: null,
   title: '',
   content: '',
@@ -129,6 +132,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setUseToc: (useToc) => {
     if (typeof window !== 'undefined') localStorage.setItem('ai_use_toc', String(useToc))
     set({ useToc })
+  },
+  setUseMonetize: (useMonetize) => {
+    if (typeof window !== 'undefined') localStorage.setItem('ai_use_monetize', String(useMonetize))
+    set({ useMonetize })
   },
   resetPipeline: () => set({ pipelineStates: {}, pipelineGlobalStep: 'idle', isGenerating: false }),
   resetEditor: () => set({

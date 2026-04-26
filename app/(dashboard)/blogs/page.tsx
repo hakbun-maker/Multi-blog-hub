@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Globe, Plus, Settings, Search, Pencil, ExternalLink } from 'lucide-react'
+import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -85,6 +85,32 @@ export default function BlogsPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('created_at_desc')
+
+  // GSC 일괄 적용 상태
+  const [bulkApplying, setBulkApplying] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{
+    summary: { total: number; autoIndexSet: number; sitemapOk: number; failed: number }
+    results: { blogName: string; autoIndexSet: boolean; sitemapOk: boolean; error?: string }[]
+  } | null>(null)
+
+  async function handleBulkApply() {
+    if (!confirm(`전체 ${blogs.length}개 블로그에 자동 색인 ON + 사이트맵 일괄 재제출하시겠습니까?\n(Google OAuth 연결 + GSC 사이트 등록·확인이 선행되어 있어야 합니다.)`)) return
+    setBulkApplying(true)
+    setBulkResult(null)
+    try {
+      const res = await fetch('/api/gsc/bulk-apply', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        alert(`일괄 적용 실패: ${json.error || '알 수 없는 오류'}`)
+        return
+      }
+      setBulkResult({ summary: json.summary, results: json.results })
+    } catch (e) {
+      alert(`일괄 적용 중 오류: ${e instanceof Error ? e.message : '네트워크 오류'}`)
+    } finally {
+      setBulkApplying(false)
+    }
+  }
 
   useEffect(() => {
     async function fetchBlogs() {
@@ -189,11 +215,47 @@ export default function BlogsPage() {
           </p>
         </div>
         {activeTab === 'blogs' && (
-          <Button asChild>
-            <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBulkApply}
+              disabled={bulkApplying || !blogs.length}
+              title="모든 블로그에 자동 색인 ON + Google에 사이트맵 일괄 재제출"
+            >
+              {bulkApplying
+                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
+                : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
+            </Button>
+            <Button asChild>
+              <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
+            </Button>
+          </div>
         )}
       </div>
+
+      {/* 일괄 적용 결과 패널 */}
+      {bulkResult && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-blue-900">
+              일괄 적용 결과 — 총 {bulkResult.summary.total}개 / 자동색인 {bulkResult.summary.autoIndexSet}개 ✓ / 사이트맵 {bulkResult.summary.sitemapOk}개 ✓ / 실패 {bulkResult.summary.failed}개
+            </h3>
+            <button onClick={() => setBulkResult(null)} className="text-xs text-blue-600 hover:underline">닫기</button>
+          </div>
+          <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
+            {bulkResult.results.map((r, i) => (
+              <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
+                <span className="font-medium">{r.blogName}</span>
+                <span>•</span>
+                <span>자동색인 {r.autoIndexSet ? '✓' : '✗'}</span>
+                <span>•</span>
+                <span>사이트맵 {r.sitemapOk ? '✓' : '✗'}</span>
+                {r.error && <span className="text-gray-500 ml-1">({r.error})</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 탭 네비게이션 */}
       <div className="border-b border-gray-200">

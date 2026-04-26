@@ -31,23 +31,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = []
 
-  // 블로그 목록 페이지
+  // 블로그 목록 페이지 (slug에 한글이 있을 수 있어 인코딩)
   for (const blog of blogs) {
     entries.push({
-      url: `${APP_URL}/blog/${blog.slug}`,
+      url: `${APP_URL}/blog/${encodeURIComponent(blog.slug)}`,
       lastModified: blog.created_at ? new Date(blog.created_at) : new Date(),
       changeFrequency: 'daily',
       priority: 0.8,
     })
   }
 
-  // 개별 글 페이지
+  // 개별 글 페이지 (한글 슬러그 percent-encoding — sitemap 표준 준수)
   for (const post of posts ?? []) {
     const blogSlug = blogIdToSlug.get(post.blog_id)
     if (!blogSlug) continue
 
     entries.push({
-      url: `${APP_URL}/blog/${blogSlug}/${post.slug}`,
+      url: `${APP_URL}/blog/${encodeURIComponent(blogSlug)}/${encodeURIComponent(post.slug)}`,
       lastModified: post.published_at ? new Date(post.published_at) : new Date(),
       changeFrequency: 'weekly',
       priority: 0.6,

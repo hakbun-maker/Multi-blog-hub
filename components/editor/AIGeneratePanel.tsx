@@ -52,6 +52,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
     autoPublish, setAutoPublish,
     useExpertMode, setUseExpertMode,
     useToc, setUseToc,
+    useMonetize, setUseMonetize,
     resetPipeline,
   } = useEditorStore()
 
@@ -97,28 +98,32 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       })
     }
 
+    const isRegenerate = !!overrideBlogIds
+
     try {
-      // Step 1: 연관 키워드 분석
-      setPipelineGlobalStep('keywords')
-      for (const blog of selectedBlogs) {
-        setPipelineState(blog.id, { step: 'keywords', stepMessage: '연관 키워드 분석 중...' })
-      }
+      // Step 1: 연관 키워드 분석 (재작성 시에는 기존 relatedKeywords 재사용 → 스킵)
+      let mergedRelated: string[] = [...relatedKeywords]
+      if (!isRegenerate) {
+        setPipelineGlobalStep('keywords')
+        for (const blog of selectedBlogs) {
+          setPipelineState(blog.id, { step: 'keywords', stepMessage: '연관 키워드 분석 중...' })
+        }
 
-      const kwRes = await fetch('/api/ai/analyze-keywords', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords }),
-      })
-      const kwData = await kwRes.json()
-      if (!kwRes.ok) throw new Error(kwData.error || '키워드 분석 실패')
-      if (abortRef.current) throw new Error('__abort__')
+        const kwRes = await fetch('/api/ai/analyze-keywords', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keywords }),
+        })
+        const kwData = await kwRes.json()
+        if (!kwRes.ok) throw new Error(kwData.error || '키워드 분석 실패')
+        if (abortRef.current) throw new Error('__abort__')
 
-      const analyzedKeywords: string[] = kwData.relatedKeywords ?? []
-      const mergedRelated = [...relatedKeywords]
-      for (const kw of analyzedKeywords) {
-        if (!mergedRelated.includes(kw)) mergedRelated.push(kw)
+        const analyzedKeywords: string[] = kwData.relatedKeywords ?? []
+        for (const kw of analyzedKeywords) {
+          if (!mergedRelated.includes(kw)) mergedRelated.push(kw)
+        }
+        setRelatedKeywords(mergedRelated)
       }
-      setRelatedKeywords(mergedRelated)
 
       // Step 1.5: 전문글 작성 모드 - 뉴스 기사 검색
       let newsArticles: { title: string; description: string }[] = []
@@ -150,6 +155,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       }
       if (abortRef.current) throw new Error('__abort__')
 
+      const tocEnabledForGen = useEditorStore.getState().useToc
       const writeRes = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,6 +165,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           blogIds: targetIds,
           imageCount: 0,
           newsArticles: newsArticles.length > 0 ? newsArticles : undefined,
+          useToc: tocEnabledForGen,
         }),
       })
       const writeData = await writeRes.json()
@@ -192,7 +199,8 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
 
           try {
             const h2Count = countH2Sections(post.htmlContent)
-            const maxImages = 1 + h2Count
+            // 섹션당 1장 + 남은 이미지는 마지막 섹션에 누적, Imagen API 한계 4장
+            const maxImages = Math.max(1, h2Count)
             const actualCount = Math.min(imageCount, maxImages, 4)
 
             const promptRes = await fetch('/api/ai/generate-meta', {
@@ -257,35 +265,6 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       }
 
       if (abortRef.current) throw new Error('__abort__')
-
-      // Step 5: 목차 삽입 (useToc ON인 경우)
-      const tocEnabled = useEditorStore.getState().useToc
-      if (tocEnabled) {
-        for (const post of posts) {
-          const state = useEditorStore.getState().pipelineStates[post.blogId]
-          const html = state?.htmlContent || post.htmlContent
-          const h2Matches = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)
-          if (h2Matches && h2Matches.length >= 2) {
-            const tocItems = h2Matches.map((m: string, i: number) => {
-              const text = m.replace(/<[^>]+>/g, '').trim()
-              return `<li><a href="#toc-${i}" style="color:#2563eb;text-decoration:none;">${text}</a></li>`
-            })
-            const tocHtml = `<nav style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin-bottom:24px;"><p style="font-weight:600;margin-bottom:8px;font-size:15px;">목차</p><ol style="margin:0;padding-left:20px;line-height:1.8;">${tocItems.join('')}</ol></nav>`
-            // 각 H2에 id 추가
-            let idx = 0
-            const htmlWithIds = html.replace(/<h2([^>]*)>/gi, (_match: string, attrs: string) => {
-              return `<h2${attrs} id="toc-${idx++}">`
-            })
-            // 첫 번째 H2 앞에 목차 삽입
-            const firstH2 = htmlWithIds.indexOf('<h2')
-            const finalHtml = firstH2 >= 0
-              ? htmlWithIds.slice(0, firstH2) + tocHtml + htmlWithIds.slice(firstH2)
-              : tocHtml + htmlWithIds
-            setPipelineState(post.blogId, { htmlContent: finalHtml })
-            post.htmlContent = finalHtml
-          }
-        }
-      }
 
       // 완료
       setPipelineGlobalStep('done')
@@ -361,8 +340,8 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
         <BlogMultiSelect blogs={blogs} selectedIds={selectedBlogIds} onToggle={toggleBlogId} />
       </div>
 
-      {/* 이미지 수 + 자동발행 + 전문글 작성 + 목차 생성 */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* 이미지 수 + 자동발행 + 전문글 작성 + 수익화 글 작성 + 목차 생성 */}
+      <div className="grid grid-cols-5 gap-4">
         <div className="space-y-1.5">
           <Label>이미지 수</Label>
           <input type="number" min={0} max={10} value={imageCount}
@@ -383,6 +362,13 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           <div className="flex items-center gap-2 mt-1">
             <Switch checked={useExpertMode} onCheckedChange={setUseExpertMode} disabled={isGenerating} />
             <span className="text-xs text-gray-500">{useExpertMode ? '뉴스 참고' : '일반 모드'}</span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>수익화 글 작성</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <Switch checked={useMonetize} onCheckedChange={setUseMonetize} disabled={isGenerating} />
+            <span className="text-xs text-gray-500">{useMonetize ? 'ON' : 'OFF'}</span>
           </div>
         </div>
         <div className="space-y-1.5">

@@ -35,10 +35,10 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   if (tracking?.gsc_code) verification.google = tracking.gsc_code
   if (tracking?.naver_code) verification.other = tracking.naver_code
 
-  // 커스텀 도메인이 있으면 해당 도메인 기준, 없으면 앱 도메인 기준
+  // 커스텀 도메인이 있으면 해당 도메인 기준, 없으면 앱 도메인 기준 (slug 한글 인코딩)
   const url = blog.custom_domain
     ? `https://${blog.custom_domain}`
-    : `${APP_URL}/blog/${params.slug}`
+    : `${APP_URL}/blog/${encodeURIComponent(params.slug)}`
 
   return {
     title: blog.name,

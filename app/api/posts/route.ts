@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { submitUrlToGoogle } from '@/lib/google/indexing-api'
+import { resubmitSitemapForBlog } from '@/lib/google/gsc-site'
 
 export async function GET(request: Request) {
   const supabase = createClient()
@@ -109,14 +110,23 @@ export async function POST(request: Request) {
         const tracking = (blog.layout_config as Record<string, unknown>)?.tracking as Record<string, unknown> | undefined
         if (tracking?.gsc_auto_index) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-hub.vercel.app'
+          // canonical과 sitemap이 percent-encoded 형태이므로 URL도 동일하게
           const blogBase = blog.custom_domain
             ? `https://${blog.custom_domain}`
-            : `${appUrl}/blog/${blog.slug}`
-          const postUrl = `${blogBase}/${data.slug}`
+            : `${appUrl}/blog/${encodeURIComponent(blog.slug)}`
+          const postUrl = `${blogBase}/${encodeURIComponent(data.slug)}`
 
           const result = await submitUrlToGoogle(user.id, postUrl)
           indexing = { requested: true, ok: result.ok, error: result.error }
           if (!result.ok) console.error('Google Indexing 실패:', result.error)
+
+          // 발행 후 sitemap 재제출 (GSC가 새 URL을 빠르게 발견하도록 신호)
+          // 비동기 fire-and-forget — 실패해도 발행 결과에 영향 없음
+          resubmitSitemapForBlog(user.id, {
+            id: blogId,
+            slug: blog.slug,
+            custom_domain: blog.custom_domain,
+          }).catch(err => console.error('Sitemap 재제출 실패 (무시):', err))
         }
       }
     } catch (e) {

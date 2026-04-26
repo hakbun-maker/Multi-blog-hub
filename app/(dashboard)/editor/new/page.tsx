@@ -42,6 +42,8 @@ export default function EditorNewPage() {
   const [aiResults, setAiResults] = useState<Record<string, BlogPipelineState>>({})
   const [activeBlogTab, setActiveBlogTab] = useState<string | null>(null)
   const [publishingAll, setPublishingAll] = useState(false)
+  // 발행 대상으로 선택된 블로그 (디폴트: 모두 true)
+  const [selectedForPublish, setSelectedForPublish] = useState<Record<string, boolean>>({})
 
   const {
     title, setTitle,
@@ -163,13 +165,20 @@ export default function EditorNewPage() {
     return result
   }
 
-  // AI 파이프라인 완료 콜백
+  // AI 파이프라인 완료 콜백 (재생성 시 다른 블로그 결과 보존을 위해 머지)
   const handlePipelineComplete = useCallback(async (states: Record<string, BlogPipelineState>) => {
-    setAiResults(states)
+    setAiResults(prev => ({ ...prev, ...states }))
+    setSelectedForPublish(prev => {
+      const next = { ...prev }
+      for (const id of Object.keys(states)) {
+        if (next[id] === undefined) next[id] = true
+      }
+      return next
+    })
     const blogIds = Object.keys(states)
     setActiveBlogTab(prev => prev ?? (blogIds.length ? blogIds[0] : null))
 
-    // 자동 발행 모드
+    // 자동 발행 모드 (이번 파이프라인에서 새로 생성된 블로그만)
     if (autoPublish) {
       setPublishingAll(true)
       const defaultCategories = await fetchDefaultCategories(blogIds)
@@ -218,10 +227,10 @@ export default function EditorNewPage() {
     }))
   }
 
-  // 전체 발행 (수동 모드)
+  // 전체 발행 (수동 모드 - 체크된 블로그만)
   const handlePublishAll = async () => {
-    const blogIds = Object.keys(aiResults)
-    if (!blogIds.length) return
+    const blogIds = Object.keys(aiResults).filter(id => selectedForPublish[id] !== false)
+    if (!blogIds.length) { alert('발행할 블로그를 1개 이상 선택해주세요.'); return }
     setPublishingAll(true)
     const defaultCategories = await fetchDefaultCategories(blogIds)
     const errors: string[] = []
@@ -375,27 +384,48 @@ export default function EditorNewPage() {
                 <h2 className="text-lg font-bold text-gray-900">생성 결과</h2>
                 <Button onClick={handlePublishAll} disabled={publishingAll}>
                   <Send className="w-4 h-4 mr-2" />
-                  {publishingAll ? '발행 중...' : `전체 발행 (${Object.values(aiResults).filter(s => s.step === 'done').length}개)`}
+                  {publishingAll
+                    ? '발행 중...'
+                    : `선택 발행 (${Object.values(aiResults).filter(s => s.step === 'done' && selectedForPublish[s.blogId] !== false).length}개)`}
                 </Button>
               </div>
 
-              {/* 블로그 탭 */}
+              {/* 블로그 탭 — 체크박스로 발행 대상 선택 (디폴트 ON) */}
               <div className="border-b border-gray-300">
                 <div className="flex gap-0">
-                  {Object.values(aiResults).map(s => (
-                    <button key={s.blogId} onClick={() => setActiveBlogTab(s.blogId)}
-                      className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                        activeBlogTab === s.blogId
-                          ? 'border-blue-600 text-blue-600 bg-white'
-                          : s.step === 'error'
-                            ? 'border-transparent text-red-400 hover:text-red-500'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}>
-                      {s.blogName}
-                      {s.step === 'done' && <span className="ml-1.5 text-green-500">&#10003;</span>}
-                      {s.step === 'error' && <span className="ml-1.5 text-red-400">&#10007;</span>}
-                    </button>
-                  ))}
+                  {Object.values(aiResults).map(s => {
+                    const checked = selectedForPublish[s.blogId] !== false
+                    return (
+                      <div key={s.blogId}
+                        className={`flex items-center gap-1.5 px-3 py-2 border-b-2 transition-colors ${
+                          activeBlogTab === s.blogId
+                            ? 'border-blue-600 bg-white'
+                            : 'border-transparent'
+                        }`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setSelectedForPublish(prev => ({ ...prev, [s.blogId]: e.target.checked }))}
+                          disabled={s.step !== 'done'}
+                          title="발행 대상 선택"
+                          className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <button onClick={() => setActiveBlogTab(s.blogId)}
+                          className={`text-sm font-medium ${
+                            activeBlogTab === s.blogId
+                              ? 'text-blue-600'
+                              : s.step === 'error'
+                                ? 'text-red-400 hover:text-red-500'
+                                : 'text-gray-500 hover:text-gray-700'
+                          }`}>
+                          {s.blogName}
+                          {s.step === 'done' && <span className="ml-1.5 text-green-500">&#10003;</span>}
+                          {s.step === 'error' && <span className="ml-1.5 text-red-400">&#10007;</span>}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -411,7 +441,11 @@ export default function EditorNewPage() {
                   {/* 개별 액션 버튼 */}
                   <div className="flex justify-between items-center">
                     <Button size="sm" variant="outline"
-                      onClick={() => activeBlogTab && aiPanelRef.current?.run([activeBlogTab])}
+                      onClick={() => {
+                        if (!activeBlogTab) return
+                        updateAiResult(activeBlogTab, { step: 'writing', stepMessage: '재생성 준비 중...' })
+                        aiPanelRef.current?.run([activeBlogTab])
+                      }}
                       disabled={publishingAll}>
                       <Sparkles className="w-4 h-4 mr-1.5" />이 글 재생성
                     </Button>

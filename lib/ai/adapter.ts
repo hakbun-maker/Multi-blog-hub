@@ -46,6 +46,7 @@ export interface GeneratePostParams {
   targetLength?: 'short' | 'medium' | 'long'
   newsArticles?: { title: string; description: string }[]
   language?: BlogLanguage
+  useToc?: boolean
 }
 
 export interface GeneratedPost {
@@ -213,32 +214,80 @@ You MUST write the ENTIRE blog post in ${langCfg.name}. This is non-negotiable.
 ${langCfg.cultureHint}
 `
 
-  // SEO 최적화 구조 지시 (공통)
+  // SEO 최적화 구조 지시 (공통) — 색인 신호 강화 (분량·고유성·구조)
   const seoStructure = isKorean
     ? `
 ## SEO 최적화 글 구조 (반드시 준수)
-다음 구조를 포함하여 작성하세요:
-1. 도입부: 독자의 공감을 이끌어내는 문제 제기 또는 질문으로 시작
-2. 본문: 3~5개의 ## 소제목으로 구분. 각 섹션은 키워드를 자연스럽게 포함
-3. FAQ 섹션: 마지막 소제목으로 "## 자주 묻는 질문" 포함. Q&A 3개 이상
-4. 마무리: 핵심 요약 + 독자 행동 유도
+다음 구조와 분량을 정확히 지키세요. 짧은 글은 색인되지 않습니다.
 
-주의사항:
+1. **도입부 (반드시 300자 이상, 2~3 단락)**
+   - 첫 문장에 주제 키워드를 자연스럽게 포함
+   - 독자의 공감을 이끄는 구체적 상황·통계·질문으로 시작 (모호한 일반론 금지)
+   - 글에서 다룰 핵심 3가지를 미리 안내
+
+2. **본문 (3~5개의 ## 소제목, 각 섹션 400자 이상)**
+   - 각 ## 소제목 자체에 주제 키워드 또는 연관 키워드 1개 포함
+   - 각 섹션은 도입 → 핵심 설명 → 구체 예시·수치 → 결론 순으로 작성
+   - 짧은 문장만 반복 금지, 단락당 3~5문장 유지
+   - 키워드는 본문 전체에서 자연스럽게 5~8회 등장 (불자연한 반복 금지)
+
+3. **FAQ 섹션 (## 자주 묻는 질문, Q&A 4개 이상)**
+   - 각 질문은 실제 검색어 형태로 구체적으로 작성 (예: "X는 얼마나 걸리나요?", "Y와 Z의 차이는?")
+   - 답변은 각 80자 이상
+
+4. **마무리 (## 결론 또는 ## 정리, 200자 이상)**
+   - 핵심 3가지 요약 + 다음 행동 유도 문구
+
+## 콘텐츠 품질 필수 규칙
+- 총 분량: **2,000자 이상** (이보다 짧으면 색인 안됨)
+- 모든 섹션은 고유한 정보 — 동일 내용 재진술 금지
+- 추상적 표현("매우 중요합니다", "큰 도움이 됩니다") 대신 구체적 수치·예시 사용
+- 1인칭 경험·구체적 사례·전문가 인용 1개 이상 포함
+
+## 메타데이터 규칙
+- seoTitle: 정확히 30~60자. 주제 키워드 포함 + 클릭 유도 (숫자/혜택/질문)
+- seoDescription: 정확히 120~155자. 글의 핵심 가치 + 키워드 자연 포함
+- 태그 5개: 주제 키워드 + 연관 키워드 4개
+
+## 형식 규칙
 - 목차(TOC)를 본문 content 안에 절대 포함하지 마세요 (시스템이 자동 생성합니다)
-- seoTitle은 반드시 60자 이내, seoDescription은 반드시 155자 이내로 작성
-- 태그는 5개 작성`
+- 마크다운만 사용 (##, ###, **굵게**, *기울임*, - 리스트, 1. 번호)`
     : `
-## SEO-OPTIMIZED STRUCTURE (MUST FOLLOW)
-Structure your post as follows:
-1. Introduction: Start with a relatable problem or question to engage readers
-2. Body: Use 3-5 ## subheadings. Naturally include keywords in each section
-3. FAQ Section: Include "## Frequently Asked Questions" as the last subheading with 3+ Q&As
-4. Conclusion: Key summary + call to action
+## SEO-OPTIMIZED STRUCTURE (MUST FOLLOW STRICTLY)
+Posts that are short or generic will NOT be indexed by Google. Follow these rules exactly:
 
-IMPORTANT RULES:
+1. **Introduction (MUST be 300+ characters, 2-3 paragraphs)**
+   - Include the main keyword naturally in the first sentence
+   - Open with a specific situation, statistic, or question (NO vague generalities)
+   - Preview the 3 key points the post will cover
+
+2. **Body (3-5 ## subheadings, EACH 400+ characters)**
+   - Each ## subheading must include the main keyword or a related keyword
+   - Structure each section: intro → core explanation → concrete example/numbers → conclusion
+   - Avoid only short sentences. Use 3-5 sentences per paragraph.
+   - Keywords should appear 5-8 times naturally throughout (NO keyword stuffing)
+
+3. **FAQ Section (## Frequently Asked Questions, 4+ Q&As)**
+   - Frame questions as actual search queries (e.g., "How long does X take?", "What's the difference between Y and Z?")
+   - Each answer must be 80+ characters
+
+4. **Conclusion (## Conclusion or ## Summary, 200+ characters)**
+   - Summarize 3 key points + clear call to action
+
+## CONTENT QUALITY RULES
+- Total length: **2,000+ characters** (shorter posts won't be indexed)
+- Each section must have unique information — NO restating
+- Use concrete numbers/examples instead of vague phrases ("very important", "great help")
+- Include at least one first-person experience, specific example, or expert quote
+
+## METADATA RULES
+- seoTitle: exactly 30-60 chars. Main keyword + click incentive (numbers/benefits/questions)
+- seoDescription: exactly 120-155 chars. Core value + natural keyword inclusion
+- 5 tags: main keyword + 4 related keywords
+
+## FORMAT RULES
 - Do NOT include a table of contents (TOC) in the content (the system generates it automatically)
-- seoTitle MUST be under 60 characters. seoDescription MUST be under 155 characters
-- Include exactly 5 tags`
+- Markdown only (##, ###, **bold**, *italic*, - list, 1. numbered)`
 
   return `${sections}
 ${newsSection}${langDirective}${seoStructure}
@@ -266,8 +315,8 @@ ${params.newsArticles?.length ? '- 참고 뉴스 기사의 핵심 정보를 활�
 }`
 }
 
-// 마크다운 → HTML 변환 (SEO 최적화: 자동 TOC 생성 + H2 id 부여)
-export function markdownToHtml(markdown: string): string {
+// 마크다운 → HTML 변환 (H2 id 자동 부여, includeToc=true일 때만 목차 삽입)
+export function markdownToHtml(markdown: string, includeToc: boolean = false): string {
   if (!markdown?.trim()) return ''
 
   const lines = markdown.split('\n')
@@ -339,8 +388,8 @@ export function markdownToHtml(markdown: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
 
-  // H2가 2개 이상이면 자동 TOC 생성 (본문 첫 H2 앞에 삽입)
-  if (h2Headings.length >= 2) {
+  // includeToc=true이고 H2가 2개 이상이면 목차 생성 (본문 첫 H2 앞에 삽입)
+  if (includeToc && h2Headings.length >= 2) {
     const tocItems = h2Headings.map(h =>
       `<li style="margin-bottom: 8px;"><a href="#${h.id}" style="text-decoration: none; color: #2563eb; font-weight: 500;">${h.text}</a></li>`
     ).join('\n')
@@ -362,7 +411,7 @@ ${tocItems}
   return body
 }
 
-export function parseAIResponse(text: string, blogId: string): GeneratedPost {
+export function parseAIResponse(text: string, blogId: string, useToc: boolean = false): GeneratedPost {
   // 1) 코드블록 제거 (```json ... ```)
   const cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '').trim()
 
@@ -418,7 +467,7 @@ export function parseAIResponse(text: string, blogId: string): GeneratedPost {
         blogId,
         title: titleMatch?.[1]?.replace(/\\"/g, '"') ?? '(제목 없음)',
         content,
-        htmlContent: markdownToHtml(content),
+        htmlContent: markdownToHtml(content, useToc),
         tags,
         seoMeta: truncateSeoFields({
           title: seoTitleMatch?.[1]?.replace(/\\"/g, '"') ?? titleMatch?.[1] ?? '',
@@ -435,7 +484,7 @@ export function parseAIResponse(text: string, blogId: string): GeneratedPost {
     blogId,
     title: (parsed.title as string) ?? '(제목 없음)',
     content,
-    htmlContent: markdownToHtml(content),
+    htmlContent: markdownToHtml(content, useToc),
     tags: Array.isArray(parsed.tags) ? parsed.tags : [],
     seoMeta: truncateSeoFields({
       title: (parsed.seoTitle as string) ?? (parsed.title as string) ?? '',

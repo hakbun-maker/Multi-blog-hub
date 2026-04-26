@@ -15,11 +15,17 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     !rootHost.endsWith('.vercel.app') &&
     rootHost !== ''
 
-  // 커스텀 도메인이면 해당 도메인 기준 sitemap만
+  // 커스텀 도메인이면 해당 도메인 기준 sitemap만 — Googlebot/Bingbot 명시
   if (isCustomDomain) {
     return {
-      rules: [{ userAgent: '*', allow: '/' }],
+      rules: [
+        { userAgent: 'Googlebot', allow: '/' },
+        { userAgent: 'Googlebot-Image', allow: '/' },
+        { userAgent: 'Bingbot', allow: '/' },
+        { userAgent: '*', allow: '/' },
+      ],
       sitemap: `https://${rootHost}/sitemap.xml`,
+      host: `https://${rootHost}`,
     }
   }
 
@@ -39,21 +45,23 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
 
     if (blogs) {
       for (const blog of blogs) {
-        sitemaps.push(`${APP_URL}/blog/${blog.slug}/sitemap.xml`)
+        sitemaps.push(`${APP_URL}/blog/${encodeURIComponent(blog.slug)}/sitemap.xml`)
       }
     }
   } catch {
     // DB 실패해도 메인 sitemap은 유지
   }
 
+  // 봇별 명시 — Google이 우선순위 인지 + 이미지 크롤링 허용 명시
+  const adminDisallow = ['/dashboard/', '/editor/', '/settings/', '/api/', '/login', '/signup']
   return {
     rules: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: ['/dashboard/', '/editor/', '/settings/', '/api/', '/login', '/signup'],
-      },
+      { userAgent: 'Googlebot', allow: '/', disallow: adminDisallow },
+      { userAgent: 'Googlebot-Image', allow: '/' },
+      { userAgent: 'Bingbot', allow: '/', disallow: adminDisallow },
+      { userAgent: '*', allow: '/', disallow: adminDisallow },
     ],
     sitemap: sitemaps,
+    host: APP_URL,
   }
 }

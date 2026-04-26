@@ -20,6 +20,7 @@ interface Blog {
   slug: string
   color?: string
   blog_type?: string | null
+  custom_domain?: string | null
   layout_config?: Partial<LayoutConfig> | null
 }
 
@@ -112,7 +113,7 @@ async function fetchPostData(slug: string, postSlug: string) {
 
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, color, blog_type, layout_config')
+    .select('id, name, slug, color, blog_type, custom_domain, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -160,6 +161,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const fontInfo = getFontLink(cfg.layout.font)
   const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
   const tags = post.keyword ? post.keyword.split(',').map(t => t.trim()).filter(Boolean) : []
+  const customDomain = (blog as Blog & { custom_domain?: string | null }).custom_domain
 
   let contentHtml = post.content_html || ''
   // 본문 이미지에 lazy loading 추가
@@ -170,7 +172,32 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
 
   const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
   const relatedPostsCfg = cfg.related_posts
-  const postUrl = `${APP_URL}/blog/${blog.slug}/${decodedPostSlug}`
+  // canonical과 일치시키기 위해 인코딩 + 커스텀 도메인 우선
+  const encodedPostSlug = encodeURIComponent(decodedPostSlug)
+  const encodedBlogSlug = encodeURIComponent(blog.slug)
+  const postUrl = customDomain
+    ? `https://${customDomain}/${encodedPostSlug}`
+    : `${APP_URL}/blog/${encodedBlogSlug}/${encodedPostSlug}`
+  // 관련글 링크 base — 커스텀 도메인이면 루트 기준, 아니면 /blog/{slug}/
+  const relatedLinkBase = customDomain
+    ? '/'
+    : `/blog/${encodedBlogSlug}/`
+
+  // 본문 중간 — 첫 H2 직후에 관련글 인라인 박스 삽입 (PageRank 전파 + 체류시간 향상)
+  if (relatedPosts.length >= 2) {
+    const firstH2EndMatch = contentHtml.match(/<h2[^>]*>[\s\S]*?<\/h2>/i)
+    if (firstH2EndMatch) {
+      const insertAt = (firstH2EndMatch.index ?? 0) + firstH2EndMatch[0].length
+      // 첫 H2 직후 관련글 2개 인라인 — 색인 도움
+      const inlineRelated = relatedPosts.slice(0, 2).map(p => {
+        const link = `${relatedLinkBase}${encodeURIComponent(p.slug)}`
+        const escapedTitle = p.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        return `<li style="margin-bottom:6px;"><a href="${link}" style="color:#2563eb;text-decoration:none;">📌 ${escapedTitle}</a></li>`
+      }).join('')
+      const inlineBox = `<aside style="background:#f8fafc;border-left:3px solid #3b82f6;padding:12px 16px;margin:20px 0;border-radius:4px;"><p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 8px 0;">함께 읽으면 좋은 글</p><ul style="margin:0;padding-left:18px;font-size:14px;">${inlineRelated}</ul></aside>`
+      contentHtml = contentHtml.slice(0, insertAt) + inlineBox + contentHtml.slice(insertAt)
+    }
+  }
   const thumbnail = extractFirstImage(post.content_html)
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
 
@@ -226,7 +253,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         style={{ backgroundColor: cfg.header.bg_color, color: cfg.header.text_color }}
       >
         <div className={`mx-auto px-4 ${HEADER_HEIGHT[cfg.header.height] ?? 'py-3'} flex items-center gap-3`} style={{ maxWidth: cfg.layout.max_width }}>
-          <Link href={`/blog/${blog.slug}`} className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.header.text_color }}>
+          <Link href={customDomain ? '/' : `/blog/${encodedBlogSlug}`} className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity" style={{ color: cfg.header.text_color }}>
             <ArrowLeft className="w-4 h-4" />
             {cfg.header.logo_type === 'image' && cfg.header.logo_image_url ? (
               <img src={cfg.header.logo_image_url} alt={blog.name} className="h-7 w-7 object-contain rounded" />
@@ -330,7 +357,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {relatedPosts.map(p => (
-              <Link key={p.id} href={`/blog/${blog.slug}/${p.slug}`}
+              <Link key={p.id} href={`${relatedLinkBase}${encodeURIComponent(p.slug)}`}
                 className="block bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all p-4">
                 <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{p.title}</p>
                 <div className="flex items-center gap-3 text-xs text-gray-400">

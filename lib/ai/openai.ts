@@ -31,7 +31,7 @@ export class OpenAIAdapter implements AIAdapter {
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
     const text = await this.callOpenAI(buildPrompt(params))
-    return parseAIResponse(text, params.blogId)
+    return parseAIResponse(text, params.blogId, params.useToc ?? false)
   }
 
   async generateText(prompt: string): Promise<string> {

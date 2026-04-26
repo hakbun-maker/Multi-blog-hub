@@ -26,9 +26,10 @@ export default async function sitemap(
 
     if (!blog) return []
 
+    // 커스텀 도메인은 ASCII 이므로 인코딩 불필요, slug는 한글 가능 → 인코딩
     const baseUrl = blog.custom_domain
       ? `https://${blog.custom_domain}`
-      : `${APP_URL}/blog/${slug}`
+      : `${APP_URL}/blog/${encodeURIComponent(slug)}`
 
     const { data: posts } = await supabase
       .from('posts')
@@ -51,9 +52,10 @@ export default async function sitemap(
       },
     ]
 
+    // 포스트 slug는 한글 가능 → percent-encoding (sitemap 표준)
     for (const post of posts ?? []) {
       entries.push({
-        url: `${baseUrl}/${post.slug}`,
+        url: `${baseUrl}/${encodeURIComponent(post.slug)}`,
         lastModified: post.published_at ? new Date(post.published_at) : new Date(),
         changeFrequency: 'weekly',
         priority: 0.8,

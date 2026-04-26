@@ -227,6 +227,21 @@ export async function registerBlogToGSC(
   return { ok: true, step: 'complete', verified: true, siteUrl }
 }
 
+/**
+ * 단일 블로그 sitemap 재제출 (발행 시 호출)
+ * - GSC가 sitemap을 다시 fetch하도록 신호
+ * - 토큰/소유권 없으면 silently 실패
+ */
+export async function resubmitSitemapForBlog(
+  userId: string,
+  blog: { id: string; slug: string; custom_domain?: string | null }
+): Promise<{ ok: boolean; error?: string }> {
+  const accessToken = await getValidAccessToken(userId)
+  if (!accessToken) return { ok: false, error: 'no_token' }
+  const siteUrl = getBlogSiteUrl(blog)
+  return submitSitemapToGSC(accessToken, siteUrl)
+}
+
 /** 사용자의 모든 블로그를 GSC에 일괄 등록 */
 export async function registerAllBlogsToGSC(userId: string): Promise<{
   results: { blogId: string; blogName: string; ok: boolean; step?: string; error?: string }[]
@@ -252,6 +267,115 @@ export async function registerAllBlogsToGSC(userId: string): Promise<{
       ok: result.ok,
       step: result.step,
       error: result.error,
+    })
+  }
+
+  return { results }
+}
+
+/**
+ * 일괄 적용: 모든 블로그에 자동색인 ON + 사이트맵 재제출
+ * - layout_config.tracking.gsc_auto_index = true 강제
+ * - 각 블로그 sitemap 즉시 재제출
+ */
+export async function bulkApplyAutoIndexAndSitemap(userId: string): Promise<{
+  results: {
+    blogId: string
+    blogName: string
+    autoIndexSet: boolean
+    sitemapOk: boolean
+    error?: string
+  }[]
+}> {
+  const accessToken = await getValidAccessToken(userId)
+  if (!accessToken) {
+    return {
+      results: [{
+        blogId: '',
+        blogName: '(no token)',
+        autoIndexSet: false,
+        sitemapOk: false,
+        error: 'Google OAuth 토큰이 없습니다. 먼저 Google 계정을 연결하세요.',
+      }],
+    }
+  }
+
+  const supabase = getServiceSupabase()
+  const { data: blogs } = await supabase
+    .from('blogs')
+    .select('id, name, slug, custom_domain, layout_config')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (!blogs?.length) return { results: [] }
+
+  const results: {
+    blogId: string
+    blogName: string
+    autoIndexSet: boolean
+    sitemapOk: boolean
+    error?: string
+  }[] = []
+
+  for (const blog of blogs) {
+    let autoIndexSet = false
+    let sitemapOk = false
+    let error: string | undefined
+
+    // 1) tracking.gsc_auto_index = true 설정
+    try {
+      const layoutConfig = (blog.layout_config ?? {}) as Record<string, unknown>
+      const tracking = (layoutConfig.tracking ?? {}) as Record<string, unknown>
+      const updateRes = await supabase
+        .from('blogs')
+        .update({
+          layout_config: {
+            ...layoutConfig,
+            tracking: { ...tracking, gsc_auto_index: true },
+          },
+        })
+        .eq('id', blog.id)
+      if (!updateRes.error) autoIndexSet = true
+      else error = `자동색인 설정 실패: ${updateRes.error.message}`
+    } catch (e) {
+      error = e instanceof Error ? e.message : '자동색인 설정 오류'
+    }
+
+    // 2) 사이트맵 재제출
+    try {
+      const siteUrl = getBlogSiteUrl(blog)
+      const result = await submitSitemapToGSC(accessToken, siteUrl)
+      sitemapOk = result.ok
+      if (!result.ok && !error) error = result.error
+
+      // 성공 시 sitemap_submitted_at 업데이트
+      if (result.ok) {
+        const layoutConfig = (blog.layout_config ?? {}) as Record<string, unknown>
+        const tracking = (layoutConfig.tracking ?? {}) as Record<string, unknown>
+        await supabase
+          .from('blogs')
+          .update({
+            layout_config: {
+              ...layoutConfig,
+              tracking: {
+                ...tracking,
+                gsc_auto_index: true,
+                sitemap_submitted_at: new Date().toISOString(),
+              },
+            },
+          })
+          .eq('id', blog.id)
+      }
+    } catch (e) {
+      if (!error) error = e instanceof Error ? e.message : '사이트맵 제출 오류'
+    }
+
+    results.push({
+      blogId: blog.id,
+      blogName: blog.name,
+      autoIndexSet,
+      sitemapOk,
+      error,
     })
   }
 

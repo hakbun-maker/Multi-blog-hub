@@ -26,9 +26,10 @@ export async function GET(
     )
   }
 
+  // 커스텀 도메인은 ASCII, slug는 한글 가능 → 인코딩
   const baseUrl = blog.custom_domain
     ? `https://${blog.custom_domain}`
-    : `${APP_URL}/blog/${params.slug}`
+    : `${APP_URL}/blog/${encodeURIComponent(params.slug)}`
 
   const { data: posts } = await supabase
     .from('posts')
@@ -42,24 +43,31 @@ export async function GET(
     ? new Date(latestPost.published_at).toISOString()
     : new Date(blog.created_at).toISOString()
 
+  // XML 표준 — & < > 이스케이프 헬퍼
+  const escapeXml = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`
   xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
 
-  // 블로그 홈
+  // 블로그 홈 (URL은 ASCII이므로 escape만)
   xml += `  <url>\n`
-  xml += `    <loc>${baseUrl}</loc>\n`
+  xml += `    <loc>${escapeXml(baseUrl)}</loc>\n`
   xml += `    <lastmod>${blogLastModified}</lastmod>\n`
   xml += `    <changefreq>daily</changefreq>\n`
   xml += `    <priority>1.0</priority>\n`
   xml += `  </url>\n`
 
-  // 개별 포스트
+  // 개별 포스트 (한글 slug → percent-encoding 후 XML escape)
   for (const post of posts ?? []) {
     const lastmod = post.published_at
       ? new Date(post.published_at).toISOString()
       : new Date().toISOString()
+    const postUrl = `${baseUrl}/${encodeURIComponent(post.slug)}`
     xml += `  <url>\n`
-    xml += `    <loc>${baseUrl}/${post.slug}</loc>\n`
+    xml += `    <loc>${escapeXml(postUrl)}</loc>\n`
     xml += `    <lastmod>${lastmod}</lastmod>\n`
     xml += `    <changefreq>weekly</changefreq>\n`
     xml += `    <priority>0.8</priority>\n`

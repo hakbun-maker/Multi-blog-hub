@@ -20,6 +20,7 @@ interface Blog {
   slug: string
   description?: string
   color?: string
+  custom_domain?: string | null
   layout_config?: Partial<LayoutConfig> | null
 }
 
@@ -109,7 +110,7 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
   // 블로그 조회
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, description, color, layout_config')
+    .select('id, name, slug, description, color, custom_domain, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -173,7 +174,15 @@ export default async function PublicBlogPage({
 
   const hasSidebar = cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar'
   const isMagazine = cfg.layout.preset === 'magazine'
-  const blogUrl = `${APP_URL}/blog/${blog.slug}`
+  const customDomain = blog.custom_domain
+  const encodedBlogSlug = encodeURIComponent(blog.slug)
+  // canonical과 일치 — 커스텀 도메인 우선
+  const blogUrl = customDomain
+    ? `https://${customDomain}`
+    : `${APP_URL}/blog/${encodedBlogSlug}`
+  // 모든 내부 링크 base — 커스텀 도메인이면 루트, 아니면 /blog/{slug}
+  const blogHomePath = customDomain ? '/' : `/blog/${encodedBlogSlug}`
+  const postLinkBase = customDomain ? '/' : `/blog/${encodedBlogSlug}/`
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -240,7 +249,7 @@ export default async function PublicBlogPage({
           <div className="mx-auto px-4" style={{ maxWidth: cfg.layout.max_width }}>
             <div className="flex gap-1 overflow-x-auto py-2 -mb-px scrollbar-hide">
               <Link
-                href={`/blog/${blog.slug}`}
+                href={blogHomePath}
                 className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
                   !activeCategory ? 'font-semibold text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
@@ -251,7 +260,7 @@ export default async function PublicBlogPage({
               {categories.map(cat => (
                 <Link
                   key={cat.id}
-                  href={`/blog/${blog.slug}?category=${encodeURIComponent(cat.slug)}`}
+                  href={`${blogHomePath}?category=${encodeURIComponent(cat.slug)}`}
                   className={`px-3 py-1.5 text-sm rounded-full whitespace-nowrap transition-colors ${
                     activeCategory === cat.slug ? 'font-semibold text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                   }`}
@@ -296,7 +305,7 @@ export default async function PublicBlogPage({
                   const excerpt = post.meta_description || stripHtml(post.content_html).slice(0, 100)
                   const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
                   return (
-                    <Link key={post.id} href={`/blog/${blog.slug}/${post.slug}`}
+                    <Link key={post.id} href={`${postLinkBase}${encodeURIComponent(post.slug)}`}
                       className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
                       {thumbnail && (
                         <div className="w-full h-40">
@@ -321,7 +330,7 @@ export default async function PublicBlogPage({
                   const excerpt = post.meta_description || stripHtml(post.content_html).slice(0, 150)
                   const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
                   return (
-                    <Link key={post.id} href={`/blog/${blog.slug}/${post.slug}`}
+                    <Link key={post.id} href={`${postLinkBase}${encodeURIComponent(post.slug)}`}
                       className="block bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
                       <div className="flex">
                         <div className="flex-1 p-5">
@@ -396,7 +405,7 @@ export default async function PublicBlogPage({
             <p className="text-xs opacity-60">{cfg.footer.copyright}</p>
           ) : (
             <p className="text-xs opacity-60 text-center">
-              <Link href={`/blog/${blog.slug}`} className="hover:opacity-80">{blog.name}</Link>
+              <Link href={blogHomePath} className="hover:opacity-80">{blog.name}</Link>
             </p>
           )}
         </div>

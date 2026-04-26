@@ -54,11 +54,13 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   const title = post.seo_title || post.title
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
   const thumbnail = extractFirstImage(post.content_html)
-  // 커스텀 도메인이면 해당 도메인 기준 URL, 없으면 앱 도메인 기준
-  const decodedPostSlug = decodeURIComponent(params.postSlug)
+  // sitemap과 canonical URL을 일치시키기 위해 percent-encoding 사용
+  // params.postSlug는 Next.js가 이미 decode한 raw 한글 → 다시 encode
+  const encodedPostSlug = encodeURIComponent(params.postSlug)
+  const encodedBlogSlug = encodeURIComponent(blog.slug)
   const url = blog.custom_domain
-    ? `https://${blog.custom_domain}/${decodedPostSlug}`
-    : `${APP_URL}/blog/${blog.slug}/${decodedPostSlug}`
+    ? `https://${blog.custom_domain}/${encodedPostSlug}`
+    : `${APP_URL}/blog/${encodedBlogSlug}/${encodedPostSlug}`
 
   const BLOG_TYPE_KW: Record<string, string[]> = {
     legal: ['법률', '법률상담', 'legal'],
