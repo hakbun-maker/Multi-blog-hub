@@ -15,7 +15,8 @@ export class OpenAIAdapter implements AIAdapter {
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        max_tokens: 8192,
+        // 수익화 글이 8192 토큰 초과해서 잘리는 문제 해결 (gpt-4o는 16k 출력 지원)
+        max_tokens: 16384,
         messages: [{ role: 'user', content: prompt }],
       }),
     })

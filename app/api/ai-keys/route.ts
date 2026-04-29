@@ -14,6 +14,7 @@ const SUPPORTED_PROVIDERS = [
   'interpark',
   'coupang',
   'amazon',
+  'threads',
 ] as const
 
 export async function GET() {

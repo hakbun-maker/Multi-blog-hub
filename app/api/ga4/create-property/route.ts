@@ -74,6 +74,7 @@ export async function POST(request: Request) {
 
     const property = await propertyRes.json()
     const propertyName = property.name // "properties/67890"
+    const propertyId = propertyName.replace('properties/', '')
 
     // 3. 웹 데이터 스트림 생성
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -106,12 +107,13 @@ export async function POST(request: Request) {
 
     if (!measurementId) throw new Error('측정 ID를 가져올 수 없습니다.')
 
-    // layout_config에 GA4 ID 즉시 저장 (레이아웃 저장 안 해도 유지되도록)
+    // layout_config에 GA4 measurement ID + blogs.ga4_property_id 저장
     const currentConfig = (blog.layout_config as Record<string, unknown>) || {}
     const currentTracking = (currentConfig.tracking as Record<string, unknown>) || {}
     await supabase
       .from('blogs')
       .update({
+        ga4_property_id: propertyId,
         layout_config: {
           ...currentConfig,
           tracking: { ...currentTracking, ga4_id: measurementId },

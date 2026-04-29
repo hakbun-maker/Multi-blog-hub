@@ -5,7 +5,7 @@
  */
 import { createHmac } from 'crypto'
 
-export type ApiProvider = 'claude' | 'openai' | 'gemini' | 'imagen' | 'naver_ad' | 'naver_search' | 'google_kwp' | 'coupang' | 'amazon'
+export type ApiProvider = 'claude' | 'openai' | 'gemini' | 'imagen' | 'naver_ad' | 'naver_search' | 'google_kwp' | 'coupang' | 'amazon' | 'threads'
 
 // Provider categories for UI grouping
 export const PROVIDER_CATEGORIES = {
@@ -13,6 +13,7 @@ export const PROVIDER_CATEGORIES = {
   image_gen: ['imagen'] as ApiProvider[],
   keyword: ['naver_ad', 'naver_search', 'google_kwp'] as ApiProvider[],
   monetize: ['coupang', 'amazon'] as ApiProvider[],
+  sns: ['threads'] as ApiProvider[],
 } as const
 
 export const PROVIDER_LABELS: Record<ApiProvider, string> = {
@@ -25,6 +26,7 @@ export const PROVIDER_LABELS: Record<ApiProvider, string> = {
   google_kwp: 'Google Keyword Planner',
   coupang: '쿠팡파트너스',
   amazon: 'Amazon Associates',
+  threads: 'Threads',
 }
 
 // Whether provider needs both key and secret
@@ -38,6 +40,7 @@ export const PROVIDER_NEEDS_SECRET: Record<ApiProvider, boolean> = {
   google_kwp: false,
   coupang: true,    // API Key + Secret
   amazon: true,     // Access Key + Secret Key
+  threads: false,   // Long-Lived Access Token만 필요
 }
 
 export interface TestResult {
@@ -95,8 +98,38 @@ export async function testProviderConnection(
       return testCoupangKey(key, secret)
     case 'amazon':
       return testAmazonKey(key, secret)
+    case 'threads':
+      return testThreadsKey(key)
     default:
       return { success: false, message: `Unsupported provider: ${provider}` }
+  }
+}
+
+/**
+ * Test Threads (Meta) API access token by calling /me endpoint
+ */
+async function testThreadsKey(token: string): Promise<TestResult> {
+  try {
+    const res = await fetch(
+      `https://graph.threads.net/v1.0/me?fields=id,username&access_token=${encodeURIComponent(token)}`
+    )
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({} as any))
+      const msg = (err as any)?.error?.message || `HTTP ${res.status}`
+      return { success: false, message: `Threads 인증 실패: ${msg}` }
+    }
+    const data = await res.json() as { id?: string; username?: string }
+    if (!data.id) {
+      return { success: false, message: 'Threads 사용자 정보를 확인할 수 없습니다.' }
+    }
+    return {
+      success: true,
+      message: `Threads 연결 성공 (@${data.username ?? data.id})`,
+      details: { userId: data.id, username: data.username },
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '네트워크 오류'
+    return { success: false, message: `Threads 테스트 중 오류: ${msg}` }
   }
 }
 
@@ -450,7 +483,7 @@ async function testAmazonKey(key: string, secret?: string): Promise<TestResult> 
  * Get all supported providers
  */
 export function getSupportedProviders(): ApiProvider[] {
-  return ['claude', 'openai', 'gemini', 'imagen', 'naver_ad', 'naver_search', 'google_kwp', 'coupang', 'amazon']
+  return ['claude', 'openai', 'gemini', 'imagen', 'naver_ad', 'naver_search', 'google_kwp', 'coupang', 'amazon', 'threads']
 }
 
 /**

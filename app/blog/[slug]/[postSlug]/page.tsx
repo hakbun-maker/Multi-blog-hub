@@ -6,6 +6,8 @@ import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
+import ViewTracker from '@/components/blog-public/ViewTracker'
+import { injectMidAdSlot, buildFaqPageJsonLd, isMonetizePost, shouldRenderJsonLd, type MonetizeMetaJson } from '@/lib/monetize/post-enhancer'
 
 // ISR: 1시간마다 백그라운드 갱신 (크롤러/방문자에게 캐시된 빠른 응답 제공)
 export const revalidate = 3600
@@ -21,6 +23,7 @@ interface Blog {
   color?: string
   blog_type?: string | null
   custom_domain?: string | null
+  adsense_slot_mid?: string | null
   layout_config?: Partial<LayoutConfig> | null
 }
 
@@ -33,6 +36,7 @@ interface Post {
   seo_title?: string
   meta_description?: string
   published_at: string
+  monetize_meta?: Record<string, unknown> | null
 }
 
 interface RelatedPost {
@@ -113,7 +117,7 @@ async function fetchPostData(slug: string, postSlug: string) {
 
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, color, blog_type, custom_domain, layout_config')
+    .select('id, name, slug, color, blog_type, custom_domain, adsense_slot_mid, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -122,7 +126,7 @@ async function fetchPostData(slug: string, postSlug: string) {
 
   const { data: post } = await supabase
     .from('posts')
-    .select('id, title, slug, content_html, keyword, seo_title, meta_description, published_at')
+    .select('id, title, slug, content_html, keyword, seo_title, meta_description, published_at, monetize_meta')
     .eq('blog_id', blog.id)
     .eq('slug', postSlug)
     .eq('status', 'published')
@@ -198,6 +202,21 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
       contentHtml = contentHtml.slice(0, insertAt) + inlineBox + contentHtml.slice(insertAt)
     }
   }
+
+  // 수익화 글 후처리: S단계 직후 광고 슬롯 + FAQPage JSON-LD
+  const monetizeMeta = isMonetizePost(post.monetize_meta) ? (post.monetize_meta as MonetizeMetaJson) : null
+  let monetizeFaqJsonLd: object | null = null
+  if (monetizeMeta) {
+    // 광고 슬롯 자동 삽입 (S단계 직후 첫 H2 뒤)
+    const adsenseSlotMid = (blog as Blog & { adsense_slot_mid?: string | null }).adsense_slot_mid ?? null
+    const pubId = cfg.ads.adsense_pub_id ?? null
+    contentHtml = injectMidAdSlot(contentHtml, adsenseSlotMid, pubId)
+
+    // FAQPage JSON-LD (useJsonLd 토글 ON일 때만)
+    if (shouldRenderJsonLd(monetizeMeta)) {
+      monetizeFaqJsonLd = buildFaqPageJsonLd(contentHtml)
+    }
+  }
   const thumbnail = extractFirstImage(post.content_html)
   const description = post.meta_description || stripHtml(post.content_html).slice(0, 160)
 
@@ -228,8 +247,13 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, maxWidth: '100vw', overflowX: 'hidden' }}>
 
-      {/* JSON-LD 구조화 데이터 */}
+      {/* JSON-LD 구조화 데이터 (BlogPosting) */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* JSON-LD FAQPage (수익화 글 + useJsonLd ON일 때만) */}
+      {monetizeFaqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(monetizeFaqJsonLd) }} />
+      )}
 
       {/* 폰트 로드 (preconnect + preload로 렌더 블로킹 방지) */}
       {fontInfo?.preconnect && <link rel="preconnect" href={fontInfo.preconnect} crossOrigin="anonymous" />}
@@ -238,6 +262,9 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
 
       {/* 트래킹 스크립트 (클라이언트) */}
       <BlogTrackingScripts tracking={cfg.tracking} adsensePubId={cfg.ads.adsense_pub_id} />
+
+      {/* 자체 조회수 트래커 (ISR 캐시 우회 — 클라이언트에서 핑) */}
+      <ViewTracker postId={post.id} />
 
       {/* 공지 바 */}
       {cfg.header.notice_bar.enabled && cfg.header.notice_bar.text && (

@@ -16,7 +16,8 @@ export class ClaudeAdapter implements AIAdapter {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 8192,
+        // 수익화 글이 16k에서도 잘리는 케이스 발견 — 32k로 충분히 확보 (Claude Sonnet 4.6은 64k 지원)
+        max_tokens: 32768,
         messages: [{ role: 'user', content: prompt }],
       }),
     })

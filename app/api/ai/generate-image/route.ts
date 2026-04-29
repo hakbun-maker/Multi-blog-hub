@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     finalPrompt = await translateToEnglish(finalPrompt, supabase, user.id)
   }
 
+  // 사실적 사진 + 긍정·밝은 톤 강제 (이중 안전장치 — generate-meta 프롬프트가 가끔 누락해도 보완)
+  const STYLE_REINFORCEMENT = ', Shot on iPhone 16 Pro, photorealistic, candid lifestyle photography, bright natural lighting, warm and positive mood, realistic everyday scene, NOT illustration, NOT symbolic art, no text, no watermark'
+  if (!/photorealistic|iphone|candid|smartphone photography/i.test(finalPrompt)) {
+    finalPrompt = finalPrompt + STYLE_REINFORCEMENT
+  }
+
   // 사용자의 imagen API 키 조회
   const { data: keyRow, error: keyError } = await supabase
     .from('ai_api_keys')

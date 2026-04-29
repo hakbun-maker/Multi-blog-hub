@@ -53,8 +53,12 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
     useExpertMode, setUseExpertMode,
     useToc, setUseToc,
     useMonetize, setUseMonetize,
+    useJsonLd, setUseJsonLd,
     resetPipeline,
   } = useEditorStore()
+
+  // 수익화 글 1차 데이터 (Information Gain) — 세션 한정, store에는 저장 안 함
+  const [infoGain, setInfoGain] = useState('')
 
   const [kwInput, setKwInput] = useState('')
   const [error, setError] = useState('')
@@ -156,6 +160,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
       if (abortRef.current) throw new Error('__abort__')
 
       const tocEnabledForGen = useEditorStore.getState().useToc
+      const monetizeForGen = useEditorStore.getState().useMonetize
       const writeRes = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -166,6 +171,8 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           imageCount: 0,
           newsArticles: newsArticles.length > 0 ? newsArticles : undefined,
           useToc: tocEnabledForGen,
+          useMonetize: monetizeForGen,
+          ...(monetizeForGen && infoGain.trim() ? { infoGain: infoGain.trim() } : {}),
         }),
       })
       const writeData = await writeRes.json()
@@ -178,6 +185,7 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           setPipelineState(post.blogId, {
             step: 'writing', stepMessage: '글 작성 완료',
             title: post.title ?? '', htmlContent: post.htmlContent ?? '',
+            ...(post.monetizeMeta ? { monetizeMeta: post.monetizeMeta } : {}),
           })
           posts.push({ blogId: post.blogId, title: post.title ?? '', htmlContent: post.htmlContent ?? '' })
         } else {
@@ -379,6 +387,42 @@ export const AIGeneratePanel = forwardRef<AIGeneratePanelRef, AIGeneratePanelPro
           </div>
         </div>
       </div>
+
+      {/* 수익화 글 작성 ON 시 추가 옵션 */}
+      {useMonetize && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50/40 p-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">검색 결과 강조 자동 추가</Label>
+              <div className="flex items-center gap-2">
+                <Switch checked={useJsonLd} onCheckedChange={setUseJsonLd} disabled={isGenerating} />
+                <span className="text-xs text-gray-600">
+                  {useJsonLd ? '구글에 FAQ 펼침 노출' : 'OFF'}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400 leading-tight">
+                구글 검색 결과에 글의 FAQ가 펼쳐지는 형태로 노출되도록 신호를 보냅니다.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs flex items-center gap-1">
+                나만의 경험·데이터
+                <span className="text-[10px] text-gray-400 font-normal">(선택, 차별화)</span>
+              </Label>
+              <Input
+                value={infoGain}
+                onChange={e => setInfoGain(e.target.value)}
+                disabled={isGenerating}
+                placeholder="예: '직접 6개월 써본 결과 월 30% 절약', '5곳 견적가격 비교'"
+                className="text-xs h-8"
+              />
+              <p className="text-[10px] text-gray-400 leading-tight">
+                AI가 모르는 본인만의 정보를 한 줄 적으면 글에 자연스럽게 녹아 차별화됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 연관 키워드 */}
       {relatedKeywords.length > 0 && (

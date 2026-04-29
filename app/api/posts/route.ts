@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { blogId, title, htmlContent, status, tags, seoMeta, categoryId } = body
+  const { blogId, title, htmlContent, status, tags, seoMeta, categoryId, monetizeMeta } = body
 
   // 발행 시에만 blogId 필수
   if (status === 'published' && !blogId) {
@@ -88,6 +88,7 @@ export async function POST(request: Request) {
       keyword: Array.isArray(tags) ? tags.join(',') : '',
       seo_title: safeSeoTitle,
       meta_description: safeMetaDesc,
+      ...(monetizeMeta && typeof monetizeMeta === 'object' ? { monetize_meta: monetizeMeta } : {}),
       ...(status === 'published' && { published_at: new Date().toISOString() }),
     })
     .select()

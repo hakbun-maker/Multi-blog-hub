@@ -44,6 +44,8 @@ export default function EditorNewPage() {
   const [publishingAll, setPublishingAll] = useState(false)
   // 발행 대상으로 선택된 블로그 (디폴트: 모두 true)
   const [selectedForPublish, setSelectedForPublish] = useState<Record<string, boolean>>({})
+  // AI 결과 패널의 태그·SEO 재생성 진행 상태 (블로그별)
+  const [regeneratingMeta, setRegeneratingMeta] = useState<Record<string, boolean>>({})
 
   const {
     title, setTitle,
@@ -58,6 +60,12 @@ export default function EditorNewPage() {
     resetEditor,
     resetPipeline,
   } = useEditorStore()
+
+  // 수익화 글 발행 시 monetize_meta 빌드 — useJsonLd는 호출 시점의 최신 store 값 사용 (closure stale 방지)
+  const buildMonetizeMetaForPublish = (s: BlogPipelineState) => {
+    if (!s.monetizeMeta) return null
+    return { ...s.monetizeMeta, useJsonLd: useEditorStore.getState().useJsonLd }
+  }
 
   useEffect(() => {
     fetch('/api/blogs').then(r => r.json()).then(d => {
@@ -196,6 +204,7 @@ export default function EditorNewPage() {
               seoMeta: s.seoMeta, blogId,
               categoryId: defaultCategories[blogId],
               publishedAt: new Date().toISOString(),
+              ...(s.monetizeMeta ? { monetizeMeta: buildMonetizeMetaForPublish(s) } : {}),
             }),
           })
           if (!res.ok) {
@@ -227,6 +236,42 @@ export default function EditorNewPage() {
     }))
   }
 
+  // 본문은 그대로 두고 태그·SEO만 AI로 재생성
+  const regenerateMetaForActive = async () => {
+    if (!activeBlogTab || !activeResult) return
+    setRegeneratingMeta(prev => ({ ...prev, [activeBlogTab]: true }))
+    try {
+      const res = await fetch('/api/ai/generate-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: activeResult.title,
+          htmlContent: activeResult.htmlContent,
+          mode: 'meta',
+          language: blogs.find(b => b.id === activeBlogTab)?.language ?? 'ko',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(`태그·SEO 생성 실패: ${data.error || '알 수 없는 오류'}`)
+        return
+      }
+      const patch: Partial<BlogPipelineState> = {}
+      if (Array.isArray(data.tags) && data.tags.length) patch.tags = data.tags
+      if (data.seoTitle || data.seoDescription) {
+        patch.seoMeta = {
+          title: data.seoTitle ?? activeResult.seoMeta.title,
+          description: data.seoDescription ?? activeResult.seoMeta.description,
+        }
+      }
+      if (Object.keys(patch).length) updateAiResult(activeBlogTab, patch)
+    } catch (e) {
+      alert(`네트워크 오류: ${e instanceof Error ? e.message : ''}`)
+    } finally {
+      setRegeneratingMeta(prev => ({ ...prev, [activeBlogTab]: false }))
+    }
+  }
+
   // 전체 발행 (수동 모드 - 체크된 블로그만)
   const handlePublishAll = async () => {
     const blogIds = Object.keys(aiResults).filter(id => selectedForPublish[id] !== false)
@@ -247,6 +292,7 @@ export default function EditorNewPage() {
             seoMeta: s.seoMeta, blogId,
             categoryId: defaultCategories[blogId],
             publishedAt: new Date().toISOString(),
+            ...(s.monetizeMeta ? { monetizeMeta: buildMonetizeMetaForPublish(s) } : {}),
           }),
         })
         if (!res.ok) {
@@ -472,9 +518,23 @@ export default function EditorNewPage() {
                     articleTitle={activeResult.title}
                   />
 
-                  {/* 태그 */}
+                  {/* 태그 + AI 재생성 버튼 */}
                   <div className="space-y-2">
-                    <Label className="text-sm">태그</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">태그</Label>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={regenerateMetaForActive}
+                        disabled={!activeBlogTab || regeneratingMeta[activeBlogTab] || !activeResult.htmlContent.trim()}
+                        className="h-7 text-xs gap-1"
+                        title="본문은 유지하고 태그·SEO 메타만 AI로 다시 작성"
+                      >
+                        {activeBlogTab && regeneratingMeta[activeBlogTab]
+                          ? <><Loader2 className="w-3 h-3 animate-spin" />작성 중...</>
+                          : <><Wand2 className="w-3 h-3" />AI 태그·SEO 재생성</>}
+                      </Button>
+                    </div>
                     <Input
                       value={activeResult.tags.join(', ')}
                       onChange={e => updateAiResult(activeBlogTab!, { tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}

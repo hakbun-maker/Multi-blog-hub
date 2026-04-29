@@ -9,15 +9,24 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await request.json()
-  const { keyword, relatedKeywords = [], blogIds = [], imageCount = 0, newsArticles, useToc = false } = body
+  const {
+    keyword,
+    relatedKeywords = [],
+    blogIds = [],
+    imageCount = 0,
+    newsArticles,
+    useToc = false,
+    useMonetize = false,    // 수익화 글 작성 모드
+    infoGain,               // 사용자 1차 데이터 (선택)
+  } = body
 
   if (!keyword) return NextResponse.json({ error: 'keyword는 필수입니다.' }, { status: 400 })
   if (!blogIds.length) return NextResponse.json({ error: '블로그를 1개 이상 선택하세요.' }, { status: 400 })
 
-  // 블로그 정보 조회 (AI 공급자 + 캐릭터 설정)
+  // 블로그 정보 조회 (AI 공급자 + 캐릭터 설정 + 수익화용 blog_type)
   const { data: blogs, error: blogsError } = await supabase
     .from('blogs')
-    .select('id, name, ai_provider, ai_character_config, language')
+    .select('id, name, ai_provider, ai_character_config, language, blog_type')
     .in('id', blogIds)
     .eq('user_id', user.id)
 
@@ -69,6 +78,9 @@ export async function POST(request: Request) {
         newsArticles,
         language: blog.language ?? 'ko',
         useToc,
+        useMonetize,
+        blogType: blog.blog_type ?? null,
+        infoGain,
       }))
     })
   )

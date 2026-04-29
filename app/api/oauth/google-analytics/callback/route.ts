@@ -73,6 +73,21 @@ export async function GET(request: NextRequest) {
       // 이메일 조회 실패해도 진행
     }
 
+    // AdSense account ID 자동 감지 (미승인 사용자는 빈 배열 → null)
+    let adsenseAccountId: string | null = null
+    try {
+      const adsRes = await fetch('https://adsense.googleapis.com/v2/accounts', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      })
+      if (adsRes.ok) {
+        const adsData = await adsRes.json()
+        const first = adsData.accounts?.[0]?.name as string | undefined
+        if (first) adsenseAccountId = first.replace('accounts/', '')
+      }
+    } catch {
+      // AdSense 미승인/미연동 — 무시하고 계속
+    }
+
     const encryptedAccess = encrypt(tokenData.access_token)
     const encryptedRefresh = tokenData.refresh_token
       ? encrypt(tokenData.refresh_token)
@@ -90,8 +105,9 @@ export async function GET(request: NextRequest) {
         encrypted_access_token: encryptedAccess,
         encrypted_refresh_token: encryptedRefresh,
         token_expires_at: expiresAt,
-        scopes: 'analytics.edit',
+        scopes: 'analytics.edit analytics.readonly adsense.readonly',
         google_account_id: googleEmail,
+        adsense_account_id: adsenseAccountId,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,provider' })
 

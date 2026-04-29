@@ -360,6 +360,10 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
   const [snippetsLoading, setSnippetsLoading] = useState(false)
   const [customDomain, setCustomDomain] = useState<string | null>(customDomainProp ?? null)
 
+  // 수익화 글 전용 광고 슬롯 ID (blogs.adsense_slot_mid — layout_config 외부)
+  const [adsenseSlotMid, setAdsenseSlotMid] = useState<string>('')
+  const [adsenseSlotMidSaving, setAdsenseSlotMidSaving] = useState(false)
+
   // prop이 업데이트되면 반영
   useEffect(() => {
     if (customDomainProp) setCustomDomain(customDomainProp)
@@ -375,6 +379,29 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
       })
       .catch(() => {})
   }, [blogId, customDomain])
+
+  // adsense_slot_mid 초기 로드
+  useEffect(() => {
+    fetch(`/api/blogs/${blogId}`)
+      .then(r => r.json())
+      .then(res => {
+        setAdsenseSlotMid(res.data?.adsense_slot_mid ?? '')
+      })
+      .catch(() => {})
+  }, [blogId])
+
+  const saveAdsenseSlotMid = async (value: string) => {
+    setAdsenseSlotMidSaving(true)
+    try {
+      await fetch(`/api/blogs/${blogId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adsenseSlotMid: value }),
+      })
+    } finally {
+      setAdsenseSlotMidSaving(false)
+    }
+  }
 
   // initialConfig가 나중에 로드될 수 있으므로 업데이트
   useEffect(() => {
@@ -1060,6 +1087,34 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
               <p className="text-gray-400 pt-1">✓ Publisher ID를 입력하면 아래 광고 슬롯에 AdSense 광고를 배치할 수 있습니다. 각 슬롯별로 광고 코드를 넣어주세요.</p>
               <p className="text-amber-600 pt-1">⚠️ AdSense 승인 전에는 광고가 표시되지 않습니다. 먼저 AdSense 가입 및 사이트 승인을 완료해주세요.</p>
               <p className="text-blue-600 pt-1">💡 같은 AdSense 계정의 블로그라면 Publisher ID가 동일합니다. 다른 블로그에서 이미 입력한 ID를 그대로 복사·붙여넣기 하세요.</p>
+            </div>
+          </details>
+        </div>
+
+        {/* 수익화 글 전용 광고 슬롯 ID (adsense_slot_mid) */}
+        <div className="space-y-1.5 rounded-lg border border-orange-200 bg-orange-50/40 p-3">
+          <Label className="text-xs font-semibold text-orange-900">💰 수익화 글 광고 슬롯 ID</Label>
+          <p className="text-[11px] text-orange-700">
+            AI 글 생성에서 <strong>수익화 글 작성</strong> 토글을 켜고 발행한 글의 S단계(핵심 본문) 직후에 자동 삽입되는 광고 슬롯입니다.
+          </p>
+          <Input
+            value={adsenseSlotMid}
+            onChange={e => setAdsenseSlotMid(e.target.value)}
+            onBlur={() => saveAdsenseSlotMid(adsenseSlotMid)}
+            placeholder="1234567890 (data-ad-slot 값만 입력)"
+            className="text-sm font-mono bg-white"
+          />
+          {adsenseSlotMidSaving && <p className="text-[10px] text-orange-600">저장 중...</p>}
+          {!adsenseSlotMidSaving && adsenseSlotMid && (
+            <p className="text-[10px] text-green-600">✓ 슬롯 ID가 설정되었습니다. 수익화 글 발행 시 자동 삽입됩니다.</p>
+          )}
+          <details className="group">
+            <summary className="text-[11px] text-blue-600 cursor-pointer hover:underline">슬롯 ID는 어디서 찾나요?</summary>
+            <div className="mt-1.5 text-[11px] text-gray-500 bg-white rounded p-2 space-y-1 leading-relaxed border border-gray-100">
+              <p>1. AdSense 콘솔 → <strong>광고 → 광고 단위 기준</strong> 메뉴로 이동</p>
+              <p>2. <strong>+ 새 광고 단위</strong> → 디스플레이 광고 또는 인피드 광고 선택 → 만들기</p>
+              <p>3. 생성된 광고 코드에서 <code className="bg-gray-100 px-1 rounded">data-ad-slot=&quot;1234567890&quot;</code> 부분의 숫자만 복사</p>
+              <p className="text-gray-400 pt-1">✓ Publisher ID(ca-pub-...)는 위에 이미 입력했으므로 슬롯 ID 숫자만 입력하세요.</p>
             </div>
           </details>
         </div>

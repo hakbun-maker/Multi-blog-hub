@@ -59,9 +59,22 @@ export async function POST(request: Request) {
       const contentSummary = htmlContent
         ? `\n\nContent summary: ${htmlContent.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 500)}`
         : ''
-      const prompt = `You are an expert at blog SEO and image generation prompts. Given the topic "${title}"${contentSummary}, generate the following in JSON format:
+      const prompt = `You are an expert at writing image generation prompts that produce REALISTIC PHOTOGRAPHS (not illustrations or symbolic art). Given the topic "${title}"${contentSummary}, generate the following in JSON format:
 
-1. "imagePrompt": A single descriptive sentence in English for generating a high-quality blog illustration image. IMPORTANT: The image must reflect ${cultureHint}. Do NOT use Korean-specific imagery unless the blog language is Korean. Include composition, lighting, colors, and mood details appropriate for the target culture.
+1. "imagePrompt": A single descriptive sentence in English for generating a PHOTOREALISTIC image.
+
+   STYLE REQUIREMENTS (must always include):
+   - "Shot on iPhone 16 Pro" or "candid photograph, smartphone photography" — make it look like a real-life photo, NOT digital art
+   - Photorealistic, lifelike, natural lighting, real-world scene that could exist
+   - DO NOT use words like "illustration", "concept art", "symbolic", "abstract", "artistic rendering", "vector art"
+   - Show real people / real places / real objects in believable everyday situations
+   - **Mood: positive, bright, warm, optimistic, hopeful** (always — even for serious topics, frame the image with a constructive/forward-looking angle)
+   - Natural daylight or warm soft indoor light preferred. Avoid dark/gloomy/dramatic lighting
+
+   CULTURAL CONTEXT: ${cultureHint}
+
+   Include in the sentence: subject, action, setting, lighting, and the realistic-photo style hints.
+
 2. "imageTitle": SEO-friendly image title in ${langName} (under 30 chars). Be specific about the topic.
 3. "altText": Image alt text in ${langName} (under 50 chars). Describe the image content concretely.
 4. "caption": Image caption in ${langName} (under 40 chars). Brief description to help reader understanding.

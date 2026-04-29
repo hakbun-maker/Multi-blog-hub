@@ -14,6 +14,13 @@ export interface GeneratedPostResult {
 
 export type PipelineStep = 'idle' | 'keywords' | 'writing' | 'images' | 'meta' | 'done' | 'error'
 
+export interface MonetizeMetaSnapshot {
+  pasonaType?: 'compare' | 'solve' | 'cost'
+  adCategory?: string
+  factCount?: number
+  hasAnswerCapsule?: boolean
+}
+
 export interface BlogPipelineState {
   blogId: string
   blogName: string
@@ -24,6 +31,7 @@ export interface BlogPipelineState {
   tags: string[]
   seoMeta: { title: string; description: string }
   error?: string
+  monetizeMeta?: MonetizeMetaSnapshot   // 수익화 글 작성 결과 메타
 }
 
 interface EditorStore {
@@ -42,6 +50,7 @@ interface EditorStore {
   useExpertMode: boolean
   useToc: boolean
   useMonetize: boolean
+  useJsonLd: boolean
 
   // 직접 작성 모드 (현재 편집 중인 글)
   currentPostId: string | null
@@ -72,6 +81,7 @@ interface EditorStore {
   setUseExpertMode: (v: boolean) => void
   setUseToc: (v: boolean) => void
   setUseMonetize: (v: boolean) => void
+  setUseJsonLd: (v: boolean) => void
   resetPipeline: () => void
   resetEditor: () => void
 }
@@ -89,6 +99,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   useExpertMode: typeof window !== 'undefined' ? localStorage.getItem('ai_expert_mode') === 'true' : false,
   useToc: typeof window !== 'undefined' ? localStorage.getItem('ai_use_toc') !== 'false' : true,
   useMonetize: typeof window !== 'undefined' ? localStorage.getItem('ai_use_monetize') === 'true' : false,
+  useJsonLd: typeof window !== 'undefined' ? localStorage.getItem('ai_use_jsonld') !== 'false' : true,
   currentPostId: null,
   title: '',
   content: '',
@@ -136,6 +147,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setUseMonetize: (useMonetize) => {
     if (typeof window !== 'undefined') localStorage.setItem('ai_use_monetize', String(useMonetize))
     set({ useMonetize })
+  },
+  setUseJsonLd: (useJsonLd) => {
+    if (typeof window !== 'undefined') localStorage.setItem('ai_use_jsonld', String(useJsonLd))
+    set({ useJsonLd })
   },
   resetPipeline: () => set({ pipelineStates: {}, pipelineGlobalStep: 'idle', isGenerating: false }),
   resetEditor: () => set({

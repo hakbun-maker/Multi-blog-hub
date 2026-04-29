@@ -15,7 +15,8 @@ export class GeminiAdapter implements AIAdapter {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            maxOutputTokens: 8192,
+            // 수익화 글이 16k에서도 잘리는 케이스 발견 — 32k로 확보 (Gemini 2.5 Flash는 65k 지원)
+            maxOutputTokens: 32768,
           },
         }),
       }
