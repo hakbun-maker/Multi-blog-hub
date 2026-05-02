@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" width="720" height="260" role="img" aria-label="multi blog hub">
+<rect width="720" height="260" fill="#1A1F2A"></rect>
+<text x="360" y="132" text-anchor="middle" font-family="&#39;JetBrains Mono&#39;, &#39;SF Mono&#39;, ui-monospace, Menlo, Consolas, monospace" font-size="84" font-weight="500" letter-spacing="-3" fill="#A8ACB8">
+  <tspan fill="#4F6BFF">[</tspan><tspan>multi</tspan><tspan fill="#4F6BFF">]</tspan><tspan>blog</tspan><tspan fill="#6B7280">.</tspan><tspan fill="#F2F3F5" font-weight="700">hub</tspan>
+</text>
+
+  <text x="360" y="218" text-anchor="middle" font-family="ui-sans-serif, -apple-system, &#39;Inter&#39;, &#39;Segoe UI&#39;, sans-serif" font-size="13" letter-spacing="3.5" font-weight="500" fill="#A8ACB8">OPERATE MANY · EARN AS ONE</text>
+</svg>

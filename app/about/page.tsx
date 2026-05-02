@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export const metadata: Metadata = {
   title: 'Multi Blog Hub — 멀티 블로그 자동화 플랫폼',
@@ -11,7 +12,14 @@ export default function AboutPage() {
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-3xl mx-auto px-6 py-16">
         <header className="mb-10">
-          <h1 className="text-4xl font-bold mb-3">Multi Blog Hub</h1>
+          <Image
+            src="/logo.svg"
+            alt="Multi Blog Hub"
+            width={480}
+            height={173}
+            className="mb-6 max-w-full h-auto"
+            priority
+          />
           <p className="text-lg text-gray-600 leading-relaxed">멀티 블로그 자동화 플랫폼</p>
         </header>
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -147,13 +148,19 @@ export function AppSidebar() {
         collapsed ? 'w-16' : 'w-60'
       )}>
         {/* 로고 */}
-        <div className="h-14 flex items-center px-4 border-b border-gray-200">
+        <Link
+          href="/dashboard"
+          className="h-14 flex items-center px-4 border-b border-gray-200 hover:bg-gray-50 transition-colors"
+        >
           {collapsed ? (
-            <span className="text-blue-600 font-bold text-lg mx-auto">M</span>
+            <Image src="/logo-mark.svg" alt="Multi Blog Hub" width={32} height={20} className="mx-auto" priority />
           ) : (
-            <span className="text-base font-bold text-blue-600 truncate">Multi Blog Hub</span>
+            <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1">
+              <Image src="/logo-mark.svg" alt="" width={28} height={18} priority />
+              <span>multi<span className="text-blue-600">blog</span><span className="text-gray-400">.</span>hub</span>
+            </span>
           )}
-        </div>
+        </Link>
 
         {/* 네비게이션 */}
         <nav className="flex-1 py-4 px-2 flex flex-col gap-1 overflow-y-auto">
