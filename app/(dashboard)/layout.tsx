@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppHeader } from '@/components/layout/AppHeader'
+import { AppFooter } from '@/components/layout/AppFooter'
 import { SidebarProvider } from '@/components/layout/SidebarContext'
 import { PlanProvider } from '@/components/plan/PlanContext'
 import { createClient } from '@/lib/supabase/server'
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
             <main className="flex-1 p-6 pb-20 md:pb-6 overflow-auto">
               {children}
             </main>
+            <AppFooter />
           </div>
         </div>
       </PlanProvider>

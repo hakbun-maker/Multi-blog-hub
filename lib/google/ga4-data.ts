@@ -93,3 +93,60 @@ export async function fetchGa4MetricsBatch(
   for (const r of results) map[r.propertyId] = r
   return map
 }
+
+/**
+ * 단일 GA4 property에 대해 page path별 page views를 조회.
+ *
+ * @returns Record<pagePath, screenPageViews> — 예: { '/blog/myblog/post-slug': 123, '/another-path': 45 }
+ */
+export async function fetchGa4PageViews(
+  propertyId: string,
+  accessToken: string,
+  startDate: string = '30daysAgo',
+  endDate: string = 'today',
+): Promise<{ propertyId: string; byPath: Record<string, number>; error?: string }> {
+  try {
+    const res = await fetch(`${GA_DATA_BASE}/properties/${propertyId}:runReport`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'pagePath' }],
+        metrics: [{ name: 'screenPageViews' }],
+        limit: 1000,
+      }),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      return {
+        propertyId,
+        byPath: {},
+        error: `GA4 PageViews ${res.status}: ${errText.slice(0, 200)}`,
+      }
+    }
+
+    const data = await res.json()
+    const rows = (data.rows ?? []) as Array<{
+      dimensionValues?: { value?: string }[]
+      metricValues?: { value?: string }[]
+    }>
+
+    const byPath: Record<string, number> = {}
+    for (const row of rows) {
+      const path = row.dimensionValues?.[0]?.value ?? ''
+      const views = parseInt(row.metricValues?.[0]?.value ?? '0', 10) || 0
+      if (path) byPath[path] = views
+    }
+    return { propertyId, byPath }
+  } catch (err) {
+    return {
+      propertyId,
+      byPath: {},
+      error: err instanceof Error ? err.message : 'GA4 PageViews fetch failed',
+    }
+  }
+}

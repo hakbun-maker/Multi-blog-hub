@@ -1064,136 +1064,18 @@ export default function LayoutTab({ blogId, blogSlug, customDomain: customDomain
 
       {/* ═══ 3. 광고 배치 ═══ */}
       <Section title="광고 배치">
-        {/* AdSense Publisher ID */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">AdSense Publisher ID</Label>
-          <Input
-            value={config.ads.adsense_pub_id}
-            onChange={e => updateAds({ adsense_pub_id: e.target.value })}
-            placeholder="ca-pub-xxxxxxxxxxxx 또는 pub-xxxxxxxxxxxx"
-            className="text-sm font-mono"
-          />
-          <details className="group">
-            <summary className="text-xs text-blue-600 cursor-pointer hover:underline">어디서 찾나요?</summary>
-            <div className="mt-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 leading-relaxed">
-              <p className="font-medium text-gray-700">AdSense 계정이 없다면 먼저 가입하세요:</p>
-              <p>1. <a href="https://www.google.com/adsense" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Google AdSense</a>에 접속하여 가입합니다.</p>
-              <p>2. 사이트 URL로 블로그 주소를 입력하고 승인 절차를 진행합니다.</p>
-              <p>3. 승인까지 보통 1~14일 소요됩니다.</p>
-              <p className="font-medium text-gray-700 pt-2">Publisher ID 찾기:</p>
-              <p>4. AdSense에 로그인 후 <strong>계정 → 계정 정보</strong>로 이동합니다.</p>
-              <p>5. <strong>게시자 ID</strong> 항목에 <code className="bg-gray-200 px-1 rounded">ca-pub-xxxxxxxxxxxx</code> 형태의 ID가 표시됩니다.</p>
-              <p>6. 이 값을 복사하여 위 입력란에 붙여넣으세요.</p>
-              <p className="text-gray-400 pt-1">✓ Publisher ID를 입력하면 아래 광고 슬롯에 AdSense 광고를 배치할 수 있습니다. 각 슬롯별로 광고 코드를 넣어주세요.</p>
-              <p className="text-amber-600 pt-1">⚠️ AdSense 승인 전에는 광고가 표시되지 않습니다. 먼저 AdSense 가입 및 사이트 승인을 완료해주세요.</p>
-              <p className="text-blue-600 pt-1">💡 같은 AdSense 계정의 블로그라면 Publisher ID가 동일합니다. 다른 블로그에서 이미 입력한 ID를 그대로 복사·붙여넣기 하세요.</p>
-            </div>
-          </details>
-        </div>
-
-        {/* 수익화 글 전용 광고 슬롯 ID (adsense_slot_mid) */}
-        <div className="space-y-1.5 rounded-lg border border-orange-200 bg-orange-50/40 p-3">
-          <Label className="text-xs font-semibold text-orange-900">💰 수익화 글 광고 슬롯 ID</Label>
-          <p className="text-[11px] text-orange-700">
-            AI 글 생성에서 <strong>수익화 글 작성</strong> 토글을 켜고 발행한 글의 S단계(핵심 본문) 직후에 자동 삽입되는 광고 슬롯입니다.
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+          <p className="font-semibold mb-1">📌 광고 배치는 사용자 단위 통합 설정으로 이동했습니다</p>
+          <p className="text-blue-800/80 leading-relaxed mb-3">
+            한 번 입력으로 모든 블로그에 동일하게 적용되도록 변경되었습니다. Publisher ID, 슬롯 ID, 배너 코드를 블로그별로 따로 입력할 필요가 없습니다.
           </p>
-          <Input
-            value={adsenseSlotMid}
-            onChange={e => setAdsenseSlotMid(e.target.value)}
-            onBlur={() => saveAdsenseSlotMid(adsenseSlotMid)}
-            placeholder="1234567890 (data-ad-slot 값만 입력)"
-            className="text-sm font-mono bg-white"
-          />
-          {adsenseSlotMidSaving && <p className="text-[10px] text-orange-600">저장 중...</p>}
-          {!adsenseSlotMidSaving && adsenseSlotMid && (
-            <p className="text-[10px] text-green-600">✓ 슬롯 ID가 설정되었습니다. 수익화 글 발행 시 자동 삽입됩니다.</p>
-          )}
-          <details className="group">
-            <summary className="text-[11px] text-blue-600 cursor-pointer hover:underline">슬롯 ID는 어디서 찾나요?</summary>
-            <div className="mt-1.5 text-[11px] text-gray-500 bg-white rounded p-2 space-y-1 leading-relaxed border border-gray-100">
-              <p>1. AdSense 콘솔 → <strong>광고 → 광고 단위 기준</strong> 메뉴로 이동</p>
-              <p>2. <strong>+ 새 광고 단위</strong> → 디스플레이 광고 또는 인피드 광고 선택 → 만들기</p>
-              <p>3. 생성된 광고 코드에서 <code className="bg-gray-100 px-1 rounded">data-ad-slot=&quot;1234567890&quot;</code> 부분의 숫자만 복사</p>
-              <p className="text-gray-400 pt-1">✓ Publisher ID(ca-pub-...)는 위에 이미 입력했으므로 슬롯 ID 숫자만 입력하세요.</p>
-            </div>
-          </details>
+          <a
+            href="/settings?tab=ads"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 underline hover:text-blue-900"
+          >
+            → 설정 &gt; 광고 배치로 이동
+          </a>
         </div>
-
-        {/* 광고 슬롯 */}
-        {AD_SLOTS.map(slot => {
-          const adSlot = config.ads[slot.key]
-          if (typeof adSlot !== 'object' || adSlot === null) return null
-          const typedSlot = adSlot as AdSlot
-          const isSidebar = slot.key === 'left_sidebar_ad' || slot.key === 'right_sidebar_ad'
-          const sidebarInactive =
-            (slot.key === 'left_sidebar_ad' && config.layout.preset !== 'left_sidebar' && config.layout.preset !== 'both_sidebar') ||
-            (slot.key === 'right_sidebar_ad' && config.layout.preset !== 'right_sidebar' && config.layout.preset !== 'both_sidebar')
-
-          return (
-            <div key={slot.key} className={`p-3 rounded-lg space-y-2 ${isSidebar && sidebarInactive ? 'bg-gray-50 opacity-60' : 'bg-gray-50'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium text-gray-700">{slot.label}</span>
-                  <span className="text-xs text-gray-400 ml-2">{slot.desc}</span>
-                  {isSidebar && sidebarInactive && (
-                    <span className="ml-2 text-xs text-amber-600">(현재 레이아웃 미사용)</span>
-                  )}
-                </div>
-                <Toggle checked={typedSlot.enabled} onChange={v => updateAdSlot(slot.key, { enabled: v })} />
-              </div>
-              {typedSlot.enabled && (
-                <div className="space-y-1.5">
-                  <textarea
-                    value={typedSlot.code}
-                    onChange={e => updateAdSlot(slot.key, { code: e.target.value })}
-                    placeholder="광고 코드를 붙여넣으세요 (AdSense, etc.)"
-                    rows={3}
-                    className="w-full text-xs font-mono border border-gray-200 rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="relative">
-                    <Button type="button" variant="outline" size="sm" onClick={() => openSnippetPicker(slot.key)} className="h-7 text-xs gap-1">
-                      <Scissors className="w-3 h-3" />스니펫 불러오기
-                    </Button>
-                    {snippetPickerSlot === slot.key && (
-                      <div className="absolute left-0 bottom-8 z-20 w-72 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                        <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-700">스니펫 선택</span>
-                          <button type="button" onClick={() => setSnippetPickerSlot(null)} className="text-gray-400 hover:text-gray-600">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {snippetsLoading ? (
-                            <div className="px-3 py-4 text-center text-xs text-gray-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />불러오는 중...</div>
-                          ) : snippets.length === 0 ? (
-                            <div className="px-3 py-4 text-center text-xs text-gray-400">저장된 스니펫이 없습니다.</div>
-                          ) : (
-                            snippets.map(s => (
-                              <button
-                                key={s.id}
-                                type="button"
-                                onClick={() => applySnippet(slot.key, s.content)}
-                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-gray-800 truncate flex-1">{s.name}</span>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.type === 'html' ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
-                                    {s.type}
-                                  </span>
-                                </div>
-                                <p className="text-[10px] text-gray-400 truncate mt-0.5">{s.content.slice(0, 60)}</p>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
       </Section>
 
       {/* ═══ 4. 푸터 설정 ═══ */}

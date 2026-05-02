@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid, AlertTriangle, Lock, TrendingUp, Ticket } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, Eye, EyeOff, Plus, Trash2, User, Key, Bell, Check, Scissors, CreditCard, Shield, LayoutGrid, AlertTriangle, Lock, TrendingUp, Ticket, DollarSign } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { COUNTRIES } from '@/lib/constants/countries'
 import {
@@ -27,6 +27,7 @@ import { usePlanContext } from '@/components/plan/PlanContext'
 import { ApiGuideAccordion } from '@/components/settings/ApiGuideAccordion'
 import { ConsentGate } from '@/components/consent/ConsentGate'
 import { ConsentManagementSection } from '@/components/settings/ConsentManagementSection'
+import { AdsConfigTab } from '@/components/settings/AdsConfigTab'
 
 interface AIKey {
   id: string
@@ -443,6 +444,9 @@ function SettingsPageInner() {
               </TabsTrigger>
               <TabsTrigger value="blog-all" className="flex items-center gap-1.5 whitespace-nowrap">
                 <LayoutGrid className="h-3.5 w-3.5" /> 블로그 설정
+              </TabsTrigger>
+              <TabsTrigger value="ads" className="flex items-center gap-1.5 whitespace-nowrap">
+                <DollarSign className="h-3.5 w-3.5" /> 광고 배치
               </TabsTrigger>
               <TabsTrigger value="plan" className="flex items-center gap-1.5 whitespace-nowrap">
                 <CreditCard className="h-3.5 w-3.5" /> 요금제
@@ -1017,6 +1021,10 @@ function SettingsPageInner() {
 
           <TabsContent value="blog-all" className="mt-6">
             <BlogSettingsAllInOne />
+          </TabsContent>
+
+          <TabsContent value="ads" className="mt-6">
+            <AdsConfigTab />
           </TabsContent>
 
           <TabsContent value="plan" className="mt-6">

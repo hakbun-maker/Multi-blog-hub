@@ -318,8 +318,19 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
               {recentPublished.map(post => {
                 const blog = blogs.find(b => b.id === post.blog_id)
                 const color = blog?.color ?? '#3b82f6'
+                // 발행글은 항상 production 도메인으로 열어 광고/색인/디자인이 실제 배포본대로 표시되는지 확인
+                // 1) custom_domain 있으면 그 도메인 직접 사용
+                // 2) 없으면 Vercel production URL 사용
+                const postUrl = blog?.custom_domain
+                  ? `https://${blog.custom_domain}/${encodeURIComponent(post.slug)}`
+                  : `https://multi-blog-hub.vercel.app/blog/${encodeURIComponent(blog?.slug ?? '')}/${encodeURIComponent(post.slug)}`
                 return (
-                  <Link key={post.id} href={`/blog/${blog?.slug}/${post.slug}`} target="_blank">
+                  <a
+                    key={post.id}
+                    href={postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <div className="flex items-start gap-2 p-3 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 transition-all cursor-pointer">
                       <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: color }} />
                       <div className="flex-1 min-w-0">
@@ -330,7 +341,7 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
                         </div>
                       </div>
                     </div>
-                  </Link>
+                  </a>
                 )
               })}
             </div>

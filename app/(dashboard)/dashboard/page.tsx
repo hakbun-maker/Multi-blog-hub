@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { PenSquare, CalendarClock, BookOpen } from 'lucide-react'
+import { PenSquare, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import DashboardClient, { type DashboardBlogMeta, type DashboardRecentPost } from '@/components/dashboard/DashboardClient'
 
@@ -54,9 +54,6 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
             <Link href="/editor/new"><PenSquare className="w-4 h-4 mr-1.5" />글 작성</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/scheduler"><CalendarClock className="w-4 h-4 mr-1.5" />스케줄 추가</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/settings?tab=snippets"><BookOpen className="w-4 h-4 mr-1.5" />스니펫 관리</Link>

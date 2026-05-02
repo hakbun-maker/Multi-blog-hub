@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PenSquare, Trash2, Eye, ExternalLink } from 'lucide-react'
@@ -35,6 +35,24 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
   const [posts, setPosts] = useState<Post[]>(initialPosts)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all')
+
+  // GA4 page views (글 슬러그 기준) — 연결된 경우만, 실패 시 자체 view_count 사용
+  const [pageViewsBySlug, setPageViewsBySlug] = useState<Record<string, number>>({})
+  const [viewsSource, setViewsSource] = useState<'ga4' | 'fallback'>('fallback')
+
+  useEffect(() => {
+    if (!blogId) return
+    let cancelled = false
+    fetch(`/api/posts/page-views?blogId=${blogId}&days=30`)
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return
+        if (j.bySlug) setPageViewsBySlug(j.bySlug)
+        if (j.source) setViewsSource(j.source)
+      })
+      .catch(() => { /* fallback to view_count */ })
+    return () => { cancelled = true }
+  }, [blogId])
 
   const handleDelete = async (postId: string) => {
     if (!confirm('이 글을 삭제하시겠습니까?')) return
@@ -92,7 +110,9 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
           <span>제목</span>
           {hasCategories && <span className="text-center">카테고리</span>}
           <span className="text-center">상태</span>
-          <span className="text-center">조회수</span>
+          <span className="text-center" title={viewsSource === 'ga4' ? 'GA4 실데이터 (최근 30일)' : '자체 카운터 (누적)'}>
+            조회수{viewsSource === 'ga4' ? ' (GA4)' : ''}
+          </span>
           <span className="text-center">발행일</span>
           <span className="text-center">편집</span>
         </div>
@@ -129,7 +149,13 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
                 {status.label}
               </span>
               <span className="text-sm text-gray-500 text-center flex items-center justify-center gap-1">
-                <Eye className="w-3 h-3" />{(post.view_count ?? 0).toLocaleString()}
+                <Eye className="w-3 h-3" />
+                {(() => {
+                  // GA4 데이터가 있으면 우선 사용, 없으면 자체 view_count fallback
+                  const ga4Views = post.slug ? pageViewsBySlug[post.slug] : undefined
+                  const views = ga4Views ?? post.view_count ?? 0
+                  return views.toLocaleString()
+                })()}
               </span>
               <span className="text-xs text-gray-400 text-center">{publishedDate}</span>
               <div className="flex items-center justify-center gap-1">
