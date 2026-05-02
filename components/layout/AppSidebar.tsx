@@ -155,9 +155,8 @@ export function AppSidebar() {
           {collapsed ? (
             <Image src="/logo-mark.svg" alt="Multi Blog Hub" width={32} height={20} className="mx-auto" priority />
           ) : (
-            <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1">
-              <Image src="/logo-mark.svg" alt="" width={28} height={18} priority />
-              <span>multi<span className="text-blue-600">blog</span><span className="text-gray-400">.</span>hub</span>
+            <span className="text-base font-bold text-gray-900 truncate">
+              multi<span className="text-blue-600">blog</span><span className="text-gray-400">.</span>hub
             </span>
           )}
         </Link>

@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { LogOut, User, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import {
   DropdownMenu,
@@ -35,9 +34,10 @@ export function AppHeader({ userEmail, userName }: AppHeaderProps) {
     <header className="h-14 flex items-center justify-between px-6 bg-white border-b border-gray-200 sticky top-0 z-40">
       {/* 좌측: 모바일 로고 + 데스크톱 토글 */}
       <div className="flex items-center gap-2">
-        <Link href="/dashboard" className="md:hidden flex items-center gap-2">
-          <Image src="/logo-mark.svg" alt="Multi Blog Hub" width={32} height={20} priority />
-          <span className="text-base font-bold text-gray-900">multi<span className="text-blue-600">blog</span>.hub</span>
+        <Link href="/dashboard" className="md:hidden">
+          <span className="text-base font-bold text-gray-900">
+            multi<span className="text-blue-600">blog</span><span className="text-gray-400">.</span>hub
+          </span>
         </Link>
         <Button
           variant="ghost"
