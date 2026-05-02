@@ -151,7 +151,8 @@ export default function EditorNewPage() {
     setPublishing(false)
     if (res.ok) {
       const result = await res.json()
-      if (result.indexing?.requested && !result.indexing?.ok) {
+      // needsConnection은 GSC 미연결 상태 → 사용자 의식적 미연결일 수 있어 alert 생략
+      if (result.indexing?.requested && !result.indexing?.ok && !result.indexing?.needsConnection) {
         alert(`발행 완료! (Google 색인 요청 실패: ${result.indexing.error || '알 수 없는 오류'})`)
       }
       router.push('/dashboard')
@@ -191,6 +192,7 @@ export default function EditorNewPage() {
       setPublishingAll(true)
       const defaultCategories = await fetchDefaultCategories(blogIds)
       const errors: string[] = []
+      let needsGscConnection = false
       for (const blogId of blogIds) {
         const s = states[blogId]
         if (s.step !== 'done' || !s.title) continue
@@ -212,9 +214,11 @@ export default function EditorNewPage() {
             errors.push(`${s.blogName}: ${data.error}`)
           } else {
             const result = await res.json().catch(() => ({}))
-            if (result.indexing?.requested && !result.indexing?.ok) {
+            // needsConnection (GSC 미연결)은 alert 스팸 방지를 위해 errors에 쌓지 않음
+            if (result.indexing?.requested && !result.indexing?.ok && !result.indexing?.needsConnection) {
               errors.push(`${s.blogName}: 발행 성공, 색인 실패 (${result.indexing.error || '알 수 없는 오류'})`)
             }
+            if (result.indexing?.needsConnection) needsGscConnection = true
           }
         } catch (err) {
           errors.push(`${s.blogName}: 네트워크 오류`)
@@ -223,6 +227,8 @@ export default function EditorNewPage() {
       setPublishingAll(false)
       if (errors.length > 0) {
         alert(`발행 결과 알림:\n${errors.join('\n')}`)
+      } else if (needsGscConnection) {
+        alert('발행 완료. GSC가 연결되지 않아 색인 자동 요청은 건너뛰었습니다.\n블로그 설정 > 레이아웃 > 분석 & 추적 > GSC에서 Google 계정을 연결하세요.')
       }
       router.push('/dashboard')
     }
@@ -279,6 +285,7 @@ export default function EditorNewPage() {
     setPublishingAll(true)
     const defaultCategories = await fetchDefaultCategories(blogIds)
     const errors: string[] = []
+    let needsGscConnection = false
     for (const blogId of blogIds) {
       const s = aiResults[blogId]
       if (s.step !== 'done' || !s.title) continue
@@ -311,6 +318,9 @@ export default function EditorNewPage() {
     setPublishingAll(false)
     if (errors.length > 0) {
       alert(`발행 결과 알림:\n${errors.join('\n')}`)
+    } else if (needsGscConnection) {
+      alert('발행 완료. GSC가 연결되지 않아 색인 자동 요청은 건너뛰었습니다.\n블로그 설정 > 레이아웃 > 분석 & 추적 > GSC에서 Google 계정을 연결하세요.')
+      router.push('/dashboard')
     } else {
       router.push('/dashboard')
     }
