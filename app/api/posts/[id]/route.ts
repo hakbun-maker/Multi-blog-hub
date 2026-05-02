@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { submitUrlToGoogle } from '@/lib/google/indexing-api'
+import { applyPostStyles } from '@/lib/utils/post-styles'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -29,11 +31,34 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   // 제목이 비어 있으면 '제목없음' 기본값
   const finalTitle = title !== undefined ? ((title && title.trim()) ? title : '제목없음') : undefined
 
+  // htmlContent가 들어왔으면 블로그 타입에 맞는 테마로 표 인라인 스타일 후처리
+  let styledHtml: string | undefined
+  if (htmlContent !== undefined) {
+    let blogType: string | null = null
+    const targetBlogId = blogId
+    if (targetBlogId) {
+      const { data: bd } = await supabase
+        .from('blogs').select('blog_type').eq('id', targetBlogId).single()
+      blogType = bd?.blog_type ?? null
+    } else {
+      // blogId가 안 넘어오면 기존 글의 blog_id로 조회
+      const { data: pd } = await supabase
+        .from('posts').select('blog_id').eq('id', params.id).single()
+      if (pd?.blog_id) {
+        const { data: bd } = await supabase
+          .from('blogs').select('blog_type').eq('id', pd.blog_id).single()
+        blogType = bd?.blog_type ?? null
+      }
+    }
+    const themeId = pickThemeForBlogType(blogType).id
+    styledHtml = applyPostStyles(htmlContent ?? '', themeId)
+  }
+
   const { data, error } = await supabase
     .from('posts')
     .update({
       ...(finalTitle !== undefined && { title: finalTitle }),
-      ...(htmlContent !== undefined && { content_html: htmlContent }),
+      ...(styledHtml !== undefined && { content_html: styledHtml }),
       ...(status !== undefined && { status }),
       ...(tags !== undefined && { keyword: Array.isArray(tags) ? tags.join(',') : '' }),
       ...(seoMeta !== undefined && { seo_title: (seoMeta?.title ?? '').slice(0, 60), meta_description: (seoMeta?.description ?? '').slice(0, 155) }),
@@ -49,7 +74,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // 글 발행 시 Google Indexing API 자동 호출
-  let indexing: { requested: boolean; ok?: boolean; error?: string } = { requested: false }
+  let indexing: { requested: boolean; ok?: boolean; error?: string; needsConnection?: boolean } = { requested: false }
 
   if (status === 'published' && data) {
     try {
@@ -68,9 +93,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             : `${appUrl}/blog/${blog.slug}`
           const postUrl = `${blogBase}/${data.slug}`
 
-          const result = await submitUrlToGoogle(user.id, postUrl)
-          indexing = { requested: true, ok: result.ok, error: result.error }
-          if (!result.ok) console.error('Google Indexing 실패:', result.error)
+          // RLS 통과를 위해 cookie 인증된 supabase client를 전달
+          const result = await submitUrlToGoogle(supabase, user.id, postUrl)
+          indexing = { requested: true, ok: result.ok, error: result.error, needsConnection: result.needsConnection }
+          if (!result.ok && !result.needsConnection) console.error('Google Indexing 실패:', result.error)
         }
       }
     } catch (e) {

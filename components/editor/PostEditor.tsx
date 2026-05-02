@@ -7,6 +7,11 @@ import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
+import {
+  StyledHeading, StyledParagraph, StyledBulletList, StyledOrderedList,
+  StyledListItem, StyledBlockquote, StyledHorizontalRule, StyledBold,
+  StyledTable, StyledTableRow, StyledTableHeader, StyledTableCell,
+} from '@/lib/tiptap/preserve-style-extension'
 
 // Enter 시 코드 마크가 다음 줄로 이어지지 않도록 inclusive: false 설정
 const NonInclusiveCode = CodeExtension.extend({ inclusive: false })
@@ -14,7 +19,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallba
 import {
   Bold, Italic, List, Code,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Type
+  Type, Table as TableIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ButtonInsertPanel, type ButtonEditData } from './ButtonInsertPanel'
@@ -67,20 +72,42 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
   }, [])
 
   const editor = useEditor({
+    // Next.js SSR hydration mismatch 경고 회피 — 클라이언트에서만 렌더
+    immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ code: false }),
+      // StarterKit에서 style 보존이 필요한 extension들은 비활성화 → 아래 Styled* 버전으로 교체
+      StarterKit.configure({
+        code: false,
+        heading: false,
+        paragraph: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        blockquote: false,
+        horizontalRule: false,
+        bold: false,
+      }),
+      // AI가 생성한 인라인 디자인 스타일을 에디터 내부에서도 보존하는 styled 버전들
+      StyledHeading,
+      StyledParagraph,
+      StyledBulletList,
+      StyledOrderedList,
+      StyledListItem,
+      StyledBlockquote,
+      StyledHorizontalRule,
+      StyledBold,
       NonInclusiveCode,
       Image.configure({ allowBase64: true }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'editor-link',
-        },
+        HTMLAttributes: { class: 'editor-link' },
       }),
       Placeholder.configure({ placeholder }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-      }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      StyledTable.configure({ resizable: true }),
+      StyledTableRow,
+      StyledTableHeader,
+      StyledTableCell,
       IframeExtension,
       StyledButtonExtension,
     ],
@@ -383,6 +410,37 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
           title="구분선 삽입">
           ➖ 구분선
         </Button>
+        {/* 표 삽입/관리 */}
+        {editor.isActive('table') ? (
+          <>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5 text-xs"
+              onClick={() => editor.chain().focus().addColumnAfter().run()} title="열 추가">
+              열＋
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5 text-xs"
+              onClick={() => editor.chain().focus().addRowAfter().run()} title="행 추가">
+              행＋
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5 text-xs"
+              onClick={() => editor.chain().focus().deleteColumn().run()} title="열 삭제">
+              열－
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5 text-xs"
+              onClick={() => editor.chain().focus().deleteRow().run()} title="행 삭제">
+              행－
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5 text-xs text-red-600"
+              onClick={() => editor.chain().focus().deleteTable().run()} title="표 삭제">
+              표×
+            </Button>
+          </>
+        ) : (
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1"
+            onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+            title="표 삽입 (3×3)">
+            <TableIcon className="w-3.5 h-3.5" /> 표
+          </Button>
+        )}
 
         <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
@@ -498,7 +556,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
       ) : (
         <EditorContent
           editor={editor}
-          className="prose prose-sm max-w-none p-4 min-h-[400px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[380px]"
+          className="max-w-none p-4 min-h-[400px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[380px] [&_.selectedCell]:!bg-blue-100/40"
         />
       )}
     </div>

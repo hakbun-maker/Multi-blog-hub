@@ -8,6 +8,9 @@ import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
 import ViewTracker from '@/components/blog-public/ViewTracker'
 import { injectMidAdSlot, buildFaqPageJsonLd, isMonetizePost, shouldRenderJsonLd, type MonetizeMetaJson } from '@/lib/monetize/post-enhancer'
+import { applyPostStyles } from '@/lib/utils/post-styles'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
+import { fetchUserAdsConfig } from '@/lib/ads/server'
 
 // ISR: 1시간마다 백그라운드 갱신 (크롤러/방문자에게 캐시된 빠른 응답 제공)
 export const revalidate = 3600
@@ -18,6 +21,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-h
 
 interface Blog {
   id: string
+  user_id: string
   name: string
   slug: string
   color?: string
@@ -115,9 +119,15 @@ async function fetchPostData(slug: string, postSlug: string) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
+  // 광고 설정 조회용 service role client (user.ads_config는 RLS로 anon 접근 불가)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, color, blog_type, custom_domain, adsense_slot_mid, layout_config')
+    .select('id, user_id, name, slug, color, blog_type, custom_domain, adsense_slot_mid, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
@@ -134,6 +144,9 @@ async function fetchPostData(slug: string, postSlug: string) {
 
   if (!post) return null
 
+  // 사용자 단위 통합 광고 설정 (모든 블로그 공통)
+  const userAds = await fetchUserAdsConfig(supabaseAdmin, blog.user_id as string)
+
   const cfg = mergeConfig((blog as Blog).layout_config)
   let relatedPosts: RelatedPost[] = []
 
@@ -149,7 +162,7 @@ async function fetchPostData(slug: string, postSlug: string) {
     relatedPosts = (related ?? []) as RelatedPost[]
   }
 
-  return { blog: blog as Blog, post: post as Post, relatedPosts }
+  return { blog: blog as Blog, post: post as Post, relatedPosts, userAds }
 }
 
 // ─── 메인 페이지 (서버 컴포넌트) ───
@@ -159,8 +172,21 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const data = await fetchPostData(params.slug, decodedPostSlug)
   if (!data) notFound()
 
-  const { blog, post, relatedPosts } = data
-  const cfg = mergeConfig(blog.layout_config)
+  const { blog, post, relatedPosts, userAds } = data
+  // 광고 설정은 사용자 단위(userAds)로부터 — 블로그별 layout_config.ads는 더 이상 사용하지 않음
+  const baseConfig = mergeConfig(blog.layout_config)
+  const cfg = {
+    ...baseConfig,
+    ads: {
+      adsense_pub_id: userAds.adsense_pub_id,
+      top_banner: userAds.top_banner,
+      below_title: userAds.below_title,
+      in_article: userAds.in_article,
+      left_sidebar_ad: userAds.left_sidebar_ad,
+      right_sidebar_ad: userAds.right_sidebar_ad,
+      footer_ad: userAds.footer_ad,
+    },
+  }
   const color = blog.color ?? '#3b82f6'
   const fontInfo = getFontLink(cfg.layout.font)
   const date = new Date(post.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -168,6 +194,12 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const customDomain = (blog as Blog & { custom_domain?: string | null }).custom_domain
 
   let contentHtml = post.content_html || ''
+
+  // 블로그 유형에 맞는 테마로 본문 전체 인라인 스타일 일괄 주입
+  // (h2/h3/p/ul/ol/strong/a/mark/blockquote/hr/table 모두 — 옛 글/새 글 모두 커버, idempotent)
+  const postTheme = pickThemeForBlogType(blog.blog_type ?? null)
+  contentHtml = applyPostStyles(contentHtml, postTheme.id)
+
   // 본문 이미지에 lazy loading 추가
   contentHtml = contentHtml.replace(/<img(?![^>]*loading=)/g, '<img loading="lazy"')
   if (cfg.ads.in_article.enabled && cfg.ads.in_article.code) {
@@ -207,9 +239,9 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   const monetizeMeta = isMonetizePost(post.monetize_meta) ? (post.monetize_meta as MonetizeMetaJson) : null
   let monetizeFaqJsonLd: object | null = null
   if (monetizeMeta) {
-    // 광고 슬롯 자동 삽입 (S단계 직후 첫 H2 뒤)
-    const adsenseSlotMid = (blog as Blog & { adsense_slot_mid?: string | null }).adsense_slot_mid ?? null
-    const pubId = cfg.ads.adsense_pub_id ?? null
+    // 광고 슬롯 자동 삽입 (S단계 직후 첫 H2 뒤) — user 단위 통합 설정 사용
+    const adsenseSlotMid = userAds.adsense_slot_mid || null
+    const pubId = userAds.adsense_pub_id || null
     contentHtml = injectMidAdSlot(contentHtml, adsenseSlotMid, pubId)
 
     // FAQPage JSON-LD (useJsonLd 토글 ON일 때만)
@@ -245,7 +277,7 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, maxWidth: '100vw', overflowX: 'hidden' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, maxWidth: '100vw', overflowX: 'clip' }}>
 
       {/* JSON-LD 구조화 데이터 (BlogPosting) */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -311,15 +343,13 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
       )}
 
       {/* 본문 영역 */}
-      <div className={`flex-1 w-full overflow-hidden mx-auto px-4 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`} style={{ maxWidth: cfg.layout.max_width }}>
+      <div className={`flex-1 w-full mx-auto px-4 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`} style={{ maxWidth: cfg.layout.max_width, overflow: 'clip' }}>
 
         {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
-            <div className="sticky top-4 space-y-4">
-              {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
-                <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
-              )}
-            </div>
+          <aside className="hidden lg:block w-64 flex-shrink-0 self-start sticky top-20 py-10 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto">
+            {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
+              <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
+            )}
           </aside>
         )}
 
@@ -359,12 +389,10 @@ export default async function PublicPostPage({ params }: { params: { slug: strin
         </article>
 
         {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-          <aside className="hidden lg:block w-64 flex-shrink-0 py-10">
-            <div className="sticky top-4 space-y-4">
-              {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
-                <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
-              )}
-            </div>
+          <aside className="hidden lg:block w-64 flex-shrink-0 self-start sticky top-20 py-10 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto">
+            {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
+              <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
+            )}
           </aside>
         )}
       </div>

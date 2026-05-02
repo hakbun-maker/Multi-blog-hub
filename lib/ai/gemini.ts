@@ -1,5 +1,6 @@
 import type { AIAdapter, AIProvider, GeneratePostParams, GeneratedPost } from './adapter'
 import { buildPrompt, parseAIResponse } from './adapter'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
 
 export class GeminiAdapter implements AIAdapter {
   provider: AIProvider = 'gemini'
@@ -41,7 +42,8 @@ export class GeminiAdapter implements AIAdapter {
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
     const text = await this.callGemini(buildPrompt(params))
-    return parseAIResponse(text, params.blogId, params.useToc ?? false)
+    const theme = pickThemeForBlogType(params.blogType).id
+    return parseAIResponse(text, params.blogId, params.useToc ?? false, theme)
   }
 
   async generateText(prompt: string): Promise<string> {

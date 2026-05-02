@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { submitUrlToGoogle } from '@/lib/google/indexing-api'
 import { resubmitSitemapForBlog } from '@/lib/google/gsc-site'
+import { applyPostStyles } from '@/lib/utils/post-styles'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
 
 export async function GET(request: Request) {
   const supabase = createClient()
@@ -61,15 +63,23 @@ export async function POST(request: Request) {
     + '-' + Date.now()
 
   // categoryId가 없으면 블로그의 기본 카테고리 사용 (서버 fallback)
+  // 동시에 blog_type을 가져와 글 디자인 테마 결정
   let resolvedCategoryId = categoryId || null
-  if (!resolvedCategoryId && blogId) {
+  let blogType: string | null = null
+  if (blogId) {
     const { data: blogData } = await supabase
       .from('blogs')
-      .select('default_category_id')
+      .select('default_category_id, blog_type')
       .eq('id', blogId)
       .single()
-    resolvedCategoryId = blogData?.default_category_id ?? null
+    if (!resolvedCategoryId) resolvedCategoryId = blogData?.default_category_id ?? null
+    blogType = blogData?.blog_type ?? null
   }
+
+  // 본문 인라인 스타일 후처리 — 헤딩/단락/리스트/표/인라인 강조 모두 적용
+  // 외부 플랫폼(Tistory) 호환 + 사용자 직접 작성 글도 커버
+  const themeId = pickThemeForBlogType(blogType).id
+  const styledHtml = applyPostStyles(htmlContent ?? '', themeId)
 
   // SEO 필드 안전 트렁케이션 (DB varchar 제한 대응, adapter에서 이미 처리되지만 2중 안전장치)
   const safeSeoTitle = (seoMeta?.title ?? '').slice(0, 60)
@@ -83,7 +93,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       title: finalTitle,
       slug,
-      content_html: htmlContent ?? '',
+      content_html: styledHtml,
       status: status ?? 'draft',
       keyword: Array.isArray(tags) ? tags.join(',') : '',
       seo_title: safeSeoTitle,
@@ -97,7 +107,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // 글 발행 시 Google Indexing API 자동 호출
-  let indexing: { requested: boolean; ok?: boolean; error?: string } = { requested: false }
+  let indexing: { requested: boolean; ok?: boolean; error?: string; needsConnection?: boolean } = { requested: false }
 
   if (status === 'published' && data && blogId) {
     try {
@@ -117,9 +127,10 @@ export async function POST(request: Request) {
             : `${appUrl}/blog/${encodeURIComponent(blog.slug)}`
           const postUrl = `${blogBase}/${encodeURIComponent(data.slug)}`
 
-          const result = await submitUrlToGoogle(user.id, postUrl)
-          indexing = { requested: true, ok: result.ok, error: result.error }
-          if (!result.ok) console.error('Google Indexing 실패:', result.error)
+          // RLS 통과를 위해 cookie 인증된 supabase client를 전달 (user.id = auth.uid()로 본인 row 조회)
+          const result = await submitUrlToGoogle(supabase, user.id, postUrl)
+          indexing = { requested: true, ok: result.ok, error: result.error, needsConnection: result.needsConnection }
+          if (!result.ok && !result.needsConnection) console.error('Google Indexing 실패:', result.error)
 
           // 발행 후 sitemap 재제출 (GSC가 새 URL을 빠르게 발견하도록 신호)
           // 비동기 fire-and-forget — 실패해도 발행 결과에 영향 없음

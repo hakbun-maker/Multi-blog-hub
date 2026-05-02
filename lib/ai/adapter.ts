@@ -1,3 +1,6 @@
+import { applyPostStyles } from '@/lib/utils/post-styles'
+import { type PostThemeId } from '@/lib/utils/post-themes'
+
 export type AIProvider = 'claude' | 'openai' | 'gemini'
 export type ImageProvider = 'imagen'
 export type AnyAIProvider = AIProvider | ImageProvider
@@ -335,7 +338,22 @@ ${langCfg.cultureHint}
 
 ## 형식 규칙
 - 목차(TOC)를 본문 content 안에 절대 포함하지 마세요 (시스템이 자동 생성합니다)
-- 마크다운만 사용 (##, ###, **굵게**, *기울임*, - 리스트, 1. 번호)`
+- 마크다운만 사용 (##, ###, **굵게**, *기울임*, - 리스트, 1. 번호)
+- 비교/스펙/가격/일정 등 정보는 **GFM 마크다운 표 형식**으로 작성하세요. 표는 반드시 헤더 줄 + 구분선 줄을 포함하고, 한 줄에 하나의 행만 작성합니다. **각 표 행은 반드시 별도의 줄(\\n)로 분리**하세요. 절대 \`\\|\` 같은 escape로 한 줄에 여러 행을 쓰지 마세요. 예시:
+  | 항목 | 비용 | 비고 |
+  | --- | --- | --- |
+  | A | 5만원 | 기본 |
+  | B | 10만원 | 추천 |
+- 표 안에서는 절대 \`<br>\`를 쓰지 말고, 한 셀에 한 줄만 작성하세요
+- 표 바로 다음 줄에 \`*표: ...*\` 형태로 캡션(출처/설명)을 작성하면 자동으로 표 아래 가운데 정렬로 표시됩니다.
+
+## 가독성 규칙 (반드시 지킬 것)
+- **단락은 짧게** — 한 단락은 **2~3문장 이내**로 끊어 작성. 한 단락이 4문장을 넘으면 의미 단위로 분리해 빈 줄로 새 단락을 시작.
+- **\`<p>\` (단락) vs \`<br>\` (줄바꿈) 구분**:
+  - 주제·시점·논리 흐름이 바뀔 때 → 빈 줄로 단락 분리 (마크다운에서 빈 줄 = \`<p>\`)
+  - 같은 단락 안에서 가독성을 위해 줄바꿈이 필요할 때 → 줄 끝에 공백 2칸 + 줄바꿈 (마크다운 hard break = \`<br>\`)
+  - 단락 안에 \`<br>\`을 직접 적어도 됩니다 (그대로 보존됨)
+- 한 단락이 화면에서 5줄 이상 끊기지 않고 이어지는 일이 없도록 하세요. 독자는 짧은 호흡을 선호합니다.`
     : `
 ## SEO-OPTIMIZED STRUCTURE (MUST FOLLOW STRICTLY)
 Posts that are short or generic will NOT be indexed by Google. Follow these rules exactly:
@@ -371,7 +389,15 @@ Posts that are short or generic will NOT be indexed by Google. Follow these rule
 
 ## FORMAT RULES
 - Do NOT include a table of contents (TOC) in the content (the system generates it automatically)
-- Markdown only (##, ###, **bold**, *italic*, - list, 1. numbered)`
+- Markdown only (##, ###, **bold**, *italic*, - list, 1. numbered)
+- **Keep paragraphs short** — 2-3 sentences per paragraph. If a paragraph exceeds 4 sentences, split it into smaller paragraphs separated by blank lines.
+- Distinguish \`<p>\` vs \`<br>\`: blank line = new paragraph. Trailing two spaces + newline (or literal \`<br>\`) = soft line break within the same paragraph.
+- For comparisons, specs, prices, schedules — use **GFM markdown tables**. Each table MUST include a header row + separator row. One row per line. Never escape pipes with \`\\|\` to combine rows. Example:
+  | Item | Cost | Note |
+  | --- | --- | --- |
+  | A | $50 | basic |
+  | B | $100 | recommended |
+- Never use \`<br>\` inside table cells; one line per cell`
 
   return `${sections}
 ${newsSection}${langDirective}${seoStructure}
@@ -584,11 +610,45 @@ export function sanitizePasonaMarkers(markdown: string): string {
   return cleaned
 }
 
+// GFM 표 라인 판별: | a | b | 형태
+function isTableRow(line: string): boolean {
+  const t = line.trim()
+  return t.startsWith('|') && t.endsWith('|') && t.length >= 3
+}
+
+// 표 구분선: |---|---| 또는 |:---:|---:| 형태
+function isTableSeparator(line: string): boolean {
+  const t = line.trim()
+  if (!isTableRow(t)) return false
+  const cells = t.slice(1, -1).split('|')
+  return cells.length >= 1 && cells.every(c => /^\s*:?-{3,}:?\s*$/.test(c))
+}
+
+// 표 셀 분리 (앞뒤 |는 제거하고 | 기준 split)
+function splitTableRow(line: string): string[] {
+  return line.trim().slice(1, -1).split('|').map(c => c.trim())
+}
+
+// 인라인 마크다운 → HTML (셀 내부용)
+function inlineMarkdown(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+}
+
 // 마크다운 → HTML 변환 (H2 id 자동 부여, includeToc=true일 때만 목차 삽입)
-export function markdownToHtml(markdown: string, includeToc: boolean = false): string {
+// theme: 표 등 인라인 스타일에 사용할 테마 ID (미지정 시 기본 테마)
+export function markdownToHtml(markdown: string, includeToc: boolean = false, theme?: PostThemeId | string | null): string {
   if (!markdown?.trim()) return ''
 
-  const lines = markdown.split('\n')
+  // AI가 가끔 표 행을 줄바꿈 대신 `\|` 또는 `\\|`로 결합해 출력해서 표가 깨지는 케이스 정규화.
+  // 예: `| a | b |\| c | d |` → `| a | b |\n| c | d |`
+  // 이중 escape `\\|` 도 같이 처리.
+  const normalized = markdown
+    .replace(/\\\\\|/g, '\n|') // \\|  (이중 escape)
+    .replace(/\\\|/g, '\n|')   // \|   (단일 escape)
+
+  const lines = normalized.split('\n')
   const htmlParts: string[] = []
   const h2Headings: { id: string; text: string }[] = []
   let inList = false
@@ -597,7 +657,9 @@ export function markdownToHtml(markdown: string, includeToc: boolean = false): s
 
   const flushParagraph = () => {
     if (paragraphLines.length > 0) {
-      const text = paragraphLines.join(' ').trim()
+      // 줄 단위로 join (hard break <br>이 줄 끝에 이미 붙음)
+      // <br> 직후 공백은 제거해 깔끔하게
+      const text = paragraphLines.join(' ').replace(/<br>\s+/g, '<br>').trim()
       if (text) htmlParts.push(`<p>${text}</p>`)
       paragraphLines = []
     }
@@ -610,7 +672,8 @@ export function markdownToHtml(markdown: string, includeToc: boolean = false): s
     }
   }
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     const trimmed = line.trim()
 
     // 빈 줄 → 단락 구분
@@ -626,6 +689,49 @@ export function markdownToHtml(markdown: string, includeToc: boolean = false): s
       flushParagraph()
       flushList()
       htmlParts.push(trimmed)
+      continue
+    }
+
+    // GFM 표: 헤더 라인 + 다음 줄이 구분선이면 표로 처리
+    if (isTableRow(trimmed) && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      flushParagraph()
+      flushList()
+      const headerCells = splitTableRow(trimmed)
+      // 정렬 정보 추출
+      const sepCells = splitTableRow(lines[i + 1])
+      const aligns: (string | null)[] = sepCells.map(c => {
+        const t = c.trim()
+        const left = t.startsWith(':')
+        const right = t.endsWith(':')
+        if (left && right) return 'center'
+        if (right) return 'right'
+        if (left) return 'left'
+        return null
+      })
+      const tableParts: string[] = ['<table>']
+      tableParts.push('<thead><tr>')
+      headerCells.forEach((c, idx) => {
+        const a = aligns[idx]
+        const styleAttr = a ? ` style="text-align:${a}"` : ''
+        tableParts.push(`<th${styleAttr}>${inlineMarkdown(c)}</th>`)
+      })
+      tableParts.push('</tr></thead>')
+      tableParts.push('<tbody>')
+      let j = i + 2
+      while (j < lines.length && isTableRow(lines[j])) {
+        const cells = splitTableRow(lines[j])
+        tableParts.push('<tr>')
+        cells.forEach((c, idx) => {
+          const a = aligns[idx]
+          const styleAttr = a ? ` style="text-align:${a}"` : ''
+          tableParts.push(`<td${styleAttr}>${inlineMarkdown(c)}</td>`)
+        })
+        tableParts.push('</tr>')
+        j++
+      }
+      tableParts.push('</tbody></table>')
+      htmlParts.push(tableParts.join(''))
+      i = j - 1
       continue
     }
 
@@ -654,8 +760,10 @@ export function markdownToHtml(markdown: string, includeToc: boolean = false): s
     }
 
     // 일반 텍스트 → 단락에 축적
+    // markdown hard break: 줄 끝에 공백 2칸 이상 → <br> 추가
     flushList()
-    paragraphLines.push(trimmed)
+    const hasHardBreak = /[ \t]{2,}$/.test(line)
+    paragraphLines.push(trimmed + (hasHardBreak ? '<br>' : ''))
   }
 
   flushParagraph()
@@ -665,6 +773,9 @@ export function markdownToHtml(markdown: string, includeToc: boolean = false): s
   let body = htmlParts.join('\n')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
+
+  // 본문 전체에 테마 인라인 스타일 일괄 주입 (외부 플랫폼 호환, idempotent)
+  body = applyPostStyles(body, theme ?? null)
 
   // includeToc=true이고 H2가 2개 이상이면 목차 생성 (본문 첫 H2 앞에 삽입)
   if (includeToc && h2Headings.length >= 2) {
@@ -689,7 +800,7 @@ ${tocItems}
   return body
 }
 
-export function parseAIResponse(text: string, blogId: string, useToc: boolean = false): GeneratedPost {
+export function parseAIResponse(text: string, blogId: string, useToc: boolean = false, theme?: PostThemeId | string | null): GeneratedPost {
   // 1) 코드블록 제거 (```json ... ```)
   const cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '').trim()
 
@@ -749,7 +860,7 @@ export function parseAIResponse(text: string, blogId: string, useToc: boolean = 
         blogId,
         title: titleMatch?.[1]?.replace(/\\"/g, '"') ?? '(제목 없음)',
         content,
-        htmlContent: markdownToHtml(content, useToc),
+        htmlContent: markdownToHtml(content, useToc, theme),
         tags,
         seoMeta: truncateSeoFields({
           title: seoTitleMatch?.[1]?.replace(/\\"/g, '"') ?? titleMatch?.[1] ?? '',

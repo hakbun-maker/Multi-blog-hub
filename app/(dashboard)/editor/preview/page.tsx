@@ -1,15 +1,18 @@
 'use client'
 
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { applyPostStyles } from '@/lib/utils/post-styles'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
 
 interface BlogInfo {
   id: string
   name: string
   color: string | null
   description?: string
+  blog_type?: string | null
 }
 
 export default function PreviewPage() {
@@ -42,6 +45,13 @@ export default function PreviewPage() {
   }, [blogId])
 
   const blogColor = blog?.color ?? '#3b82f6'
+
+  // 블로그 유형에 맞는 테마로 본문 인라인 스타일 적용 (idempotent)
+  const styledHtml = useMemo(() => {
+    if (!htmlContent) return ''
+    const themeId = pickThemeForBlogType(blog?.blog_type ?? null).id
+    return applyPostStyles(htmlContent, themeId)
+  }, [htmlContent, blog?.blog_type])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -77,8 +87,8 @@ export default function PreviewPage() {
       {/* 본문 */}
       <div className="max-w-3xl mx-auto px-6 py-8">
         <article
-          className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:leading-relaxed prose-img:rounded-lg prose-li:text-gray-700"
-          dangerouslySetInnerHTML={{ __html: htmlContent || '<p class="text-gray-400">본문이 비어있습니다.</p>' }}
+          className="max-w-none [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: styledHtml || '<p style="color:#9ca3af;">본문이 비어있습니다.</p>' }}
         />
 
         {/* 태그 */}

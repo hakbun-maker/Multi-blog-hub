@@ -1,5 +1,6 @@
 import type { AIAdapter, AIProvider, GeneratePostParams, GeneratedPost } from './adapter'
 import { buildPrompt, parseAIResponse } from './adapter'
+import { pickThemeForBlogType } from '@/lib/utils/post-themes'
 
 export class ClaudeAdapter implements AIAdapter {
   provider: AIProvider = 'claude'
@@ -33,7 +34,8 @@ export class ClaudeAdapter implements AIAdapter {
 
   async generatePost(params: GeneratePostParams): Promise<GeneratedPost> {
     const text = await this.callClaude(buildPrompt(params))
-    return parseAIResponse(text, params.blogId, params.useToc ?? false)
+    const theme = pickThemeForBlogType(params.blogType).id
+    return parseAIResponse(text, params.blogId, params.useToc ?? false, theme)
   }
 
   async generateText(prompt: string): Promise<string> {

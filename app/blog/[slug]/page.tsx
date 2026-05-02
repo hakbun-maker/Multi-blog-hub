@@ -6,6 +6,7 @@ import type { LayoutConfig } from '@/components/blogs/LayoutTab'
 import { DEFAULT_LAYOUT_CONFIG } from '@/components/blogs/LayoutTab'
 import BlogTrackingScripts from '@/components/blog-public/TrackingScripts'
 import AdSlotServer from '@/components/blog-public/AdSlotServer'
+import { fetchUserAdsConfig } from '@/lib/ads/server'
 
 // ISR: 30분마다 백그라운드 갱신 (새 글 반영을 위해 글 페이지보다 짧게)
 export const revalidate = 1800
@@ -16,6 +17,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://multi-blog-h
 
 interface Blog {
   id: string
+  user_id: string
   name: string
   slug: string
   description?: string
@@ -107,15 +109,18 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // 블로그 조회
+  // 블로그 조회 — user_id 추가 (ads_config fetch에 필요)
   const { data: blog } = await supabase
     .from('blogs')
-    .select('id, name, slug, description, color, custom_domain, layout_config')
+    .select('id, user_id, name, slug, description, color, custom_domain, layout_config')
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
   if (!blog) return null
+
+  // 사용자 단위 통합 광고 설정 조회 (모든 블로그 공통)
+  const userAds = await fetchUserAdsConfig(supabaseAdmin, blog.user_id as string)
 
   // 카테고리 + 포스트 병렬 조회
   const [{ data: catData }, { data: postsData }] = await Promise.all([
@@ -151,7 +156,7 @@ async function fetchBlogData(slug: string, categorySlug?: string) {
     }
   }
 
-  return { blog: blog as Blog, posts, categories }
+  return { blog: blog as Blog, posts, categories, userAds }
 }
 
 // ─── 메인 페이지 (서버 컴포넌트) ───
@@ -166,8 +171,21 @@ export default async function PublicBlogPage({
   const data = await fetchBlogData(params.slug, searchParams.category)
   if (!data) notFound()
 
-  const { blog, posts, categories } = data
-  const cfg = mergeConfig(blog.layout_config)
+  const { blog, posts, categories, userAds } = data
+  // 광고 설정은 사용자 단위(userAds)로부터 — 블로그별 layout_config.ads는 더 이상 사용하지 않음
+  const baseConfig = mergeConfig(blog.layout_config)
+  const cfg = {
+    ...baseConfig,
+    ads: {
+      adsense_pub_id: userAds.adsense_pub_id,
+      top_banner: userAds.top_banner,
+      below_title: userAds.below_title,
+      in_article: userAds.in_article,
+      left_sidebar_ad: userAds.left_sidebar_ad,
+      right_sidebar_ad: userAds.right_sidebar_ad,
+      footer_ad: userAds.footer_ad,
+    },
+  }
   const color = blog.color ?? '#3b82f6'
   const activeCategory = searchParams.category ?? ''
   const fontInfo = getFontLink(cfg.layout.font)
@@ -193,7 +211,7 @@ export default async function PublicBlogPage({
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height, maxWidth: '100vw', overflowX: 'hidden' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: cfg.layout.bg_color, fontFamily: `"${cfg.layout.font}", sans-serif`, fontSize: `${cfg.layout.font_size}px`, lineHeight: cfg.layout.line_height, maxWidth: '100vw', overflowX: 'clip' }}>
 
       {/* JSON-LD 구조화 데이터 */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -282,16 +300,14 @@ export default async function PublicBlogPage({
       )}
 
       {/* 글 목록 */}
-      <main className="flex-1 w-full overflow-hidden">
+      <main className="flex-1 w-full" style={{ overflow: 'clip' }}>
         <div className={`mx-auto px-4 py-8 ${hasSidebar ? 'lg:flex lg:gap-8' : ''}`} style={{ maxWidth: cfg.layout.max_width }}>
 
           {(cfg.layout.preset === 'left_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-            <aside className="hidden lg:block w-64 flex-shrink-0">
-              <div className="sticky top-4 space-y-4">
-                {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
-                  <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
-                )}
-              </div>
+            <aside className="hidden lg:block w-64 flex-shrink-0 self-start sticky top-20 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto">
+              {cfg.ads.left_sidebar_ad.enabled && cfg.ads.left_sidebar_ad.code && (
+                <AdSlotServer code={cfg.ads.left_sidebar_ad.code} />
+              )}
             </aside>
           )}
 
@@ -354,12 +370,10 @@ export default async function PublicBlogPage({
           </div>
 
           {(cfg.layout.preset === 'right_sidebar' || cfg.layout.preset === 'both_sidebar') && (
-            <aside className="hidden lg:block w-64 flex-shrink-0">
-              <div className="sticky top-4 space-y-4">
-                {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
-                  <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
-                )}
-              </div>
+            <aside className="hidden lg:block w-64 flex-shrink-0 self-start sticky top-20 space-y-4 max-h-[calc(100vh-5rem)] overflow-y-auto">
+              {cfg.ads.right_sidebar_ad.enabled && cfg.ads.right_sidebar_ad.code && (
+                <AdSlotServer code={cfg.ads.right_sidebar_ad.code} />
+              )}
             </aside>
           )}
         </div>
