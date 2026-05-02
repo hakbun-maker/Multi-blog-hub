@@ -144,7 +144,7 @@ export default function BlogDetailPage({ params }: { params: { id: string } }) {
 
       {/* Tab 콘텐츠 */}
       <div>
-        {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} categories={categories} />}
+        {tab === 'posts' && <PostsTab posts={posts} blogId={blog.id} blogSlug={blog.slug} blogCustomDomain={blog.custom_domain ?? null} categories={categories} />}
         {tab === 'stats' && <StatsTab posts={posts} />}
       </div>
     </div>

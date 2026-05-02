@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2 } from 'lucide-react'
+import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2, Trash2, Link2, Check, Info } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +70,9 @@ type Post = {
 }
 
 type SortKey = 'created_at_desc' | 'published_at_desc' | 'view_count_desc' | 'title_asc'
+type IndexingState = 'indexed' | 'pending' | 'not_indexed'
+
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://multi-blog-hub.vercel.app').replace(/\/$/, '')
 
 export default function BlogsPage() {
   const [activeTab, setActiveTab] = useState<'blogs' | 'posts'>('blogs')
@@ -79,11 +82,16 @@ export default function BlogsPage() {
   const [loadingBlogs, setLoadingBlogs] = useState(true)
   const [loadingPosts, setLoadingPosts] = useState(true)
 
+  // 글별 색인 상태 — postId → state ('indexed' | 'pending' | 'not_indexed')
+  const [indexingByPost, setIndexingByPost] = useState<Record<string, IndexingState>>({})
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
   // 블로그 글 관리 필터 상태
   const [searchQuery, setSearchQuery] = useState('')
   const [filterBlog, setFilterBlog] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
+  const [filterIndexing, setFilterIndexing] = useState<'' | 'indexed' | 'pending' | 'not_indexed' | 'unknown'>('')
   const [sortKey, setSortKey] = useState<SortKey>('created_at_desc')
 
   // GSC 일괄 적용 상태
@@ -143,6 +151,71 @@ export default function BlogsPage() {
     fetchPosts()
   }, [activeTab])
 
+  // 모든 활성 블로그의 글별 색인 상태 fetch (블로그별 병렬)
+  useEffect(() => {
+    if (activeTab !== 'posts' || blogs.length === 0 || posts.length === 0) return
+    let cancelled = false
+    async function fetchIndexing() {
+      const merged: Record<string, IndexingState> = {}
+      // 블로그별 색인 상태 → 글 슬러그 기준
+      const slugToPostIds: Record<string, Record<string, string>> = {}
+      for (const p of posts) {
+        if (!p.slug) continue
+        if (!slugToPostIds[p.blog_id]) slugToPostIds[p.blog_id] = {}
+        slugToPostIds[p.blog_id][p.slug] = p.id
+      }
+      await Promise.all(
+        blogs.map(async b => {
+          try {
+            const res = await fetch(`/api/posts/indexing-status?blogId=${b.id}`)
+            const j = await res.json()
+            if (j.bySlug && slugToPostIds[b.id]) {
+              for (const [slug, state] of Object.entries(j.bySlug as Record<string, IndexingState>)) {
+                const postId = slugToPostIds[b.id][slug]
+                if (postId) merged[postId] = state
+              }
+            }
+          } catch { /* ignore single blog failure */ }
+        }),
+      )
+      if (!cancelled) setIndexingByPost(merged)
+    }
+    fetchIndexing()
+    return () => { cancelled = true }
+  }, [activeTab, blogs, posts])
+
+  // 링크 복사
+  const handleCopyUrl = async (postId: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(postId)
+      setTimeout(() => setCopiedId(prev => (prev === postId ? null : prev)), 1800)
+    } catch {
+      window.prompt('아래 URL을 복사하세요 (Ctrl+C):', url)
+    }
+  }
+
+  // 글 삭제
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('이 글을 삭제하시겠습니까?')) return
+    const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    } else {
+      alert('삭제에 실패했습니다.')
+    }
+  }
+
+  // 글의 production URL 생성
+  const buildProductionUrl = (post: Post): string | null => {
+    if (!post.slug) return null
+    const blog = blogMap[post.blog_id]
+    if (!blog) return null
+    if (blog.custom_domain) return `https://${blog.custom_domain}/${encodeURIComponent(post.slug)}`
+    if (!blog.slug) return null
+    return `${APP_URL}/blog/${encodeURIComponent(blog.slug)}/${encodeURIComponent(post.slug)}`
+  }
+
   // 블로그 카드용 포스트 수 — blogs API에서 직접 반환 (별도 fetch 불필요)
   const postCountByBlog = useMemo(() => {
     const map: Record<string, { total: number; published: number }> = {}
@@ -177,6 +250,13 @@ export default function BlogsPage() {
         return blog?.blog_type === filterType
       })
     }
+    if (filterIndexing) {
+      result = result.filter(p => {
+        const state = indexingByPost[p.id]
+        if (filterIndexing === 'unknown') return !state // GSC 미연결/로딩 중
+        return state === filterIndexing
+      })
+    }
 
     result.sort((a, b) => {
       switch (sortKey) {
@@ -195,7 +275,7 @@ export default function BlogsPage() {
     })
 
     return result
-  }, [posts, searchQuery, filterBlog, filterStatus, filterType, sortKey, blogMap])
+  }, [posts, searchQuery, filterBlog, filterStatus, filterType, filterIndexing, sortKey, blogMap, indexingByPost])
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return '-'
@@ -214,48 +294,22 @@ export default function BlogsPage() {
               : (loadingPosts ? '불러오는 중...' : `총 ${filteredPosts.length}개의 글`)}
           </p>
         </div>
-        {activeTab === 'blogs' && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleBulkApply}
-              disabled={bulkApplying || !blogs.length}
-              title="모든 블로그에 자동 색인 ON + Google에 사이트맵 일괄 재제출"
-            >
-              {bulkApplying
-                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
-                : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
-            </Button>
-            <Button asChild>
-              <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
-            </Button>
-          </div>
+        {activeTab === 'blogs' ? (
+          <Button asChild>
+            <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
+          </Button>
+        ) : (
+          <Button
+            onClick={handleBulkApply}
+            disabled={bulkApplying || !blogs.length}
+            title="모든 블로그에 자동 색인 ON + Google에 사이트맵 일괄 재제출"
+          >
+            {bulkApplying
+              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
+              : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
+          </Button>
         )}
       </div>
-
-      {/* 일괄 적용 결과 패널 */}
-      {bulkResult && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-blue-900">
-              일괄 적용 결과 — 총 {bulkResult.summary.total}개 / 자동색인 {bulkResult.summary.autoIndexSet}개 ✓ / 사이트맵 {bulkResult.summary.sitemapOk}개 ✓ / 실패 {bulkResult.summary.failed}개
-            </h3>
-            <button onClick={() => setBulkResult(null)} className="text-xs text-blue-600 hover:underline">닫기</button>
-          </div>
-          <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
-            {bulkResult.results.map((r, i) => (
-              <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
-                <span className="font-medium">{r.blogName}</span>
-                <span>•</span>
-                <span>자동색인 {r.autoIndexSet ? '✓' : '✗'}</span>
-                <span>•</span>
-                <span>사이트맵 {r.sitemapOk ? '✓' : '✗'}</span>
-                {r.error && <span className="text-gray-500 ml-1">({r.error})</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* 탭 네비게이션 */}
       <div className="border-b border-gray-200">
@@ -390,6 +444,30 @@ export default function BlogsPage() {
       {/* 탭 2: 블로그 글 관리 */}
       {activeTab === 'posts' && (
         <div className="space-y-4">
+          {/* 일괄 적용 결과 패널 */}
+          {bulkResult && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-blue-900">
+                  일괄 적용 결과 — 총 {bulkResult.summary.total}개 / 자동색인 {bulkResult.summary.autoIndexSet}개 ✓ / 사이트맵 {bulkResult.summary.sitemapOk}개 ✓ / 실패 {bulkResult.summary.failed}개
+                </h3>
+                <button onClick={() => setBulkResult(null)} className="text-xs text-blue-600 hover:underline">닫기</button>
+              </div>
+              <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
+                {bulkResult.results.map((r, i) => (
+                  <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
+                    <span className="font-medium">{r.blogName}</span>
+                    <span>•</span>
+                    <span>자동색인 {r.autoIndexSet ? '✓' : '✗'}</span>
+                    <span>•</span>
+                    <span>사이트맵 {r.sitemapOk ? '✓' : '✗'}</span>
+                    {r.error && <span className="text-gray-500 ml-1">({r.error})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* 검색 / 필터 / 정렬 */}
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative">
@@ -435,6 +513,19 @@ export default function BlogsPage() {
             </select>
 
             <select
+              value={filterIndexing}
+              onChange={e => setFilterIndexing(e.target.value as typeof filterIndexing)}
+              className="h-8 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="GSC 색인 상태 필터"
+            >
+              <option value="">전체 색인</option>
+              <option value="indexed">🟢 색인됨</option>
+              <option value="pending">🟡 대기 중</option>
+              <option value="not_indexed">🔴 미색인</option>
+              <option value="unknown">— 미연결/확인불가</option>
+            </select>
+
+            <select
               value={sortKey}
               onChange={e => setSortKey(e.target.value as SortKey)}
               className="h-8 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -461,24 +552,37 @@ export default function BlogsPage() {
             </div>
           ) : (
             <div className="border border-gray-200 rounded-lg overflow-x-auto">
-              <table className="w-full text-sm min-w-[800px]">
+              <table className="w-full text-sm min-w-[760px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">블로그명</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">유형</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">언어</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 min-w-[200px]">제목</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">상태</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap max-w-[80px]">키워드</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">조회수</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">발행일</th>
-                    <th className="px-4 py-3 font-medium text-gray-600 whitespace-nowrap">편집</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap">블로그명</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap">유형</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap">언어</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 min-w-[180px]">제목</th>
+                    <th className="text-center px-2 py-2 font-medium text-gray-600 whitespace-nowrap">상태</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap max-w-[72px]">키워드</th>
+                    <th className="text-right px-2 py-2 font-medium text-gray-600 whitespace-nowrap">조회수</th>
+                    <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap">발행일</th>
+                    <th className="text-center px-2 py-2 font-medium text-gray-600 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 group relative cursor-help">
+                        색인
+                        <Info className="w-3 h-3 text-gray-400" />
+                        <span className="invisible group-hover:visible absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1.5 bg-gray-900 text-white text-[11px] rounded-md py-2 px-3 w-64 text-left shadow-lg leading-relaxed font-normal whitespace-normal">
+                          <span className="block font-semibold mb-1.5 text-gray-100">GSC 검색 노출 기준 (최근 30일)</span>
+                          <span className="block mb-0.5"><span className="inline-block w-2 h-2 rounded-full bg-green-400 mr-1.5 align-middle"></span><strong>색인</strong> — 검색 결과에 노출됨</span>
+                          <span className="block mb-0.5"><span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1.5 align-middle"></span><strong>대기</strong> — 발행 7일 이내, 색인 대기 중 (정상)</span>
+                          <span className="block mb-1.5"><span className="inline-block w-2 h-2 rounded-full bg-red-400 mr-1.5 align-middle"></span><strong>미색인</strong> — 7일 지나도 노출 0 (조치 필요)</span>
+                          <span className="block text-gray-300 text-[10px] border-t border-gray-700 pt-1">GSC 미연결 시 — 표시</span>
+                        </span>
+                      </span>
+                    </th>
+                    <th className="text-center px-2 py-2 font-medium text-gray-600 whitespace-nowrap">편집</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredPosts.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-gray-400 text-sm">
+                      <td colSpan={10} className="px-4 py-12 text-center text-gray-400 text-sm">
                         검색 결과가 없습니다
                       </td>
                     </tr>
@@ -488,67 +592,105 @@ export default function BlogsPage() {
                       const blogIndex = blog ? blogs.findIndex(b => b.id === blog.id) : -1
                       const blogColor = blog?.color ?? (blogIndex >= 0 ? BLOG_COLORS[blogIndex % BLOG_COLORS.length] : '#94a3b8')
                       const typeLabel = blog?.blog_type ? (BLOG_TYPE_LABELS[blog.blog_type] ?? '-') : '-'
+                      const productionUrl = buildProductionUrl(post)
+                      const indexState = indexingByPost[post.id]
                       return (
                         <tr key={post.id} className={`hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-2 py-2 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: blogColor }} />
-                              <span className="text-gray-800 font-medium">{blog?.name ?? '-'}</span>
+                              <span className="text-gray-800 font-medium text-xs">{blog?.name ?? '-'}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-2 py-2 whitespace-nowrap">
                             {typeLabel !== '-' ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
                                 {typeLabel}
                               </span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-2 py-2 whitespace-nowrap">
                             {blog?.language && blog.language !== 'ko' && LANGUAGE_LABELS[blog.language] ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
                                 {LANGUAGE_LABELS[blog.language]}
                               </span>
                             ) : (
-                              <span className="text-gray-400 text-xs">한국어</span>
+                              <span className="text-gray-400 text-[11px]">한국어</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 min-w-[200px]">
+                          <td className="px-2 py-2 min-w-[180px]">
                             {post.status === 'published' && blog?.slug && post.slug ? (
                               <a href={`/blog/${blog.slug}/${post.slug}`} target="_blank" rel="noopener noreferrer"
-                                className="text-gray-900 line-clamp-1 hover:text-blue-600 hover:underline inline-flex items-center gap-1">
+                                className="text-gray-900 line-clamp-1 hover:text-blue-600 hover:underline inline-flex items-center gap-1 text-sm">
                                 {post.title}
                                 <ExternalLink className="w-3 h-3 flex-shrink-0 text-gray-400" />
                               </a>
                             ) : (
-                              <span className="text-gray-900 line-clamp-1">{post.title}</span>
+                              <span className="text-gray-900 line-clamp-1 text-sm">{post.title}</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-2 py-2 whitespace-nowrap text-center">
                             {post.status === 'published' ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">발행</span>
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">발행</span>
                             ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">임시저장</span>
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">임시</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap max-w-[80px]">
-                            <span className="text-gray-500 text-xs truncate block">{post.keyword ?? '-'}</span>
+                          <td className="px-2 py-2 whitespace-nowrap max-w-[72px]">
+                            <span className="text-gray-500 text-[11px] truncate block">{post.keyword ?? '-'}</span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right">
-                            <span className="text-gray-600">{post.view_count ?? 0}</span>
+                          <td className="px-2 py-2 whitespace-nowrap text-right">
+                            <span className="text-gray-600 text-xs">{post.view_count ?? 0}</span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-gray-500 text-xs">{formatDate(post.published_at)}</span>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className="text-gray-500 text-[11px]">{formatDate(post.published_at)}</span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center">
-                            <Link
-                              href={`/editor/${post.id}`}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors"
-                              title="편집"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Link>
+                          <td className="px-2 py-2 whitespace-nowrap text-center">
+                            {post.status !== 'published' ? (
+                              <span className="text-xs text-gray-300">-</span>
+                            ) : indexState === 'indexed' ? (
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium" title="검색 노출됨">색인</span>
+                            ) : indexState === 'pending' ? (
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium" title="발행 7일 이내 — 색인 대기 중">대기</span>
+                            ) : indexState === 'not_indexed' ? (
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium" title="발행 7일 초과 — 검색 노출 없음 (조치 필요)">미색인</span>
+                            ) : (
+                              <span className="text-xs text-gray-300" title="GSC 미연결 또는 로딩 중">…</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Link
+                                href={`/editor/${post.id}`}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors"
+                                title="편집"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => productionUrl && handleCopyUrl(post.id, productionUrl)}
+                                disabled={!productionUrl}
+                                className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+                                  copiedId === post.id
+                                    ? 'text-green-600 bg-green-50'
+                                    : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                                } disabled:text-gray-200 disabled:hover:bg-transparent disabled:cursor-not-allowed`}
+                                title={productionUrl ? `URL 복사 (GSC 색인 요청에 붙여넣기): ${productionUrl}` : 'URL 없음'}
+                              >
+                                {copiedId === post.id ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePost(post.id)}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )

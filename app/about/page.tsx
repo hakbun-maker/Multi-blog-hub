@@ -15,8 +15,8 @@ export default function AboutPage() {
           <Image
             src="/logo.svg"
             alt="Multi Blog Hub"
-            width={480}
-            height={173}
+            width={620}
+            height={90}
             className="mb-6 max-w-full h-auto"
             priority
           />

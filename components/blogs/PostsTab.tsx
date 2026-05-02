@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { PenSquare, Trash2, Eye, ExternalLink } from 'lucide-react'
+import { PenSquare, Trash2, Eye, ExternalLink, Link2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Post {
@@ -21,8 +21,11 @@ interface PostsTabProps {
   posts: Post[]
   blogId: string
   blogSlug?: string
+  blogCustomDomain?: string | null
   categories?: { id: string; name: string }[]
 }
+
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://multi-blog-hub.vercel.app').replace(/\/$/, '')
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   published: { label: '발행', className: 'bg-green-100 text-green-700' },
@@ -30,15 +33,39 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
   draft:     { label: '초안', className: 'bg-gray-100 text-gray-500' },
 }
 
-export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: PostsTabProps) {
+export function PostsTab({ posts: initialPosts, blogId, blogSlug, blogCustomDomain, categories }: PostsTabProps) {
   const router = useRouter()
   const [posts, setPosts] = useState<Post[]>(initialPosts)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const buildProductionUrl = (postSlug?: string): string | null => {
+    if (!postSlug) return null
+    if (blogCustomDomain) return `https://${blogCustomDomain}/${encodeURIComponent(postSlug)}`
+    if (!blogSlug) return null
+    return `${APP_URL}/blog/${encodeURIComponent(blogSlug)}/${encodeURIComponent(postSlug)}`
+  }
+
+  const handleCopyUrl = async (postId: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedId(postId)
+      setTimeout(() => setCopiedId(prev => (prev === postId ? null : prev)), 1800)
+    } catch {
+      // 클립보드 권한 거부 시 fallback
+      window.prompt('아래 URL을 복사하세요 (Ctrl+C):', url)
+    }
+  }
 
   // GA4 page views (글 슬러그 기준) — 연결된 경우만, 실패 시 자체 view_count 사용
   const [pageViewsBySlug, setPageViewsBySlug] = useState<Record<string, number>>({})
   const [viewsSource, setViewsSource] = useState<'ga4' | 'fallback'>('fallback')
+
+  // GSC 색인 상태 (글 슬러그 기준)
+  type IndexingState = 'indexed' | 'pending' | 'not_indexed'
+  const [indexingBySlug, setIndexingBySlug] = useState<Record<string, IndexingState>>({})
+  const [indexingSource, setIndexingSource] = useState<'gsc' | 'fallback'>('fallback')
 
   useEffect(() => {
     if (!blogId) return
@@ -51,6 +78,15 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
         if (j.source) setViewsSource(j.source)
       })
       .catch(() => { /* fallback to view_count */ })
+
+    fetch(`/api/posts/indexing-status?blogId=${blogId}`)
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return
+        if (j.bySlug) setIndexingBySlug(j.bySlug)
+        if (j.source) setIndexingSource(j.source)
+      })
+      .catch(() => { /* fallback */ })
     return () => { cancelled = true }
   }, [blogId])
 
@@ -83,9 +119,10 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
     )
   }
 
+  // 컬럼 순서: 제목 / [카테고리] / 상태 / 조회수 / 발행일 / 색인 / 편집
   const gridCols = hasCategories
-    ? 'grid-cols-[minmax(150px,1fr)_80px_60px_60px_80px_80px]'
-    : 'grid-cols-[minmax(150px,1fr)_60px_60px_80px_80px]'
+    ? 'grid-cols-[minmax(140px,1fr)_70px_52px_52px_60px_56px_92px]'
+    : 'grid-cols-[minmax(140px,1fr)_52px_52px_60px_56px_92px]'
 
   return (
     <div className="space-y-1">
@@ -106,14 +143,17 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
 
       <div className="overflow-x-auto">
         {/* 헤더 */}
-        <div className={`grid gap-4 px-3 py-2 text-xs text-gray-400 font-medium border-b border-gray-100 min-w-[520px] ${gridCols}`}>
+        <div className={`grid gap-2 px-3 py-2 text-xs text-gray-400 font-medium border-b border-gray-100 min-w-[480px] ${gridCols}`}>
           <span>제목</span>
           {hasCategories && <span className="text-center">카테고리</span>}
           <span className="text-center">상태</span>
           <span className="text-center" title={viewsSource === 'ga4' ? 'GA4 실데이터 (최근 30일)' : '자체 카운터 (누적)'}>
-            조회수{viewsSource === 'ga4' ? ' (GA4)' : ''}
+            조회수{viewsSource === 'ga4' ? '·GA4' : ''}
           </span>
           <span className="text-center">발행일</span>
+          <span className="text-center" title={indexingSource === 'gsc' ? 'GSC 검색 노출 기준 (30일)' : 'GSC 미연결'}>
+            색인
+          </span>
           <span className="text-center">편집</span>
         </div>
 
@@ -128,9 +168,10 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
           const categoryName = post.category_id
             ? categories?.find(c => c.id === post.category_id)?.name
             : null
+          const productionUrl = buildProductionUrl(post.slug)
           return (
             <div key={post.id}
-              className={`grid gap-4 px-3 py-3 items-center rounded-lg hover:bg-gray-50 transition-colors min-w-[520px] ${gridCols}`}>
+              className={`grid gap-2 px-3 py-3 items-center rounded-lg hover:bg-gray-50 transition-colors min-w-[480px] ${gridCols}`}>
               {postUrl ? (
                 <a href={postUrl} target="_blank" rel="noopener noreferrer"
                   className="text-sm text-gray-800 truncate font-medium hover:text-blue-600 hover:underline flex items-center gap-1">
@@ -145,25 +186,46 @@ export function PostsTab({ posts: initialPosts, blogId, blogSlug, categories }: 
                   {categoryName ?? '미분류'}
                 </span>
               )}
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium text-center ${status.className}`}>
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium text-center ${status.className}`}>
                 {status.label}
               </span>
-              <span className="text-sm text-gray-500 text-center flex items-center justify-center gap-1">
+              <span className="text-sm text-gray-500 text-center flex items-center justify-center gap-0.5">
                 <Eye className="w-3 h-3" />
                 {(() => {
-                  // GA4 데이터가 있으면 우선 사용, 없으면 자체 view_count fallback
                   const ga4Views = post.slug ? pageViewsBySlug[post.slug] : undefined
                   const views = ga4Views ?? post.view_count ?? 0
                   return views.toLocaleString()
                 })()}
               </span>
               <span className="text-xs text-gray-400 text-center">{publishedDate}</span>
-              <div className="flex items-center justify-center gap-1">
-                <Button asChild size="sm" variant="ghost" className="h-7 w-7 p-0">
+              <span className="text-center">
+                {(() => {
+                  if (post.status !== 'published') return <span className="text-xs text-gray-300">-</span>
+                  if (indexingSource !== 'gsc') return <span className="text-xs text-gray-300" title="GSC 미연결">—</span>
+                  const state = post.slug ? indexingBySlug[post.slug] : undefined
+                  if (state === 'indexed') return <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium" title="검색 노출됨">색인</span>
+                  if (state === 'pending') return <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium" title="발행 7일 이내 — 색인 대기 중">대기</span>
+                  if (state === 'not_indexed') return <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium" title="발행 7일 초과 — 검색 노출 없음 (조치 필요)">미색인</span>
+                  return <span className="text-xs text-gray-300">…</span>
+                })()}
+              </span>
+              <div className="flex items-center justify-center gap-0.5">
+                <Button asChild size="sm" variant="ghost" className="h-7 w-7 p-0" title="편집">
                   <Link href={`/editor/${post.id}`}><PenSquare className="w-3.5 h-3.5" /></Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-7 w-7 p-0 ${copiedId === post.id ? 'text-green-600' : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'}`}
+                  title={productionUrl ? `URL 복사 (GSC 색인 요청에 붙여넣기): ${productionUrl}` : 'URL 없음'}
+                  disabled={!productionUrl}
+                  onClick={() => productionUrl && handleCopyUrl(post.id, productionUrl)}
+                >
+                  {copiedId === post.id ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
                 </Button>
                 <Button size="sm" variant="ghost"
                   className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                  title="삭제"
                   onClick={() => handleDelete(post.id)}
                   disabled={deletingId === post.id}>
                   <Trash2 className="w-3.5 h-3.5" />

@@ -21,9 +21,17 @@ export function isMonetizePost(meta: unknown): meta is MonetizeMetaJson {
 }
 
 /**
- * S단계 (`<!-- google_ad_section_start -->`) 직후 첫 H2 다음에 광고 슬롯 삽입
- * - adsenseSlotMid이 비어있으면 원본 그대로 반환
- * - 이미 광고가 있으면(`<ins class="adsbygoogle"`) 중복 삽입 안 함
+ * S단계 (`<!-- google_ad_section_start -->`) 안에 광고 슬롯 2개 삽입.
+ *
+ * 위치 (심리학적 최적화):
+ *   1) 첫 번째 H2 직후 — Reciprocity (가치 제공 직후 클릭 의지 ↑)
+ *   2) 두 번째 H2 직후 — Endowed Progress + 결단 모드 진입 직전 (세 번째 H2가 Action)
+ *
+ * 안전장치:
+ * - adsenseSlotMid 또는 pubId 비어있으면 원본 그대로 반환
+ * - 이미 같은 슬롯 광고가 1개라도 있으면 중복 삽입 안 함 (idempotent 보장)
+ * - 두 번째 H2가 google_ad_section_end 이후에 있으면(= FAQ·마무리 H2) 광고 1개만 삽입
+ * - 본문 H2가 1개뿐이거나 마커 없으면 안전하게 처리
  */
 export function injectMidAdSlot(
   html: string,
@@ -35,23 +43,39 @@ export function injectMidAdSlot(
   if (!pubId?.trim()) return html
   if (html.includes(`data-ad-slot="${adsenseSlotMid}"`)) return html
 
-  // S단계 시작 마커 → 첫 </h2> 직후에 삽입
+  // S단계 시작 마커 위치
   const startMarker = '<!-- google_ad_section_start -->'
   const startIdx = html.indexOf(startMarker)
   if (startIdx === -1) return html
 
   const afterMarker = startIdx + startMarker.length
-  const h2CloseIdx = html.indexOf('</h2>', afterMarker)
-  if (h2CloseIdx === -1) return html
 
-  const insertPos = h2CloseIdx + '</h2>'.length
+  // 첫 번째 H2 닫힘
+  const firstH2CloseIdx = html.indexOf('</h2>', afterMarker)
+  if (firstH2CloseIdx === -1) return html
+  const firstInsertPos = firstH2CloseIdx + '</h2>'.length
+
+  // 두 번째 H2 닫힘 — 단, S단계 종료 마커 이전에 있어야 본문 H2로 인정
+  const endMarker = '<!-- google_ad_section_end -->'
+  const endIdx = html.indexOf(endMarker, firstInsertPos)
+  const secondH2CloseIdx = html.indexOf('</h2>', firstInsertPos)
+  const hasValidSecondH2 =
+    secondH2CloseIdx !== -1 && (endIdx === -1 || secondH2CloseIdx < endIdx)
 
   const adHtml = `\n<div class="ad-slot-mid" style="margin:1.5em 0;text-align:center;">
 <ins class="adsbygoogle" style="display:block" data-ad-client="${pubId}" data-ad-slot="${adsenseSlotMid}" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 </div>\n`
 
-  return html.slice(0, insertPos) + adHtml + html.slice(insertPos)
+  // 뒤에서부터 삽입 (앞 인덱스 영향 회피)
+  let result = html
+  if (hasValidSecondH2) {
+    const secondInsertPos = secondH2CloseIdx + '</h2>'.length
+    result = result.slice(0, secondInsertPos) + adHtml + result.slice(secondInsertPos)
+  }
+  result = result.slice(0, firstInsertPos) + adHtml + result.slice(firstInsertPos)
+
+  return result
 }
 
 /**

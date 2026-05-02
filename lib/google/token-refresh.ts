@@ -1,18 +1,16 @@
 import { decrypt, encrypt } from '@/lib/utils/encryption'
 import { createClient } from '@/lib/supabase/server'
 
-/**
- * 유효한 Google OAuth 액세스 토큰을 반환합니다.
- * 만료된 경우 refresh_token으로 자동 갱신합니다.
- */
-export async function getValidGoogleToken(userId: string): Promise<string | null> {
+type GoogleProvider = 'google_analytics' | 'google_indexing'
+
+async function getValidTokenForProvider(userId: string, provider: GoogleProvider): Promise<string | null> {
   const supabase = createClient()
 
   const { data: tokenRow } = await supabase
     .from('user_oauth_tokens')
     .select('*')
     .eq('user_id', userId)
-    .eq('provider', 'google_analytics')
+    .eq('provider', provider)
     .single()
 
   if (!tokenRow) return null
@@ -27,7 +25,6 @@ export async function getValidGoogleToken(userId: string): Promise<string | null
     return decrypt(tokenRow.encrypted_access_token)
   }
 
-  // refresh_token이 없으면 재연결 필요
   if (!tokenRow.encrypted_refresh_token) return null
 
   const refreshToken = decrypt(tokenRow.encrypted_refresh_token)
@@ -47,7 +44,6 @@ export async function getValidGoogleToken(userId: string): Promise<string | null
 
   const data = await res.json()
 
-  // 갱신된 토큰 DB 업데이트
   await supabase
     .from('user_oauth_tokens')
     .update({
@@ -56,7 +52,23 @@ export async function getValidGoogleToken(userId: string): Promise<string | null
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId)
-    .eq('provider', 'google_analytics')
+    .eq('provider', provider)
 
   return data.access_token
+}
+
+/**
+ * 유효한 Google Analytics 액세스 토큰을 반환합니다 (analytics.readonly 스코프).
+ * 만료된 경우 refresh_token으로 자동 갱신합니다.
+ */
+export async function getValidGoogleToken(userId: string): Promise<string | null> {
+  return getValidTokenForProvider(userId, 'google_analytics')
+}
+
+/**
+ * 유효한 Google Indexing/Webmasters 액세스 토큰을 반환합니다.
+ * 스코프: indexing, webmasters, siteverification (GSC SearchAnalytics 호출 가능)
+ */
+export async function getValidIndexingToken(userId: string): Promise<string | null> {
+  return getValidTokenForProvider(userId, 'google_indexing')
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,8 +62,16 @@ export function SignupForm() {
 
   return (
     <Card className="w-full max-w-md shadow-sm">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-blue-600">회원가입</CardTitle>
+      <CardHeader className="text-center items-center">
+        <Image
+          src="/logo.svg"
+          alt="Multi Blog Hub"
+          width={620}
+          height={90}
+          className="h-10 w-auto mb-2"
+          priority
+        />
+        <CardTitle className="text-xl font-semibold text-gray-800">회원가입</CardTitle>
         <CardDescription>Multi Blog Hub 계정을 만드세요</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export const metadata: Metadata = {
   title: '서비스 이용약관 — Multi Blog Hub',
@@ -14,6 +15,9 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-3xl mx-auto px-6 py-16">
+        <Link href="/about" className="inline-block mb-6">
+          <Image src="/logo.svg" alt="Multi Blog Hub" width={620} height={90} className="h-9 w-auto" priority />
+        </Link>
         <header className="mb-8 border-b border-gray-200 pb-6">
           <h1 className="text-3xl font-bold mb-3">서비스 이용약관</h1>
           <p className="text-sm text-gray-500">시행일: 2026년 5월 1일</p>

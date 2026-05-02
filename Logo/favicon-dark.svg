@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
 <rect width="80" height="80" rx="14" ry="14" fill="#1A1F2A"></rect>
-<text x="40" y="56" text-anchor="middle" font-family="&#39;JetBrains Mono&#39;, &#39;SF Mono&#39;, ui-monospace, Menlo, Consolas, monospace" font-size="50" font-weight="700" letter-spacing="-2" fill="#F2F3F5">
-  <tspan fill="#4F6BFF">[</tspan><tspan>m</tspan><tspan fill="#4F6BFF">]</tspan>
-</text>
+<path d="M25.75 61.50L11.75 61.50L11.75 14.50L25.75 14.50L25.75 20.25L18 20.25L18 55.75L25.75 55.75L25.75 61.50Z" fill="#4F6BFF"></path>
+<path d="M35.35 56L29.85 56L29.85 28.50L35.05 28.50L35.05 32.50L35.20 32.50Q35.35 30.50 36.60 29.25Q37.85 28 39.75 28L39.75 28Q41.60 28 42.90 29.17Q44.20 30.35 44.65 32.35L44.65 32.35Q44.85 30.35 46.13 29.17Q47.40 28 49.35 28L49.35 28Q51.85 28 53.50 29.97Q55.15 31.95 55.15 35.05L55.15 35.05L55.15 56L49.65 56L49.65 35.50Q49.65 34.15 49.03 33.38Q48.40 32.60 47.25 32.60L47.25 32.60Q45 32.60 45 35.50L45 35.50L45 56L40 56L40 35.50Q40 34.15 39.42 33.38Q38.85 32.60 37.75 32.60L37.75 32.60Q35.35 32.60 35.35 35.50L35.35 35.50L35.35 56Z" fill="#F2F3F5"></path>
+<path d="M73.25 61.50L59.25 61.50L59.25 55.75L67 55.75L67 20.25L59.25 20.25L59.25 14.50L73.25 14.50L73.25 61.50Z" fill="#4F6BFF"></path>
 </svg>

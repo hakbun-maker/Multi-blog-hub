@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 
 export function LoginForm() {
   const router = useRouter()
@@ -51,8 +52,15 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-md shadow-sm">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-blue-600">Multi Blog Hub</CardTitle>
+      <CardHeader className="text-center items-center">
+        <Image
+          src="/logo.svg"
+          alt="Multi Blog Hub"
+          width={620}
+          height={90}
+          className="h-10 w-auto mb-2"
+          priority
+        />
         <CardDescription>계정으로 로그인하세요</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

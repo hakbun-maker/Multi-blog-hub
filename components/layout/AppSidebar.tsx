@@ -145,19 +145,17 @@ export function AppSidebar() {
       {/* Desktop / Tablet 사이드바 */}
       <aside className={cn(
         'hidden md:flex flex-col flex-shrink-0 bg-white border-r border-gray-200 min-h-screen transition-all duration-200',
-        collapsed ? 'w-16' : 'w-60'
+        collapsed ? 'w-20' : 'w-64'
       )}>
-        {/* 로고 */}
+        {/* 로고 — 헤더 px-5는 메뉴 NavLink의 (nav px-2 + NavLink px-3) = 20px와 정렬 */}
         <Link
           href="/dashboard"
-          className="h-14 flex items-center px-4 border-b border-gray-200 hover:bg-gray-50 transition-colors"
+          className="h-14 flex items-center px-5 border-b border-gray-200 hover:bg-gray-50 transition-colors"
         >
           {collapsed ? (
-            <Image src="/logo-mark.svg" alt="Multi Blog Hub" width={32} height={20} className="mx-auto" priority />
+            <Image src="/logo-mark.svg" alt="Multi Blog Hub" width={276} height={168} priority className="mx-auto h-10 w-auto" />
           ) : (
-            <span className="text-base font-bold text-gray-900 truncate">
-              multi<span className="text-blue-600">blog</span><span className="text-gray-400">.</span>hub
-            </span>
+            <Image src="/logo.svg" alt="multi[blog].hub" width={620} height={90} priority className="h-9 w-auto" />
           )}
         </Link>
 
