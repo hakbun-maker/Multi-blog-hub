@@ -11,7 +11,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getValidGoogleToken } from '@/lib/google/token-refresh'
+import { getValidGoogleToken, getValidIndexingToken } from '@/lib/google/token-refresh'
 import { fetchGa4Metrics, fetchGa4PageViews, type Ga4Metrics } from '@/lib/google/ga4-data'
 import { generateAdsenseDomainReport, type AdsenseRevenue } from '@/lib/google/adsense'
 import { fetchSearchAnalytics, type GscRow } from '@/lib/google/gsc-search-analytics'
@@ -35,7 +35,9 @@ export interface RawStatsBundle {
 }
 
 interface FetchOptions {
-  days?: number  // default 30
+  days?: number  // default 30 — startDate/endDate 미지정 시 사용
+  startDate?: string  // YYYY-MM-DD — 명시 시 days 무시
+  endDate?: string    // YYYY-MM-DD — 명시 시 days 무시
   includeGa4Pages?: boolean
   includeGsc?: boolean
   includeAdsense?: boolean
@@ -54,19 +56,21 @@ export async function fetchAllSources(
   options: FetchOptions = {},
 ): Promise<RawStatsBundle> {
   const days = options.days ?? 30
-  const startDate = daysAgoIso(days)
-  const endDate = todayIso()
+  const startDate = options.startDate ?? daysAgoIso(days)
+  const endDate = options.endDate ?? todayIso()
 
   const errors: RawStatsBundle['errors'] = []
 
-  // 1) 활성 블로그 + Google access token + AdSense account id 동시 로드
-  const [blogsRes, accessToken, tokenRowRes] = await Promise.all([
+  // 1) 사용자의 모든 블로그 + Google access tokens (analytics/indexing 분리) + AdSense account id 동시 로드
+  // 토큰 스코프 분리: analytics 토큰(GA4·AdSense), indexing 토큰(GSC webmasters)
+  // is_active 필터 제거 — 대시보드 동작과 맞춤. is_active=NULL인 기존 블로그도 통계에 포함되도록.
+  const [blogsRes, gaToken, gscToken, tokenRowRes] = await Promise.all([
     supabaseAdmin
       .from('blogs')
       .select('id, user_id, slug, custom_domain, ga4_property_id, blog_type, name')
-      .eq('user_id', userId)
-      .eq('is_active', true),
+      .eq('user_id', userId),
     getValidGoogleToken(userId),
+    getValidIndexingToken(userId),
     supabaseAdmin
       .from('user_oauth_tokens')
       .select('adsense_account_id')
@@ -78,8 +82,8 @@ export async function fetchAllSources(
   const blogs = (blogsRes.data ?? []) as BlogMeta[]
   const adsenseAccountId = (tokenRowRes.data?.adsense_account_id as string | null) ?? null
 
-  if (!accessToken) {
-    errors.push({ source: 'ga4', message: 'Google access token 없음 — GA4·AdSense·GSC 모두 스킵' })
+  if (!gaToken && !gscToken) {
+    errors.push({ source: 'ga4', message: 'Google access token 없음 — 모든 source 스킵' })
     return {
       ga4ByBlog: {},
       ga4PagesByBlog: {},
@@ -88,23 +92,31 @@ export async function fetchAllSources(
       errors,
     }
   }
+  if (!gaToken) {
+    errors.push({ source: 'ga4', message: 'GA4/AdSense 토큰 없음' })
+  }
+  if (!gscToken) {
+    errors.push({ source: 'gsc', message: 'GSC 토큰 없음 — 색인 OAuth 재연결 필요' })
+  }
 
-  // 2) 병렬 호출: GA4 (block 단위) + AdSense (전체 도메인 리포트) + GSC (블로그별)
-  const ga4Promises = blogs
-    .filter(b => b.ga4_property_id)
-    .map(async b => {
-      const result = await fetchGa4Metrics(b.ga4_property_id!, accessToken, startDate, endDate)
-      if (result.error) {
-        errors.push({ source: 'ga4', blogId: b.id, message: result.error })
-      }
-      return [b.id, result.metrics] as const
-    })
-
-  const ga4PagesPromises = options.includeGa4Pages
+  // 2) 병렬 호출: GA4·AdSense는 gaToken, GSC는 gscToken
+  const ga4Promises = gaToken
     ? blogs
         .filter(b => b.ga4_property_id)
         .map(async b => {
-          const result = await fetchGa4PageViews(b.ga4_property_id!, accessToken, startDate, endDate)
+          const result = await fetchGa4Metrics(b.ga4_property_id!, gaToken, startDate, endDate)
+          if (result.error) {
+            errors.push({ source: 'ga4', blogId: b.id, message: result.error })
+          }
+          return [b.id, result.metrics] as const
+        })
+    : []
+
+  const ga4PagesPromises = options.includeGa4Pages && gaToken
+    ? blogs
+        .filter(b => b.ga4_property_id)
+        .map(async b => {
+          const result = await fetchGa4PageViews(b.ga4_property_id!, gaToken, startDate, endDate)
           if (result.error) {
             errors.push({ source: 'ga4', blogId: b.id, message: result.error })
           }
@@ -112,32 +124,43 @@ export async function fetchAllSources(
         })
     : []
 
-  const adsensePromise = options.includeAdsense !== false && adsenseAccountId
-    ? generateAdsenseDomainReport(adsenseAccountId, accessToken, startDate, endDate)
+  const adsensePromise = options.includeAdsense !== false && adsenseAccountId && gaToken
+    ? generateAdsenseDomainReport(adsenseAccountId, gaToken, startDate, endDate)
         .catch(err => {
           errors.push({ source: 'adsense', message: err instanceof Error ? err.message : 'AdSense 호출 실패' })
           return {} as Record<string, AdsenseRevenue>
         })
     : Promise.resolve({} as Record<string, AdsenseRevenue>)
 
-  const gscPromises = options.includeGsc
+  const gscPromises = options.includeGsc && gscToken
     ? blogs.map(async b => {
-        // GSC 사이트 URL — custom_domain 우선, 없으면 default Vercel URL
-        const siteUrl = b.custom_domain
-          ? `https://${b.custom_domain}/`
-          : `https://multi-blog-hub.vercel.app/blog/${encodeURIComponent(b.slug)}/`
-        const result = await fetchSearchAnalytics(
-          siteUrl,
-          accessToken,
-          startDate,
-          endDate,
-          ['page'],
-          5000,
-        )
-        if (result.error) {
-          errors.push({ source: 'gsc', blogId: b.id, message: result.error })
+        // GSC 사이트 URL 후보 — custom_domain만 사용.
+        // Vercel 도메인은 사용자 GSC 소유가 아니라 403을 반환하므로 시도하지 않음.
+        // custom_domain 미설정 블로그는 GSC 데이터 없음 (스킵).
+        if (!b.custom_domain) return [b.id, [] as GscRow[]] as const
+
+        const candidates = [
+          `sc-domain:${b.custom_domain}`,
+          `https://${b.custom_domain}/`,
+        ]
+        let usedRows: GscRow[] = []
+        let permissionDenied = false
+        let lastNonPermissionError: string | undefined
+        for (const siteUrl of candidates) {
+          const result = await fetchSearchAnalytics(siteUrl, gscToken, startDate, endDate, ['page'], 5000)
+          if (result.error) {
+            // 403은 사용자 setup 이슈 (해당 도메인이 GSC에 등록 안 됨) — 코드 에러 아님
+            if (result.error.includes('403')) permissionDenied = true
+            else lastNonPermissionError = result.error
+          }
+          if (result.rows.length > 0) { usedRows = result.rows; break }
         }
-        return [b.id, result.rows] as const
+        // 403만 있고 다른 에러 없으면 silent (warnings로 별도 처리 가능하나 일단 무시).
+        // 실제 코드/네트워크 에러만 errors에 push.
+        if (usedRows.length === 0 && lastNonPermissionError && !permissionDenied) {
+          errors.push({ source: 'gsc', blogId: b.id, message: lastNonPermissionError })
+        }
+        return [b.id, usedRows] as const
       })
     : []
 

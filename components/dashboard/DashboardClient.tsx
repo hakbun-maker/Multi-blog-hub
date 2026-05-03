@@ -67,6 +67,7 @@ interface AnalyticsResponse {
     hasAdsenseScope: boolean
   }
   totals: { visitors: number; pageViews: number; sessions: number; revenueUsd: number }
+  today: { visitors: number; pageViews: number; publishedPosts: number; revenueUsd: number }
   blogs: BlogStat[]
 }
 
@@ -101,6 +102,7 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
   const handleRefresh = () => { setRefreshing(true); load() }
 
   const totals = data?.totals ?? { visitors: 0, pageViews: 0, sessions: 0, revenueUsd: 0 }
+  const today = data?.today ?? { visitors: 0, pageViews: 0, publishedPosts: 0, revenueUsd: 0 }
   const conn = data?.connections
   const statByBlogId: Record<string, BlogStat> = {}
   for (const b of data?.blogs ?? []) statByBlogId[b.id] = b
@@ -112,21 +114,21 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
 
   return (
     <>
-      {/* StatSummaryBar */}
+      {/* StatSummaryBar — 누적(30일) + 오늘 변동 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: '총 방문자', value: totals.visitors, icon: Users, color: 'text-blue-600 bg-blue-50', suffix: '명' },
-          { label: '총 조회수', value: totals.pageViews, icon: Eye, color: 'text-green-600 bg-green-50', suffix: '회' },
-          { label: '총 글 수', value: totalPosts, icon: FileText, color: 'text-purple-600 bg-purple-50', suffix: '개' },
-          { label: '예상 수익', value: totals.revenueUsd, icon: DollarSign, color: 'text-orange-600 bg-orange-50', prefix: '$', isMoney: true },
-        ].map(({ label, value, icon: Icon, color, suffix, prefix, isMoney }) => (
+          { label: '총 방문자', value: totals.visitors, todayDelta: today.visitors, icon: Users, color: 'text-blue-600 bg-blue-50', suffix: '명' },
+          { label: '총 조회수', value: totals.pageViews, todayDelta: today.pageViews, icon: Eye, color: 'text-green-600 bg-green-50', suffix: '회' },
+          { label: '총 글 수', value: totalPosts, todayDelta: today.publishedPosts, icon: FileText, color: 'text-purple-600 bg-purple-50', suffix: '개' },
+          { label: '예상 수익', value: totals.revenueUsd, todayDelta: today.revenueUsd, icon: DollarSign, color: 'text-orange-600 bg-orange-50', prefix: '$', isMoney: true },
+        ].map(({ label, value, todayDelta, icon: Icon, color, suffix, prefix, isMoney }) => (
           <Card key={label} className="shadow-none border border-gray-200">
             <CardContent className="p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <p className="text-2xl font-bold text-gray-900 leading-tight">
                   {prefix}
                   {loading && label !== '총 글 수'
                     ? '—'
@@ -135,7 +137,17 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
                       : value.toLocaleString()}
                   {suffix}
                 </p>
-                <p className="text-xs text-gray-500">{label}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-xs text-gray-500">{label}</p>
+                  {!loading && todayDelta > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 whitespace-nowrap">
+                      오늘 +{prefix ?? ''}{isMoney ? todayDelta.toFixed(2) : todayDelta.toLocaleString()}{suffix ?? ''}
+                    </span>
+                  )}
+                  {!loading && todayDelta === 0 && (
+                    <span className="text-[10px] text-gray-300 whitespace-nowrap">오늘 0</span>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

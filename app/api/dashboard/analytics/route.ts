@@ -61,8 +61,11 @@ export async function GET(request: Request) {
   const days = Math.max(1, Math.min(90, parseInt(searchParams.get('days') ?? '30', 10) || 30))
   const startDate = daysAgoInSeoul(days - 1)
   const endDate = todayInSeoul()
+  const todayDate = todayInSeoul()
+  // 오늘 자정(KST) 기준 epoch — 발행글 카운트 비교용
+  const todayKstStartIso = `${todayDate}T00:00:00+09:00`
 
-  const [{ data: blogs }, { data: tokenRow }, { data: posts }, { data: dailyStats }] = await Promise.all([
+  const [{ data: blogs }, { data: tokenRow }, { data: posts }, { data: dailyStats }, { count: todayPublishedCount }] = await Promise.all([
     supabase
       .from('blogs')
       .select('id, name, slug, color, custom_domain, ga4_property_id')
@@ -84,6 +87,12 @@ export async function GET(request: Request) {
       .eq('user_id', user.id)
       .gte('date', startDate)
       .lte('date', endDate),
+    supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'published')
+      .gte('published_at', todayKstStartIso),
   ])
 
   const blogList = (blogs ?? []) as BlogRow[]
@@ -106,35 +115,39 @@ export async function GET(request: Request) {
     postsViewByBlog[p.blog_id] = (postsViewByBlog[p.blog_id] ?? 0) + (p.view_count ?? 0)
   }
 
-  // GA4 호출 (모든 블로그 propertyId 모음)
+  // GA4 호출 (기간 + 오늘 병렬)
   const propertyIds = blogList.map(b => b.ga4_property_id).filter((x): x is string => !!x)
   let ga4Connected = false
   let ga4Map: Record<string, { totalUsers: number; screenPageViews: number; sessions: number }> = {}
+  let ga4TodayMap: Record<string, { totalUsers: number; screenPageViews: number; sessions: number }> = {}
 
   if (propertyIds.length) {
     const accessToken = await getValidGoogleToken(user.id)
     if (accessToken) {
       ga4Connected = true
-      const batch = await fetchGa4MetricsBatch(propertyIds, accessToken, startDate, endDate)
-      for (const [pid, r] of Object.entries(batch)) {
-        ga4Map[pid] = r.metrics
-      }
+      const [batchRange, batchToday] = await Promise.all([
+        fetchGa4MetricsBatch(propertyIds, accessToken, startDate, endDate),
+        fetchGa4MetricsBatch(propertyIds, accessToken, todayDate, todayDate),
+      ])
+      for (const [pid, r] of Object.entries(batchRange)) ga4Map[pid] = r.metrics
+      for (const [pid, r] of Object.entries(batchToday)) ga4TodayMap[pid] = r.metrics
     }
   }
 
-  // AdSense 호출 (account ID 있고 scope 부여된 경우)
+  // AdSense 호출 (기간 + 오늘 병렬)
   let adsenseConnected = false
   let adsenseDomainMap: Record<string, AdsenseRevenue> = {}
+  let adsenseTodayMap: Record<string, AdsenseRevenue> = {}
   if (adsenseAccountId && hasAdsenseScope) {
     const accessToken = await getValidGoogleToken(user.id)
     if (accessToken) {
       try {
-        adsenseDomainMap = await generateAdsenseDomainReport(
-          adsenseAccountId,
-          accessToken,
-          startDate,
-          endDate,
-        )
+        const [rangeMap, todayMap] = await Promise.all([
+          generateAdsenseDomainReport(adsenseAccountId, accessToken, startDate, endDate),
+          generateAdsenseDomainReport(adsenseAccountId, accessToken, todayDate, todayDate),
+        ])
+        adsenseDomainMap = rangeMap
+        adsenseTodayMap = todayMap
         adsenseConnected = true
       } catch {
         // 미승인/리포트 실패 — 폴백
@@ -203,6 +216,23 @@ export async function GET(request: Request) {
     { visitors: 0, pageViews: 0, sessions: 0, revenueUsd: 0 },
   )
 
+  // 오늘 합계 — GA4 today 데이터 + AdSense today 도메인 합산
+  const todayTotals = blogList.reduce(
+    (acc, b) => {
+      const ga4Today = b.ga4_property_id ? ga4TodayMap[b.ga4_property_id] : null
+      const subdomainHost = b.slug ? `${b.slug}.${host}` : null
+      const adsToday = adsenseConnected
+        ? pickRevenueForBlog(adsenseTodayMap, [b.custom_domain, subdomainHost, host])
+        : null
+      return {
+        visitors: acc.visitors + (ga4Today?.totalUsers ?? 0),
+        pageViews: acc.pageViews + (ga4Today?.screenPageViews ?? 0),
+        revenueUsd: acc.revenueUsd + (adsToday?.estimatedEarnings ?? 0),
+      }
+    },
+    { visitors: 0, pageViews: 0, revenueUsd: 0 },
+  )
+
   return NextResponse.json({
     range: { startDate, endDate, days },
     connections: {
@@ -212,6 +242,12 @@ export async function GET(request: Request) {
       hasAdsenseScope,
     },
     totals,
+    today: {
+      visitors: todayTotals.visitors,
+      pageViews: todayTotals.pageViews,
+      publishedPosts: todayPublishedCount ?? 0,
+      revenueUsd: todayTotals.revenueUsd,
+    },
     blogs: stats,
   }, {
     headers: {

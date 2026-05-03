@@ -1,3 +1,4 @@
+import { Toaster } from 'sonner'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { AppFooter } from '@/components/layout/AppFooter'
@@ -42,6 +43,7 @@ export default async function DashboardLayout({
             <AppFooter />
           </div>
         </div>
+        <Toaster position="bottom-right" richColors closeButton />
       </PlanProvider>
     </SidebarProvider>
   )

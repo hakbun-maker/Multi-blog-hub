@@ -126,6 +126,98 @@ export async function generateAdsenseDomainReport(
 }
 
 /**
+ * 도메인별 viewability 리포트 — ACTIVE_VIEW 메트릭 사용.
+ *
+ * @returns Record<도메인 lowercase, { viewability, impressions }>
+ */
+export async function generateAdsenseViewabilityReport(
+  accountId: string,
+  accessToken: string,
+  startDate: string,
+  endDate: string,
+): Promise<Record<string, { viewability: number; impressions: number }>> {
+  const url = new URL(`${ADSENSE_BASE}/accounts/${accountId}/reports:generate`)
+  url.searchParams.set('dateRange', 'CUSTOM')
+  const [sy, sm, sd] = startDate.split('-')
+  const [ey, em, ed] = endDate.split('-')
+  url.searchParams.set('startDate.year', sy)
+  url.searchParams.set('startDate.month', sm)
+  url.searchParams.set('startDate.day', sd)
+  url.searchParams.set('endDate.year', ey)
+  url.searchParams.set('endDate.month', em)
+  url.searchParams.set('endDate.day', ed)
+  url.searchParams.append('dimensions', 'DOMAIN_NAME')
+  url.searchParams.append('metrics', 'ACTIVE_VIEW_VIEWABILITY')
+  url.searchParams.append('metrics', 'IMPRESSIONS')
+  url.searchParams.set('currencyCode', 'USD')
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`AdSense Viewability ${res.status}: ${errText.slice(0, 200)}`)
+  }
+  const data = await res.json()
+
+  const map: Record<string, { viewability: number; impressions: number }> = {}
+  for (const row of data.rows ?? []) {
+    const cells = row.cells ?? []
+    const domain = cells[0]?.value ?? ''
+    if (!domain) continue
+    map[domain.toLowerCase()] = {
+      viewability: parseFloat(cells[1]?.value ?? '0') || 0,
+      impressions: parseInt(cells[2]?.value ?? '0', 10) || 0,
+    }
+  }
+  return map
+}
+
+/**
+ * 일별 수익 리포트 — DATE dimension만 사용. 예측·트렌드 계산용.
+ *
+ * @returns Record<'YYYY-MM-DD', estimatedEarnings>
+ */
+export async function generateAdsenseDailyReport(
+  accountId: string,
+  accessToken: string,
+  startDate: string,
+  endDate: string,
+): Promise<Record<string, number>> {
+  const url = new URL(`${ADSENSE_BASE}/accounts/${accountId}/reports:generate`)
+  url.searchParams.set('dateRange', 'CUSTOM')
+  const [sy, sm, sd] = startDate.split('-')
+  const [ey, em, ed] = endDate.split('-')
+  url.searchParams.set('startDate.year', sy)
+  url.searchParams.set('startDate.month', sm)
+  url.searchParams.set('startDate.day', sd)
+  url.searchParams.set('endDate.year', ey)
+  url.searchParams.set('endDate.month', em)
+  url.searchParams.set('endDate.day', ed)
+  url.searchParams.append('dimensions', 'DATE')
+  url.searchParams.append('metrics', 'ESTIMATED_EARNINGS')
+  url.searchParams.set('currencyCode', 'USD')
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`AdSense Daily ${res.status}: ${errText.slice(0, 200)}`)
+  }
+  const data = await res.json()
+
+  const map: Record<string, number> = {}
+  for (const row of data.rows ?? []) {
+    const cells = row.cells ?? []
+    const date = cells[0]?.value ?? ''
+    if (!date) continue
+    map[date] = parseFloat(cells[1]?.value ?? '0') || 0
+  }
+  return map
+}
+
+/**
  * 도메인 후보(custom_domain, subdomain.host) 중 매칭되는 첫 번째 수익 데이터 반환.
  */
 export function pickRevenueForBlog(
