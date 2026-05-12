@@ -73,10 +73,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // 글 발행 시 Google Indexing API 자동 호출
+  // 글 발행 시 또는 발행 상태로 콘텐츠 수정 시 Google Indexing API 자동 호출
+  // (재색인 트리거: status가 published이거나, 이미 published 상태인 글에 콘텐츠 변경 발생)
   let indexing: { requested: boolean; ok?: boolean; error?: string; needsConnection?: boolean } = { requested: false }
 
-  if (status === 'published' && data) {
+  const contentChanged = htmlContent !== undefined || title !== undefined
+  const shouldReindex = (status === 'published') || (data?.status === 'published' && contentChanged)
+
+  if (shouldReindex && data) {
     try {
       const { data: blog } = await supabase
         .from('blogs')

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/layout/SidebarContext'
+import { NotificationBell } from '@/components/layout/NotificationBell'
 
 interface AppHeaderProps {
   userEmail?: string
@@ -49,7 +50,9 @@ export function AppHeader({ userEmail, userName }: AppHeaderProps) {
         </Button>
       </div>
 
-      {/* 우측: 프로필 드롭다운 */}
+      {/* 우측: 알림 종 + 프로필 드롭다운 */}
+      <div className="flex items-center gap-1">
+        <NotificationBell />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="flex items-center gap-2">
@@ -83,6 +86,7 @@ export function AppHeader({ userEmail, userName }: AppHeaderProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   )
 }

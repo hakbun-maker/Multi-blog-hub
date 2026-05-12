@@ -1,178 +1,222 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import type { IntentType } from '@/types/monetize'
+/**
+ * Threads 글 자동 변환 엔진.
+ * 블로그 글 → 100만 조회수 쓰레드 공식 + AI CTA + 도메인 링크
+ *
+ * 공식 출처: 사용자 지정 (2026-05-04)
+ * - 4줄 구조 (문제 → 실패 경험 → 해결책 암시 → 후속편 예고)
+ * - 줄당 25-35자
+ * - 반말, 구어체, 수치 포함, 따옴표로 키워드 강조
+ * - 마지막 줄에만 이모지 1개
+ * - FOMO·호기심 자극
+ *
+ * 별도 CTA + 링크는 클립보드 복사 용도로 분리 반환.
+ */
 
-export interface SNSConversionResult {
-  text: string
-  hashtags: string[]
+export interface ThreadsGenerationResult {
+  threadsText: string       // 100만 공식 4줄 (Threads 본문)
+  ctaText: string           // CTA 한 줄 + 링크 (별도 복붙용)
+  postUrl: string | null    // custom_domain 기반 링크
   characterCount: number
-  platform: 'instagram' | 'twitter' | 'threads'
+  lineValidations: { line: string; length: number; ok: boolean }[]  // 줄별 25-35자 검증
 }
 
-const PLATFORM_LIMITS = {
-  instagram: { charLimit: 2200, hashtagLimit: 30, requiresImage: true },
-  twitter: { charLimit: 280, hashtagLimit: 2, requiresImage: false },
-  threads: { charLimit: 500, hashtagLimit: 5, requiresImage: false },
-} as const
+export interface ThreadsGenerationParams {
+  postTitle: string
+  postContent: string       // 본문 HTML 또는 plain text
+  postSlug: string
+  blogCustomDomain: string | null  // null이면 발행 불가
+  keyword?: string
+  aiApiKey: string
+  aiProvider: 'claude' | 'openai' | 'gemini'
+}
+
+const FORMULA_PROMPT = `당신은 100만 조회수 쓰레드 작성 전문가입니다.
+
+다음 블로그 글을 읽고 Threads용 후킹 글을 작성하세요.
+
+원본 글 제목: {{TITLE}}
+원본 글 본문 발췌:
+{{EXCERPT}}
+
+=== 100만 조회수 쓰레드 작성 공식 ===
+
+**1️⃣ 문장 구조 (반드시 4줄)**
+- 첫 문장 (25-30자): 문제 상황 제시. 반드시 "~하면 큰일남/안됨" 형식으로 마무리. 독자가 저지를 수 있는 실수 언급.
+- 두번째 문장 (30-35자): 구체적 실패 경험. 실제 금액/수치 반드시 포함. "~했다가", "~서 후회" 같은 후회 표현 사용.
+- 세번째 문장 (25-30자): 해결책 암시. '핵심 키워드'는 반드시 따옴표로 강조. "요즘 핫한", "최근 유행하는" 같은 트렌드 표현.
+- 마지막 문장 (20-25자): 후속편 예고. "댓글에서" 등으로 마무리. 이모지는 마지막 문장에만 1개 사용.
+
+**2️⃣ 필수 표현 요소**
+- 반말 사용 (해요체 X)
+- 구어체 표현 ("현타", "꿀팁" 등)
+- 수치화된 정보 (금액, 시간, 퍼센트)
+- 따옴표로 핵심 정보 강조
+
+**3️⃣ 심리 자극**
+- FOMO 유발 ("요즘 다들", "진짜 고수들은")
+- 손실 암시 ("~놓침", "~날림")
+- 호기심 자극 ("비밀", "숨은", "모르는")
+
+**4️⃣ 주의사항**
+- 전체 4줄 엄수
+- 문장당 25-35자 유지
+- 이모지는 마지막 줄에만 1개
+- 핵심 키워드는 1-2개만 따옴표
+- 과도한 부정 표현 지양
+
+=== 별도 CTA 작성 ===
+본문 4줄과 별개로, 글 내용을 본 사람이 클릭하고 싶어지는 짧은 CTA 1줄도 작성하세요.
+- 호기심 자극, 구체적 이득 암시
+- 30자 이내
+- 본문 마지막 줄과 톤 일치
+
+=== 출력 형식 (JSON만, 다른 텍스트 없이) ===
+{
+  "threads": "1줄\\n2줄\\n3줄\\n4줄",
+  "cta": "CTA 한 줄"
+}`
 
 /**
- * SNS Converter: Blog post → platform-specific content
- * Uses PASONA P→A→S teaser + CTA format
+ * 블로그 글 → Threads 100만 공식 + CTA 생성.
  */
-export async function convertToSNS(params: {
-  content: string
-  keyword: string
-  platform: 'instagram' | 'twitter' | 'threads'
-  intentType: IntentType
-  aiApiKey: string
-  aiModel?: string
-}): Promise<SNSConversionResult> {
-  const model = params.aiModel || 'claude-sonnet-4-20250514'
-  const limits = PLATFORM_LIMITS[params.platform]
+export async function generateThreadsPost(params: ThreadsGenerationParams): Promise<ThreadsGenerationResult> {
+  const excerpt = stripHtmlAndExcerpt(params.postContent, 1500)
 
-  // Build PASONA-based teaser prompt
-  const pasonaPrompt = buildSNSPasonaPrompt(params)
+  const prompt = FORMULA_PROMPT
+    .replace('{{TITLE}}', params.postTitle)
+    .replace('{{EXCERPT}}', excerpt)
 
-  // Call Claude to generate teaser
-  const teaserText = await callClaudeAPI(params.aiApiKey, model, pasonaPrompt)
+  const aiOutput = await callAI(params.aiProvider, params.aiApiKey, prompt)
+  const parsed = parseAIOutput(aiOutput)
 
-  // Generate platform-specific hashtags
-  const hashtagPrompt = buildHashtagPrompt({
-    keyword: params.keyword,
-    content: teaserText,
-    hashtagLimit: limits.hashtagLimit,
-    platform: params.platform,
-  })
+  // custom_domain 기반 링크
+  const postUrl = params.blogCustomDomain
+    ? `https://${params.blogCustomDomain}/${encodeURIComponent(params.postSlug)}`
+    : null
 
-  const hashtagsRaw = await callClaudeAPI(params.aiApiKey, model, hashtagPrompt)
-  const hashtags = parseHashtags(hashtagsRaw, limits.hashtagLimit)
+  // CTA + 링크 (복붙용)
+  const ctaText = postUrl
+    ? `${parsed.cta}\n${postUrl}`
+    : parsed.cta
 
-  // Trim content if needed and add hashtags
-  const finalText = trimToLimit(teaserText, limits.charLimit - hashtagsToString(hashtags).length)
-  const charCount = finalText.length + hashtagsToString(hashtags).length
+  // 줄별 검증 (25-35자)
+  const lines = parsed.threads.split('\n').filter(l => l.trim().length > 0)
+  const lineValidations = lines.map(line => ({
+    line,
+    length: line.length,
+    ok: line.length >= 20 && line.length <= 40,  // 살짝 여유: 20-40
+  }))
 
   return {
-    text: finalText,
-    hashtags,
-    characterCount: charCount,
-    platform: params.platform,
+    threadsText: parsed.threads,
+    ctaText,
+    postUrl,
+    characterCount: parsed.threads.length,
+    lineValidations,
   }
 }
 
-function buildSNSPasonaPrompt(params: {
-  content: string
-  keyword: string
-  platform: string
-  intentType: IntentType
-}): string {
-  const { content, keyword, platform, intentType } = params
+// ─── 헬퍼 ──────────────────────────────────────────
 
-  // Extract P→A→S from the content (simplified extraction)
-  const lines = content.split('\n').filter((l) => l.trim())
-  const firstThirdIdx = Math.ceil(lines.length / 3)
-  const firstThird = lines.slice(0, firstThirdIdx).join(' ')
+function stripHtmlAndExcerpt(html: string, maxChars: number): string {
+  const text = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&[a-zA-Z]+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length <= maxChars) return text
+  return text.slice(0, maxChars) + '...'
+}
 
-  const problemMatch = firstThird.match(/(문제|문제점|어려움|고민|걱정)[\s\S]{0,200}/i)
-  const problem = problemMatch ? problemMatch[0] : ''
-
-  const solutionLines = lines.slice(firstThirdIdx)
-  const solutionMatch = solutionLines.join(' ').match(/(해결|방법|솔루션|답|대안)[\s\S]{0,200}/i)
-  const solution = solutionMatch ? solutionMatch[0] : ''
-
-  const callToActionMap: Record<string, string> = {
-    instagram: '지금 팔로우하고 더 알아보기 👆',
-    twitter: '더 자세히 읽기 →',
-    threads: '전문 가이드 확인하기',
+async function callAI(
+  provider: 'claude' | 'openai' | 'gemini',
+  apiKey: string,
+  prompt: string,
+): Promise<string> {
+  if (provider === 'claude') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(`Claude API: ${(err as { error?: { message?: string } }).error?.message ?? res.statusText}`)
+    }
+    const data = await res.json()
+    return (data as { content?: { text?: string }[] }).content?.[0]?.text ?? ''
   }
 
-  return `당신은 숙련된 SNS 마케터입니다.
-
-블로그 글을 ${platform} 형식의 짧은 포스트로 변환합니다.
-- 키워드: "${keyword}"
-- Intent: ${intentType}
-- 플랫폼: ${platform}
-
-원본 블로그 글:
-${content}
-
-요청사항:
-1. PASONA 구조 활용 (Problem → Agitation → Solution)
-2. 문제점: "${problem || content.slice(0, 100)}"
-3. 해결책: "${solution || content.slice(100, 200)}"
-4. 행동유도: "${callToActionMap[platform as keyof typeof callToActionMap]}"
-5. 명확하고 임팩트 있는 문체
-6. ${platform === 'twitter' ? '280자 이내' : platform === 'instagram' ? '2200자 이내' : '500자 이내'}
-
-변환된 포스트만 반환 (추가 설명 없이):`.trim()
-}
-
-function buildHashtagPrompt(params: {
-  keyword: string
-  content: string
-  hashtagLimit: number
-  platform: string
-}): string {
-  return `키워드 "${params.keyword}"과 다음 텍스트를 바탕으로 ${params.platform} 적합 해시태그를 ${params.hashtagLimit}개 생성하세요.
-
-텍스트: ${params.content}
-
-요청사항:
-1. 정확히 ${params.hashtagLimit}개의 해시태그 생성
-2. 각 해시태그는 # 기호로 시작
-3. 공백으로 구분
-4. 인기 있고 관련성 높은 태그 선택
-5. 해시태그만 반환 (다른 설명 제외)
-
-해시태그:`.trim()
-}
-
-async function callClaudeAPI(apiKey: string, model: string, prompt: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}))
-    throw new Error(`Claude API error: ${res.status} - ${(errorData as any).error?.message || 'Unknown'}`)
+  if (provider === 'gemini') {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 2048 },
+        }),
+      },
+    )
+    if (!res.ok) throw new Error(`Gemini API: ${res.status}`)
+    const data = await res.json()
+    return (data as { candidates?: { content?: { parts?: { text?: string }[] } }[] })
+      .candidates?.[0]?.content?.parts?.[0]?.text ?? ''
   }
 
-  const data = await res.json()
-  return (data as any).content?.[0]?.text || ''
-}
-
-function parseHashtags(raw: string, limit: number): string[] {
-  const hashtags = raw
-    .split(/\s+/)
-    .filter((tag) => tag.startsWith('#'))
-    .map((tag) => tag.replace(/^#+/, '').toLowerCase())
-    .filter((tag) => tag.length > 0)
-    .slice(0, limit)
-
-  // Ensure we have tags (fallback to generic ones)
-  if (hashtags.length === 0) {
-    return Array.from({ length: Math.min(limit, 3) }, (_, i) => `tag${i + 1}`)
+  if (provider === 'openai') {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(`OpenAI API: ${(err as { error?: { message?: string } }).error?.message ?? res.statusText}`)
+    }
+    const data = await res.json()
+    return (data as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? ''
   }
 
-  return hashtags
+  throw new Error(`지원하지 않는 AI provider: ${provider}`)
 }
 
-function trimToLimit(text: string, charLimit: number): string {
-  if (text.length <= charLimit) return text
-
-  const trimmed = text.slice(0, charLimit)
-  const lastSpace = trimmed.lastIndexOf(' ')
-  return lastSpace > charLimit * 0.8 ? trimmed.slice(0, lastSpace) : trimmed
-}
-
-function hashtagsToString(hashtags: string[]): string {
-  return ' ' + hashtags.map((tag) => `#${tag}`).join(' ')
+function parseAIOutput(raw: string): { threads: string; cta: string } {
+  // JSON 추출
+  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+  const match = cleaned.match(/\{[\s\S]*\}/)
+  if (match) {
+    try {
+      const obj = JSON.parse(match[0]) as { threads?: string; cta?: string }
+      if (obj.threads) {
+        return {
+          threads: obj.threads.trim(),
+          cta: (obj.cta ?? '').trim(),
+        }
+      }
+    } catch {
+      // JSON 파싱 실패 시 폴백
+    }
+  }
+  // 폴백: AI가 JSON 안 주면 raw 텍스트 그대로
+  return { threads: raw.trim(), cta: '' }
 }

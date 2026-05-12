@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       .single(),
     supabase
       .from('posts')
-      .select('id, slug, published_at')
+      .select('id, slug, published_at, indexing_verdict, indexing_coverage_state, indexing_inspected_at')
       .eq('blog_id', blogId)
       .eq('user_id', user.id)
       .eq('status', 'published'),
@@ -121,23 +121,56 @@ export async function GET(request: Request) {
   })
 
   // 글별 색인 상태 매핑
+  // 우선순위:
+  //   1) posts.indexing_verdict (URL Inspection API 결과 — 가장 정확)
+  //   2) GSC search analytics 노출 ≥ 1 (간접 신호)
+  //   3) 발행일 기준 폴백 (pending/not_indexed)
   const indexedSet = new Set(result.indexedSlugs)
   const now = Date.now()
   const bySlug: Record<string, 'indexed' | 'pending' | 'not_indexed'> = {}
+  const detailBySlug: Record<string, { source: 'inspection' | 'impressions' | 'fallback'; coverageState?: string | null; inspectedAt?: string | null }> = {}
 
   for (const post of posts ?? []) {
     if (!post.slug || !post.published_at) continue
-    if (indexedSet.has(post.slug) || indexedSet.has(decodeURIComponent(post.slug))) {
+
+    // 1) URL Inspection 결과 우선
+    const verdict = (post as { indexing_verdict?: string | null }).indexing_verdict
+    const coverageState = (post as { indexing_coverage_state?: string | null }).indexing_coverage_state ?? null
+    const inspectedAt = (post as { indexing_inspected_at?: string | null }).indexing_inspected_at ?? null
+
+    if (verdict === 'PASS' || verdict === 'PARTIAL') {
       bySlug[post.slug] = 'indexed'
+      detailBySlug[post.slug] = { source: 'inspection', coverageState, inspectedAt }
       continue
     }
+    if (verdict === 'FAIL') {
+      bySlug[post.slug] = 'not_indexed'
+      detailBySlug[post.slug] = { source: 'inspection', coverageState, inspectedAt }
+      continue
+    }
+    if (verdict === 'NEUTRAL') {
+      bySlug[post.slug] = 'pending'
+      detailBySlug[post.slug] = { source: 'inspection', coverageState, inspectedAt }
+      continue
+    }
+
+    // 2) Search analytics 노출 신호
+    if (indexedSet.has(post.slug) || indexedSet.has(decodeURIComponent(post.slug))) {
+      bySlug[post.slug] = 'indexed'
+      detailBySlug[post.slug] = { source: 'impressions' }
+      continue
+    }
+
+    // 3) 발행일 폴백
     const ageDays = (now - new Date(post.published_at).getTime()) / (1000 * 60 * 60 * 24)
     bySlug[post.slug] = ageDays <= PENDING_DAYS ? 'pending' : 'not_indexed'
+    detailBySlug[post.slug] = { source: 'fallback' }
   }
 
   return NextResponse.json({
     source: 'gsc',
     bySlug,
+    detailBySlug,
     debug: {
       siteUrlTried: result.tried?.map(t => `${t.siteUrl} (${t.rowCount} rows${t.error ? ', err: ' + t.error.slice(0, 60) : ''})`) ?? [],
       totalRows: result.totalRows ?? 0,

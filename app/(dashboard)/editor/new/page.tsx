@@ -12,9 +12,20 @@ import { PostEditor, type PostEditorRef } from '@/components/editor/PostEditor'
 import { SEOMetaForm } from '@/components/editor/SEOMetaForm'
 import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
 import { DraftDrawer } from '@/components/editor/DraftDrawer'
+import { ThreadsSection, type ThreadsState } from '@/components/editor/ThreadsSection'
 import { useEditorStore, type BlogPipelineState } from '@/store/editorStore'
 
 type EditorMode = 'ai' | 'manual'
+
+// 글 제목 → slug 변환 (서버 /api/posts와 동일 로직, 단 timestamp 제외)
+// 미리보기용 — 실제 발행 시 서버가 timestamp 붙여 생성
+function slugify(title: string): string {
+  return (title || '제목없음')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9가-힣]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
 
 export default function EditorNewPage() {
   const router = useRouter()
@@ -23,7 +34,7 @@ export default function EditorNewPage() {
   const initKeyword = searchParams.get('keyword') ?? ''
 
   const [mode, setMode] = useState<EditorMode>(initKeyword ? 'ai' : 'manual')
-  const [blogs, setBlogs] = useState<{ id: string; name: string; color: string | null; ai_provider: string | null; blog_type?: string | null; language?: string | null }[]>([])
+  const [blogs, setBlogs] = useState<{ id: string; name: string; color: string | null; ai_provider: string | null; blog_type?: string | null; language?: string | null; custom_domain?: string | null }[]>([])
   const [snippetOpen, setSnippetOpen] = useState(false)
   const [draftOpen, setDraftOpen] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -46,6 +57,8 @@ export default function EditorNewPage() {
   const [selectedForPublish, setSelectedForPublish] = useState<Record<string, boolean>>({})
   // AI 결과 패널의 태그·SEO 재생성 진행 상태 (블로그별)
   const [regeneratingMeta, setRegeneratingMeta] = useState<Record<string, boolean>>({})
+  // Threads 발행 상태 (블로그별)
+  const [threadsState, setThreadsState] = useState<Record<string, ThreadsState>>({})
 
   const {
     title, setTitle,
@@ -286,6 +299,9 @@ export default function EditorNewPage() {
     const defaultCategories = await fetchDefaultCategories(blogIds)
     const errors: string[] = []
     let needsGscConnection = false
+    // Threads 발행 큐 (각 블로그 발행 후 시차 두고 처리)
+    const threadsQueue: { blogId: string; blogName: string; postId: string; content: string }[] = []
+
     for (const blogId of blogIds) {
       const s = aiResults[blogId]
       if (s.step !== 'done' || !s.title) continue
@@ -310,11 +326,56 @@ export default function EditorNewPage() {
           if (result.indexing?.requested && !result.indexing?.ok) {
             errors.push(`${s.blogName}: 발행 성공, 색인 실패 (${result.indexing.error || '알 수 없는 오류'})`)
           }
+          // Threads 발행 대상 큐에 추가 (체크된 블로그만)
+          const tState = threadsState[blogId]
+          if (tState?.enabled && tState.threadsText.trim()) {
+            const postData = result.data as { id?: string; slug?: string } | undefined
+            const blog = blogs.find(b => b.id === blogId)
+            const realUrl = blog?.custom_domain && postData?.slug
+              ? `https://${blog.custom_domain}/${encodeURIComponent(postData.slug)}`
+              : tState.postUrl
+            // 본문 + CTA + 실제 URL 조합
+            const fullContent = realUrl
+              ? `${tState.threadsText}\n\n${tState.ctaText.replace(/https?:\/\/\S+/g, realUrl)}`
+              : `${tState.threadsText}\n\n${tState.ctaText}`
+            threadsQueue.push({
+              blogId,
+              blogName: s.blogName,
+              postId: postData?.id ?? '',
+              content: fullContent.trim().slice(0, 500),
+            })
+          }
         }
       } catch (err) {
         errors.push(`${s.blogName}: 네트워크 오류`)
       }
     }
+
+    // Threads 시차 발행 (블로그별 30초 간격 — 자연스러움 + Meta rate limit 방지)
+    if (threadsQueue.length > 0) {
+      for (let i = 0; i < threadsQueue.length; i++) {
+        const item = threadsQueue[i]
+        if (i > 0) await new Promise(r => setTimeout(r, 30000))  // 30초 간격
+        try {
+          const tres = await fetch('/api/sns/threads/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: item.content,
+              blogId: item.blogId,
+              postId: item.postId,
+            }),
+          })
+          if (!tres.ok) {
+            const tdata = await tres.json().catch(() => ({}))
+            errors.push(`${item.blogName} (Threads): ${tdata.error || '발행 실패'}`)
+          }
+        } catch (e) {
+          errors.push(`${item.blogName} (Threads): 네트워크 오류`)
+        }
+      }
+    }
+
     setPublishingAll(false)
     if (errors.length > 0) {
       alert(`발행 결과 알림:\n${errors.join('\n')}`)
@@ -558,6 +619,30 @@ export default function EditorNewPage() {
                     onTitleChange={v => updateAiResult(activeBlogTab!, { seoMeta: { ...activeResult.seoMeta, title: v } })}
                     onDescChange={v => updateAiResult(activeBlogTab!, { seoMeta: { ...activeResult.seoMeta, description: v } })}
                   />
+
+                  {/* Threads 동시 발행 섹션 */}
+                  {activeBlogTab && (() => {
+                    const blog = blogs.find(b => b.id === activeBlogTab)
+                    const tState = threadsState[activeBlogTab] ?? {
+                      enabled: false, threadsText: '', ctaText: '',
+                      postUrl: null, generating: false, generated: false,
+                    }
+                    return (
+                      <ThreadsSection
+                        blogId={activeBlogTab}
+                        blogName={blog?.name ?? activeResult.blogName}
+                        blogCustomDomain={(blog as { custom_domain?: string | null } | undefined)?.custom_domain ?? null}
+                        postTitle={activeResult.title}
+                        postContent={activeResult.htmlContent}
+                        postSlug={slugify(activeResult.title)}
+                        state={tState}
+                        onChange={(patch) => setThreadsState(prev => ({
+                          ...prev,
+                          [activeBlogTab]: { ...tState, ...patch },
+                        }))}
+                      />
+                    )
+                  })()}
                 </div>
               )}
 

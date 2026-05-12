@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2, Trash2, Link2, Check, Info } from 'lucide-react'
+import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2, Trash2, Link2, Check, Info, AlertCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NonIndexedSheet } from '@/components/blogs/NonIndexedSheet'
 
 const BLOG_COLORS = [
   '#3b82f6','#8b5cf6','#10b981','#f59e0b',
@@ -94,19 +95,32 @@ export default function BlogsPage() {
   const [filterIndexing, setFilterIndexing] = useState<'' | 'indexed' | 'pending' | 'not_indexed' | 'unknown'>('')
   const [sortKey, setSortKey] = useState<SortKey>('created_at_desc')
 
-  // GSC 일괄 적용 상태
+  // 미색인 글 수정 Sheet
+  const [nonIndexedOpen, setNonIndexedOpen] = useState(false)
+
+  // GSC 일괄 적용 상태 — 자동색인 + 사이트맵 + URL Inspection 검사 3단계
   const [bulkApplying, setBulkApplying] = useState(false)
   const [bulkResult, setBulkResult] = useState<{
-    summary: { total: number; autoIndexSet: number; sitemapOk: number; failed: number }
+    summary: {
+      total: number
+      autoIndexSet: number
+      sitemapOk: number
+      failed: number
+      inspection?: { total: number; passed: number; partial: number; failed: number; neutral: number; errors: number }
+    }
     results: { blogName: string; autoIndexSet: boolean; sitemapOk: boolean; error?: string }[]
   } | null>(null)
 
   async function handleBulkApply() {
-    if (!confirm(`전체 ${blogs.length}개 블로그에 자동 색인 ON + 사이트맵 일괄 재제출하시겠습니까?\n(Google OAuth 연결 + GSC 사이트 등록·확인이 선행되어 있어야 합니다.)`)) return
+    if (!confirm(`전체 ${blogs.length}개 블로그에 자동 색인 ON + 사이트맵 재제출 + 발행글 URL 색인 상태 검사를 진행합니다.\n\n발행글 수에 따라 1~3분 소요될 수 있습니다.`)) return
     setBulkApplying(true)
     setBulkResult(null)
     try {
-      const res = await fetch('/api/gsc/bulk-apply', { method: 'POST' })
+      const res = await fetch('/api/gsc/bulk-apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skipInspection: false, inspectionLimit: 200 }),
+      })
       const json = await res.json()
       if (!res.ok) {
         alert(`일괄 적용 실패: ${json.error || '알 수 없는 오류'}`)
@@ -299,15 +313,26 @@ export default function BlogsPage() {
             <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
           </Button>
         ) : (
-          <Button
-            onClick={handleBulkApply}
-            disabled={bulkApplying || !blogs.length}
-            title="모든 블로그에 자동 색인 ON + Google에 사이트맵 일괄 재제출"
-          >
-            {bulkApplying
-              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
-              : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setNonIndexedOpen(true)}
+              disabled={!blogs.length}
+              title="색인되지 않은 글 목록 + 거부 사유 + 수정 가이드"
+            >
+              <AlertCircle className="w-4 h-4 mr-1.5 text-amber-500" />
+              미색인 글 수정
+            </Button>
+            <Button
+              onClick={handleBulkApply}
+              disabled={bulkApplying || !blogs.length}
+              title="모든 블로그에 자동 색인 ON + 사이트맵 재제출 + 발행글 색인 검사"
+            >
+              {bulkApplying
+                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
+                : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -446,14 +471,48 @@ export default function BlogsPage() {
         <div className="space-y-4">
           {/* 일괄 적용 결과 패널 */}
           {bulkResult && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-blue-900">
-                  일괄 적용 결과 — 총 {bulkResult.summary.total}개 / 자동색인 {bulkResult.summary.autoIndexSet}개 ✓ / 사이트맵 {bulkResult.summary.sitemapOk}개 ✓ / 실패 {bulkResult.summary.failed}개
+                  일괄 적용 결과 — 자동색인 {bulkResult.summary.autoIndexSet}/{bulkResult.summary.total} ✓ · 사이트맵 {bulkResult.summary.sitemapOk}/{bulkResult.summary.total} ✓
                 </h3>
                 <button onClick={() => setBulkResult(null)} className="text-xs text-blue-600 hover:underline">닫기</button>
               </div>
-              <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
+
+              {/* URL Inspection 결과 (있으면) */}
+              {bulkResult.summary.inspection && (
+                <div className="rounded-md bg-white border border-blue-100 p-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">
+                    📋 발행글 색인 상태 검사 — {bulkResult.summary.inspection.total}개 검사 완료
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                      색인됨 {bulkResult.summary.inspection.passed}
+                    </span>
+                    {bulkResult.summary.inspection.partial > 0 && (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                        부분 {bulkResult.summary.inspection.partial}
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">
+                      검토 중 {bulkResult.summary.inspection.neutral}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+                      거부 {bulkResult.summary.inspection.failed}
+                    </span>
+                    {bulkResult.summary.inspection.errors > 0 && (
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                        오류 {bulkResult.summary.inspection.errors}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-400">
+                    GSC URL Inspection API 결과 — 글마다 정확한 색인 상태가 아래 테이블 &lsquo;색인&rsquo; 컬럼에 반영됩니다.
+                  </p>
+                </div>
+              )}
+
+              <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
                 {bulkResult.results.map((r, i) => (
                   <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
                     <span className="font-medium">{r.blogName}</span>
@@ -702,6 +761,16 @@ export default function BlogsPage() {
           )}
         </div>
       )}
+
+      {/* 미색인 글 수정 Sheet */}
+      <NonIndexedSheet
+        open={nonIndexedOpen}
+        onOpenChange={setNonIndexedOpen}
+        onChanged={() => {
+          // Sheet 내에서 글 변경 시 부모 글 목록도 새로고침
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }

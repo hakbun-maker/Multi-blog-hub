@@ -13,7 +13,6 @@ import { LanguageSelector } from '@/components/blogs/settings/language/LanguageS
 import { DataSourcePreview } from '@/components/blogs/settings/language/DataSourcePreview'
 import { AffiliateDefaultNotice } from '@/components/blogs/settings/language/AffiliateDefaultNotice'
 import { FeatureGate } from '@/components/plan/FeatureGate'
-import { SNSSettingsPanel } from '@/components/monetize/sns/SNSSettingsPanel'
 import { AffiliateSettingsPanel } from '@/components/monetize/affiliate/AffiliateSettingsPanel'
 import type { BlogLanguage } from '@/types/monetize'
 
@@ -195,11 +194,7 @@ export function BlogSettingsAllInOne() {
             />
           )}
 
-          {activeTab === 'sns' && (
-            <FeatureGate featureKey="sns_auto_deploy" minPlan="pro" featureName="SNS 자동배포">
-              <SNSSettingsPanel key={selectedBlogId} blogId={selectedBlogId} />
-            </FeatureGate>
-          )}
+          {/* SNS 탭은 deprecated — 사용자 레벨 설정 > API 키 관리로 통합됨 */}
 
           {activeTab === 'monetize' && (
             <FeatureGate featureKey="coupang_affiliate" minPlan="pro" featureName="제휴마케팅 연동">

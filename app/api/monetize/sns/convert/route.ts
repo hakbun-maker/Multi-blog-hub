@@ -1,6 +1,11 @@
+/**
+ * @deprecated 신규 흐름은 /api/sns/threads/generate 사용.
+ * 기존 monetize 파이프라인 호환을 위해 유지하나, Threads만 지원.
+ */
+
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { convertToSNS } from '@/lib/monetize/engines/sns-converter'
+import { generateThreadsPost } from '@/lib/monetize/engines/sns-converter'
 import { decrypt } from '@/lib/utils/encryption'
 
 export async function POST(request: Request) {
@@ -10,72 +15,55 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { blogId, content, keyword, platform, intentType } = body
+    const { blogId, content, keyword: _keyword, platform, postSlug, postTitle } = body
 
-    if (!content || !keyword || !platform) {
-      return NextResponse.json(
-        { error: '내용, 키워드, 플랫폼은 필수입니다.' },
-        { status: 400 }
-      )
+    if (platform !== 'threads') {
+      return NextResponse.json({ error: 'Threads만 지원합니다.' }, { status: 400 })
     }
 
-    if (!['instagram', 'twitter', 'threads'].includes(platform)) {
-      return NextResponse.json(
-        { error: '지원하지 않는 플랫폼입니다.' },
-        { status: 400 }
-      )
+    if (!content || !postSlug || !postTitle) {
+      return NextResponse.json({ error: 'content/postSlug/postTitle 필수' }, { status: 400 })
     }
 
-    // 블로그 정보 및 AI API 키 조회
-    const { data: blog, error: blogError } = await supabase
+    // 블로그
+    const { data: blog } = await supabase
       .from('blogs')
-      .select('id, ai_provider, user_id')
+      .select('id, custom_domain')
       .eq('id', blogId)
       .eq('user_id', user.id)
       .single()
 
-    if (blogError || !blog) {
-      return NextResponse.json(
-        { error: '블로그를 찾을 수 없습니다.' },
-        { status: 404 }
-      )
-    }
+    if (!blog) return NextResponse.json({ error: '블로그를 찾을 수 없습니다.' }, { status: 404 })
 
-    // AI API 키 조회
+    // AI 키
     const { data: apiKeys } = await supabase
       .from('ai_api_keys')
       .select('provider, encrypted_key')
       .eq('user_id', user.id)
       .eq('is_active', true)
+      .in('provider', ['claude', 'openai', 'gemini'])
       .limit(1)
+      .maybeSingle()
 
-    if (!apiKeys?.length) {
-      return NextResponse.json(
-        { error: 'AI API 키가 등록되지 않았습니다.' },
-        { status: 400 }
-      )
+    if (!apiKeys) {
+      return NextResponse.json({ error: 'AI API 키가 등록되지 않았습니다.' }, { status: 400 })
     }
 
-    const apiKey = decrypt(apiKeys[0].encrypted_key)
+    const apiKey = decrypt(apiKeys.encrypted_key)
 
-    // SNS 변환 실행
-    const result = await convertToSNS({
-      content,
-      keyword,
-      platform: platform as 'instagram' | 'twitter' | 'threads',
-      intentType: intentType || 'INFO',
+    const result = await generateThreadsPost({
+      postTitle,
+      postContent: content,
+      postSlug,
+      blogCustomDomain: blog.custom_domain,
       aiApiKey: apiKey,
+      aiProvider: apiKeys.provider as 'claude' | 'openai' | 'gemini',
     })
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-    })
-  } catch (error: any) {
-    console.error('SNS convert error:', error)
-    return NextResponse.json(
-      { error: error.message || 'SNS 변환 중 오류가 발생했습니다.' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: true, data: result })
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Threads 변환 실패'
+    console.error('Threads convert error:', error)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

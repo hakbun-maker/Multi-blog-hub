@@ -7,7 +7,6 @@ import { ArrowLeft, Save, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import LayoutTab from '@/components/blogs/LayoutTab'
 import type { LayoutConfig } from '@/components/blogs/LayoutTab'
-import { SNSSettingsPanel } from '@/components/monetize/sns/SNSSettingsPanel'
 import { AffiliateSettingsPanel } from '@/components/monetize/affiliate/AffiliateSettingsPanel'
 import { LanguageSelector } from '@/components/blogs/settings/language/LanguageSelector'
 import { DataSourcePreview } from '@/components/blogs/settings/language/DataSourcePreview'
@@ -202,10 +201,7 @@ function BlogSettingsContent({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* ═══ SNSTab ═══ */}
-      {activeTab === 'sns' && (
-        <SNSSettingsPanel blogId={params.id} />
-      )}
+      {/* SNS 탭은 deprecated — 설정 > API 키 관리에서 사용자 레벨로 통합됨 */}
 
       {/* ═══ MonetizeTab ═══ */}
       {activeTab === 'monetize' && (

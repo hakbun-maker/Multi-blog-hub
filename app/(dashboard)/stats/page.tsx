@@ -20,6 +20,12 @@ import { Button } from '@/components/ui/button'
 import { TopBriefing } from '@/components/stats/TopBriefing'
 import { HiddenGems } from '@/components/stats/HiddenGems'
 import { GoalSettingCard } from '@/components/stats/GoalSettingCard'
+import { RoiRanking } from '@/components/stats/RoiRanking'
+import { CategoryPareto } from '@/components/stats/CategoryPareto'
+import { DrilldownTree } from '@/components/stats/DrilldownTree'
+import { AdSlotsCompare } from '@/components/stats/AdSlotsCompare'
+import { RpmMatrix } from '@/components/stats/RpmMatrix'
+import { ViewabilityDistribution } from '@/components/stats/ViewabilityDistribution'
 
 interface OverviewData {
   delta: { revenue: number; views: number; ctr: number }
@@ -62,12 +68,73 @@ interface ForecastData {
   achievability: number | null
 }
 
+interface PostRoi {
+  postId: string
+  title: string
+  slug: string | null
+  blogId: string
+  blogName: string
+  categoryId: string | null
+  categoryName: string | null
+  views: number
+  revenue: number
+  rpm: number
+  grade: 'S' | 'A' | 'B' | 'C' | 'D'
+}
+
+interface DiagnosisData {
+  roiRanking: { top: PostRoi[]; bottom: PostRoi[] }
+  pareto: {
+    categoryId: string | null
+    categoryName: string
+    revenue: number
+    views: number
+    share: number
+    cumulative: number
+  }[]
+  drilldown: {
+    categoryId: string | null
+    categoryName: string
+    revenue: number
+    views: number
+    posts: { postId: string; title: string; revenue: number; views: number }[]
+  }[]
+}
+
+interface OptimizationData {
+  slots: {
+    slot: string
+    enabled: boolean
+    estimatedRevenue: number
+    estimatedShare: number
+    warning: string | null
+  }[]
+  rpmMatrix: {
+    blogId: string
+    blogName: string
+    categoryId: string | null
+    categoryName: string
+    rpm: number
+    revenue: number
+    views: number
+  }[]
+  viewability: {
+    range: 'high' | 'medium' | 'low'
+    domains: { domain: string; viewability: number; impressions: number }[]
+  }[]
+}
+
 export default function StatsPage() {
   const [overview, setOverview] = useState<OverviewData | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
   const [hiddenGems, setHiddenGems] = useState<HiddenGemsData | null>(null)
   const [gemsLoading, setGemsLoading] = useState(true)
   const [forecast, setForecast] = useState<ForecastData | null>(null)
+  const [diagnosis, setDiagnosis] = useState<DiagnosisData | null>(null)
+  const [diagnosisLoading, setDiagnosisLoading] = useState(true)
+  const [optimization, setOptimization] = useState<OptimizationData | null>(null)
+  const [optimizationLoading, setOptimizationLoading] = useState(true)
+  const [blogsMeta, setBlogsMeta] = useState<{ id: string; slug: string; custom_domain: string | null }[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const [simOpen, setSimOpen] = useState(false)
 
@@ -105,16 +172,60 @@ export default function StatsPage() {
     } catch { /* 무시 */ }
   }, [])
 
+  const fetchDiagnosis = useCallback(async (refresh: boolean = false) => {
+    setDiagnosisLoading(true)
+    try {
+      const res = await fetch(`/api/stats/diagnosis${refresh ? '?refresh=1' : ''}`)
+      const json = await res.json()
+      setDiagnosis(json)
+    } finally { setDiagnosisLoading(false) }
+  }, [])
+
+  const fetchOptimization = useCallback(async (refresh: boolean = false) => {
+    setOptimizationLoading(true)
+    try {
+      const res = await fetch(`/api/stats/optimization${refresh ? '?refresh=1' : ''}`)
+      const json = await res.json()
+      setOptimization(json)
+    } finally { setOptimizationLoading(false) }
+  }, [])
+
+  // 블로그 메타 (URL 빌드용) — 한 번만 로드
+  useEffect(() => {
+    fetch('/api/blogs')
+      .then(r => r.json())
+      .then(j => {
+        const list = (j.data ?? []) as { id: string; slug: string; custom_domain: string | null }[]
+        setBlogsMeta(list)
+      })
+      .catch(() => { /* 무시 */ })
+  }, [])
+
   useEffect(() => {
     fetchOverview()
     fetchHiddenGems()
     fetchForecast()
-  }, [fetchOverview, fetchHiddenGems, fetchForecast])
+    fetchDiagnosis()
+    fetchOptimization()
+  }, [fetchOverview, fetchHiddenGems, fetchForecast, fetchDiagnosis, fetchOptimization])
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchOverview(true), fetchHiddenGems(true), fetchForecast(true)])
+    await Promise.all([
+      fetchOverview(true),
+      fetchHiddenGems(true),
+      fetchForecast(true),
+      fetchDiagnosis(true),
+      fetchOptimization(true),
+    ])
     setRefreshing(false)
+  }
+
+  const blogSlugById: Record<string, string> = {}
+  const blogCustomDomainById: Record<string, string | null> = {}
+  for (const b of blogsMeta) {
+    blogSlugById[b.id] = b.slug
+    blogCustomDomainById[b.id] = b.custom_domain
   }
 
   const handleScrollTo = (sectionId: 'hidden-gems' | 'diagnosis' | 'optimization') => {
@@ -179,22 +290,58 @@ export default function StatsPage() {
         />
       </Section>
 
-      {/* 섹션 3 — 진단 (placeholder) */}
+      {/* 섹션 3 — 진단 */}
       <Section
         title="진단"
-        subtitle="ROI 랭킹 + 카테고리 파레토 + 드릴다운 (Phase C 예정)"
+        subtitle="ROI 랭킹 · 카테고리 파레토 · 드릴다운"
         anchorRef={diagnosisRef}
       >
-        <PlaceholderBlock label="진단 위젯" />
+        <div className="space-y-6">
+          <RoiRanking
+            top={diagnosis?.roiRanking.top ?? []}
+            bottom={diagnosis?.roiRanking.bottom ?? []}
+            loading={diagnosisLoading}
+            blogSlugById={blogSlugById}
+            blogCustomDomainById={blogCustomDomainById}
+          />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">카테고리별 수익 (파레토)</h3>
+            <CategoryPareto data={diagnosis?.pareto ?? []} loading={diagnosisLoading} />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">드릴다운 — 카테고리 → 글</h3>
+            <DrilldownTree tree={diagnosis?.drilldown ?? []} loading={diagnosisLoading} />
+          </div>
+        </div>
       </Section>
 
-      {/* 섹션 4 — 최적화 (placeholder) */}
+      {/* 섹션 4 — 최적화 */}
       <Section
         title="최적화"
-        subtitle="슬롯·RPM 매트릭스·viewability (Phase C 예정)"
+        subtitle="슬롯 수익 · 카테고리×블로그 RPM · Viewability"
         anchorRef={optimizationRef}
       >
-        <PlaceholderBlock label="최적화 위젯" />
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">광고 슬롯별 수익 비교</h3>
+            <AdSlotsCompare
+              slots={optimization?.slots ?? []}
+              loading={optimizationLoading}
+              onChanged={() => {
+                fetchOverview(true)
+                fetchOptimization(true)
+              }}
+            />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">RPM 매트릭스 (카테고리 × 블로그)</h3>
+            <RpmMatrix cells={optimization?.rpmMatrix ?? []} loading={optimizationLoading} />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Viewability 분포</h3>
+            <ViewabilityDistribution buckets={optimization?.viewability ?? []} loading={optimizationLoading} />
+          </div>
+        </div>
       </Section>
 
       {/* 섹션 5 — 시뮬레이션 (기본 접힘, Phase D) */}

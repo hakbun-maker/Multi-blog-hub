@@ -1,7 +1,7 @@
 import type { BlogLanguage } from '@/types/monetize'
 import type { PlanId, FeatureKey } from '@/types/plan'
 
-export type SettingsTab = 'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'sns' | 'monetize'
+export type SettingsTab = 'basic' | 'categories' | 'ai' | 'layout' | 'language' | 'monetize'
 
 export interface TabDef {
   id: SettingsTab
@@ -17,7 +17,6 @@ export const TABS: TabDef[] = [
   { id: 'ai', label: 'AI 캐릭터' },
   { id: 'layout', label: '레이아웃' },
   { id: 'language', label: '언어/지역', minPlan: 'growth', featureKey: 'multilingual', featureName: '다국어 설정' },
-  { id: 'sns', label: 'SNS', minPlan: 'pro', featureKey: 'sns_auto_deploy', featureName: 'SNS 자동배포' },
   { id: 'monetize', label: '수익화 연동', minPlan: 'pro', featureKey: 'coupang_affiliate', featureName: '수익화 연동' },
 ]
 

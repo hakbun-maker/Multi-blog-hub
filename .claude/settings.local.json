@@ -183,7 +183,11 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\('\\\\''public\\\\og-image.png'\\\\''\\); Write-Host $img.Width '\\\\''x'\\\\'' $img.Height; $img.Dispose\\(\\)')"
+      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\('\\\\''public\\\\og-image.png'\\\\''\\); Write-Host $img.Width '\\\\''x'\\\\'' $img.Height; $img.Dispose\\(\\)')",
+      "Bash(npm list *)",
+      "Bash(grep -n \"^  \\)$\\\\|^}$\" \"app/\\(dashboard\\)/blogs/page.tsx\")",
+      "Bash(rm -rf \"app/api/blogs/[id]/settings/sns\")",
+      "Bash(rm -rf \"app/api/oauth/[platform]\")"
     ]
   }
 }

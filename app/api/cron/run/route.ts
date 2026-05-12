@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createAIAdapter, createImageAdapter } from '@/lib/ai/adapter'
 import { decrypt } from '@/lib/utils/encryption'
 import { uploadImageFromBase64 } from '@/lib/storage/uploadImage'
+import { checkAllNotifications } from '@/lib/notifications/check-all'
 
 export async function POST(request: Request) {
   // Vercel Cron 인증
@@ -14,19 +16,39 @@ export async function POST(request: Request) {
   const supabase = createClient()
   const now = new Date().toISOString()
 
-  // next_run_at <= now인 활성 작업 조회
+  // ─── 알림 체크 (Threads 토큰 만료, GSC 끊김, 색인 6일차 등) ──
+  // 같은 cron 안에서 실행해 Hobby 한도 절약
+  let notificationSummary: Record<string, number> | null = null
+  try {
+    const adminClient: SupabaseClient = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
+    notificationSummary = await checkAllNotifications(adminClient) as unknown as Record<string, number>
+  } catch (err) {
+    console.error('[cron/run] 알림 체크 실패:', err)
+  }
+
+  // ─── 기존 스케줄러 작업 실행 ──
   const { data: jobs } = await supabase
     .from('scheduler_jobs')
     .select('*')
     .eq('status', 'active')
     .lte('next_run_at', now)
 
-  if (!jobs?.length) return NextResponse.json({ message: '실행할 작업 없음', count: 0 })
+  if (!jobs?.length) {
+    return NextResponse.json({
+      message: '실행할 작업 없음',
+      count: 0,
+      notifications: notificationSummary,
+    })
+  }
 
   const results = await Promise.allSettled(jobs.map(job => runJob(supabase, job)))
 
   return NextResponse.json({
     executed: jobs.length,
+    notifications: notificationSummary,
     results: results.map((r, i) => ({
       jobId: jobs[i].id,
       status: r.status === 'fulfilled' ? 'success' : 'failed',
