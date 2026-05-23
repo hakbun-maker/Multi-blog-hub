@@ -202,7 +202,7 @@ export function getFixGuide(
     severity: 'info',
     reasonShort: '검사 안 됨',
     reasonDetail: '아직 GSC URL Inspection 검사를 실행하지 않았거나, 검사 중 오류가 발생했습니다.',
-    fixAction: '"색인·사이트맵 일괄 적용" 버튼을 눌러 검사를 실행하세요.',
+    fixAction: '"색인 종합 점검·요청" 버튼을 눌러 검사를 실행하세요.',
     canRetry: true,
   }
 }

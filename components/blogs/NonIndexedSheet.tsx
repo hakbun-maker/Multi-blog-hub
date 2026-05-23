@@ -189,10 +189,11 @@ export function NonIndexedSheet({ open, onOpenChange, onChanged }: NonIndexedShe
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-amber-500" />
-            미색인 글 수정
+            색인 점검 결과 — 미색인 글 진단
           </SheetTitle>
           <SheetDescription>
-            Google이 색인하지 않은 글을 정리하세요. 거부 사유와 수정 방향을 함께 안내합니다.
+            방금 실행된 색인 점검 결과입니다. 각 글의 실제 거부 사유와 수정 방향을 확인하고, 필요한 글은 직접 편집·재요청하세요.
+            (자동 재요청은 이미 효과 가능한 글에 일괄 적용됨)
           </SheetDescription>
         </SheetHeader>
 

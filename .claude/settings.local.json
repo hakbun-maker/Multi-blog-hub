@@ -187,7 +187,9 @@
       "Bash(npm list *)",
       "Bash(grep -n \"^  \\)$\\\\|^}$\" \"app/\\(dashboard\\)/blogs/page.tsx\")",
       "Bash(rm -rf \"app/api/blogs/[id]/settings/sns\")",
-      "Bash(rm -rf \"app/api/oauth/[platform]\")"
+      "Bash(rm -rf \"app/api/oauth/[platform]\")",
+      "Bash(findstr /C:\"bulk-apply\" /C:\"error TS\")",
+      "Bash(findstr bulk-apply *)"
     ]
   }
 }

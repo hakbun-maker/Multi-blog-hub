@@ -44,6 +44,10 @@ export async function inspectUrl(
   accessToken: string,
   languageCode: string = 'ko-KR',
 ): Promise<UrlInspectionResult> {
+  // 10초 타임아웃 — Google API hang 시 무한 대기 방지
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10_000)
+
   try {
     const res = await fetch(URL_INSPECTION_BASE, {
       method: 'POST',
@@ -56,6 +60,7 @@ export async function inspectUrl(
         siteUrl,
         languageCode,
       }),
+      signal: controller.signal,
     })
 
     if (!res.ok) {
@@ -80,10 +85,13 @@ export async function inspectUrl(
       userCanonical: idx.userCanonical,
     }
   } catch (err) {
+    const isAbort = err instanceof Error && err.name === 'AbortError'
     return {
       verdict: 'VERDICT_UNSPECIFIED',
-      error: err instanceof Error ? err.message : 'URL Inspection 호출 실패',
+      error: isAbort ? 'URL Inspection 타임아웃 (10초 초과)' : (err instanceof Error ? err.message : 'URL Inspection 호출 실패'),
     }
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 

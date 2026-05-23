@@ -86,7 +86,8 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
 
   const load = async () => {
     try {
-      const res = await fetch('/api/dashboard/analytics?days=30', { cache: 'no-store' })
+      // 이번주(최근 7일) 기준 — 카드 큰 숫자에 표시
+      const res = await fetch('/api/dashboard/analytics?days=7', { cache: 'no-store' })
       if (!res.ok) throw new Error(`API ${res.status}`)
       setData((await res.json()) as AnalyticsResponse)
       setError(null)
@@ -114,13 +115,13 @@ export default function DashboardClient({ blogs, recentPublished, totalPosts, de
 
   return (
     <>
-      {/* StatSummaryBar — 누적(30일) + 오늘 변동 */}
+      {/* StatSummaryBar — 이번주(최근 7일) + 오늘 변동 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: '총 방문자', value: totals.visitors, todayDelta: today.visitors, icon: Users, color: 'text-blue-600 bg-blue-50', suffix: '명' },
-          { label: '총 조회수', value: totals.pageViews, todayDelta: today.pageViews, icon: Eye, color: 'text-green-600 bg-green-50', suffix: '회' },
+          { label: '이번주 방문자', value: totals.visitors, todayDelta: today.visitors, icon: Users, color: 'text-blue-600 bg-blue-50', suffix: '명' },
+          { label: '이번주 조회수', value: totals.pageViews, todayDelta: today.pageViews, icon: Eye, color: 'text-green-600 bg-green-50', suffix: '회' },
           { label: '총 글 수', value: totalPosts, todayDelta: today.publishedPosts, icon: FileText, color: 'text-purple-600 bg-purple-50', suffix: '개' },
-          { label: '예상 수익', value: totals.revenueUsd, todayDelta: today.revenueUsd, icon: DollarSign, color: 'text-orange-600 bg-orange-50', prefix: '$', isMoney: true },
+          { label: '이번주 수익', value: totals.revenueUsd, todayDelta: today.revenueUsd, icon: DollarSign, color: 'text-orange-600 bg-orange-50', prefix: '$', isMoney: true },
         ].map(({ label, value, todayDelta, icon: Icon, color, suffix, prefix, isMoney }) => (
           <Card key={label} className="shadow-none border border-gray-200">
             <CardContent className="p-4 flex items-center gap-3">

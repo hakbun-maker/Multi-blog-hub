@@ -84,6 +84,7 @@ interface EditorStore {
   setUseJsonLd: (v: boolean) => void
   resetPipeline: () => void
   resetEditor: () => void
+  resetAll: () => void  // 새 글 시작용: 키워드·결과·본문 등 글 관련 데이터 모두 초기화 (선택 블로그·사용자 설정은 유지)
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
@@ -156,5 +157,21 @@ export const useEditorStore = create<EditorStore>((set) => ({
   resetEditor: () => set({
     title: '', content: '', htmlContent: '', tags: [],
     seoMeta: { title: '', description: '' }, currentPostId: null, selectedBlogId: null,
+  }),
+  resetAll: () => set({
+    // 키워드·연관·결과 일체
+    keywords: [],
+    relatedKeywords: [],
+    selectedBlogIds: [],
+    generatedPosts: [],
+    // 파이프라인
+    pipelineStates: {},
+    pipelineGlobalStep: 'idle',
+    isGenerating: false,
+    // 직접 작성 모드 본문 (selectedBlogId는 유지 — 같은 블로그 연속 작성 편의)
+    title: '', content: '', htmlContent: '', tags: [],
+    seoMeta: { title: '', description: '' }, currentPostId: null,
+    // imageCount는 사용자 설정성 → 유지
+    // autoPublish, useExpertMode, useToc, useMonetize, useJsonLd는 localStorage 기반 사용자 설정 → 유지
   }),
 }))

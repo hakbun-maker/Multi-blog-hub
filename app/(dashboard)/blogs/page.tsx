@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2, Trash2, Link2, Check, Info, AlertCircle } from 'lucide-react'
+import { Globe, Plus, Settings, Search, Pencil, ExternalLink, Zap, Loader2, Trash2, Link2, Check, Info, MessageSquare } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NonIndexedSheet } from '@/components/blogs/NonIndexedSheet'
+import { ThreadsComposerSheet } from '@/components/blogs/ThreadsComposerSheet'
 
 const BLOG_COLORS = [
   '#3b82f6','#8b5cf6','#10b981','#f59e0b',
@@ -98,7 +99,10 @@ export default function BlogsPage() {
   // 미색인 글 수정 Sheet
   const [nonIndexedOpen, setNonIndexedOpen] = useState(false)
 
-  // GSC 일괄 적용 상태 — 자동색인 + 사이트맵 + URL Inspection 검사 3단계
+  // 쓰레드 글 작성 Sheet
+  const [threadsComposerPostId, setThreadsComposerPostId] = useState<string | null>(null)
+
+  // GSC 색인 종합 점검·요청 — 자동색인 + 사이트맵 + 검사 + 재요청 4단계
   const [bulkApplying, setBulkApplying] = useState(false)
   const [bulkResult, setBulkResult] = useState<{
     summary: {
@@ -106,29 +110,39 @@ export default function BlogsPage() {
       autoIndexSet: number
       sitemapOk: number
       failed: number
-      inspection?: { total: number; passed: number; partial: number; failed: number; neutral: number; errors: number }
+      inspection?: { total: number; passed: number; partial: number; failed: number; neutral: number; errors: number; skipped?: string }
+      reindex?: { attempted: number; succeeded: number; failed: number; skipped?: string }
     }
     results: { blogName: string; autoIndexSet: boolean; sitemapOk: boolean; error?: string }[]
+    categories?: { reasonShort: string; severity: string; canRetry: boolean; count: number }[]
   } | null>(null)
 
   async function handleBulkApply() {
-    if (!confirm(`전체 ${blogs.length}개 블로그에 자동 색인 ON + 사이트맵 재제출 + 발행글 URL 색인 상태 검사를 진행합니다.\n\n발행글 수에 따라 1~3분 소요될 수 있습니다.`)) return
+    if (!confirm(
+      `전체 ${blogs.length}개 블로그에 다음을 자동 처리합니다.\n\n` +
+      `1) 자동 색인 ON · 사이트맵 재제출\n` +
+      `2) 미색인 글 최대 50개 색인 상태 검사 (이미 색인된 글은 자동 스킵)\n` +
+      `3) 재요청 효과 있는 글 최대 30개 자동 색인 재요청\n\n` +
+      `1~2분 소요. 매일 한 번씩 클릭하면 모든 글이 순차적으로 처리됩니다.`
+    )) return
     setBulkApplying(true)
     setBulkResult(null)
     try {
       const res = await fetch('/api/gsc/bulk-apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skipInspection: false, inspectionLimit: 200 }),
+        body: JSON.stringify({ skipInspection: false, skipReindex: false, inspectionLimit: 50, reindexLimit: 30 }),
       })
       const json = await res.json()
       if (!res.ok) {
-        alert(`일괄 적용 실패: ${json.error || '알 수 없는 오류'}`)
+        alert(`처리 실패: ${json.error || '알 수 없는 오류'}`)
         return
       }
-      setBulkResult({ summary: json.summary, results: json.results })
+      setBulkResult({ summary: json.summary, results: json.results, categories: json.categories })
+      // 결과 확인을 위해 미색인 글 상세 패널 자동 오픈
+      setNonIndexedOpen(true)
     } catch (e) {
-      alert(`일괄 적용 중 오류: ${e instanceof Error ? e.message : '네트워크 오류'}`)
+      alert(`처리 중 오류: ${e instanceof Error ? e.message : '네트워크 오류'}`)
     } finally {
       setBulkApplying(false)
     }
@@ -299,8 +313,8 @@ export default function BlogsPage() {
   return (
     <div className="space-y-4">
       {/* 페이지 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900">블로그 관리</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {activeTab === 'blogs'
@@ -309,30 +323,20 @@ export default function BlogsPage() {
           </p>
         </div>
         {activeTab === 'blogs' ? (
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/blogs/new"><Plus className="w-4 h-4 mr-1.5" />새 블로그</Link>
           </Button>
         ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setNonIndexedOpen(true)}
-              disabled={!blogs.length}
-              title="색인되지 않은 글 목록 + 거부 사유 + 수정 가이드"
-            >
-              <AlertCircle className="w-4 h-4 mr-1.5 text-amber-500" />
-              미색인 글 수정
-            </Button>
-            <Button
-              onClick={handleBulkApply}
-              disabled={bulkApplying || !blogs.length}
-              title="모든 블로그에 자동 색인 ON + 사이트맵 재제출 + 발행글 색인 검사"
-            >
-              {bulkApplying
-                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />적용 중...</>
-                : <><Zap className="w-4 h-4 mr-1.5" />색인·사이트맵 일괄 적용</>}
-            </Button>
-          </div>
+          <Button
+            onClick={handleBulkApply}
+            disabled={bulkApplying || !blogs.length}
+            title="자동색인 ON · 사이트맵 재제출 · 색인 상태 검사 · 자동 재요청 (4단계 일괄 처리)"
+            className="w-full sm:w-auto whitespace-nowrap"
+          >
+            {bulkApplying
+              ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />처리 중...</>
+              : <><Zap className="w-4 h-4 mr-1.5" />색인 종합 점검·요청</>}
+          </Button>
         )}
       </div>
 
@@ -469,21 +473,33 @@ export default function BlogsPage() {
       {/* 탭 2: 블로그 글 관리 */}
       {activeTab === 'posts' && (
         <div className="space-y-4">
-          {/* 일괄 적용 결과 패널 */}
+          {/* 색인 종합 점검·요청 결과 패널 */}
           {bulkResult && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-blue-900">
-                  일괄 적용 결과 — 자동색인 {bulkResult.summary.autoIndexSet}/{bulkResult.summary.total} ✓ · 사이트맵 {bulkResult.summary.sitemapOk}/{bulkResult.summary.total} ✓
+                  색인 종합 점검·요청 결과
                 </h3>
                 <button onClick={() => setBulkResult(null)} className="text-xs text-blue-600 hover:underline">닫기</button>
               </div>
 
-              {/* URL Inspection 결과 (있으면) */}
+              {/* 1·2단계 요약 */}
+              <div className="rounded-md bg-white border border-blue-100 p-2.5">
+                <p className="text-xs font-semibold text-gray-700 mb-1">① 자동색인 ON · ② 사이트맵 재제출</p>
+                <div className="flex flex-wrap gap-3 text-[11px] text-gray-600">
+                  <span>자동색인 <strong className={bulkResult.summary.autoIndexSet === bulkResult.summary.total ? 'text-green-700' : 'text-red-600'}>{bulkResult.summary.autoIndexSet}/{bulkResult.summary.total}</strong></span>
+                  <span>사이트맵 <strong className={bulkResult.summary.sitemapOk === bulkResult.summary.total ? 'text-green-700' : 'text-red-600'}>{bulkResult.summary.sitemapOk}/{bulkResult.summary.total}</strong></span>
+                </div>
+              </div>
+
+              {/* 3단계: 검사 결과 */}
               {bulkResult.summary.inspection && (
                 <div className="rounded-md bg-white border border-blue-100 p-2.5 space-y-1.5">
                   <p className="text-xs font-semibold text-gray-700">
-                    📋 발행글 색인 상태 검사 — {bulkResult.summary.inspection.total}개 검사 완료
+                    ③ 발행글 색인 상태 검사 — {bulkResult.summary.inspection.total}개 완료
+                    {bulkResult.summary.inspection.skipped && (
+                      <span className="text-gray-400 font-normal ml-1">({bulkResult.summary.inspection.skipped})</span>
+                    )}
                   </p>
                   <div className="flex flex-wrap gap-2 text-[11px]">
                     <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">
@@ -506,24 +522,74 @@ export default function BlogsPage() {
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* 카테고리별 분석 — coverageState 기반 실제 거부 사유 */}
+              {bulkResult.categories && bulkResult.categories.length > 0 && (
+                <div className="rounded-md bg-white border border-blue-100 p-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">📂 거부 사유별 분류</p>
+                  <ul className="text-[11px] space-y-1">
+                    {bulkResult.categories.map((c, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+                          c.severity === 'error' ? 'bg-red-500'
+                            : c.severity === 'warning' ? 'bg-amber-500'
+                            : 'bg-blue-400'
+                        }`} />
+                        <span className="text-gray-700 font-medium">{c.reasonShort}</span>
+                        <span className="text-gray-500">{c.count}개</span>
+                        {c.canRetry && (
+                          <span className="text-[10px] px-1.5 py-0 rounded bg-blue-50 text-blue-600 border border-blue-200">재요청 가능</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* 4단계: 재요청 결과 */}
+              {bulkResult.summary.reindex && (
+                <div className="rounded-md bg-white border border-blue-100 p-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700">
+                    ④ 자동 색인 재요청
+                    {bulkResult.summary.reindex.skipped && (
+                      <span className="text-gray-400 font-normal ml-1">({bulkResult.summary.reindex.skipped})</span>
+                    )}
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-[11px] text-gray-600">
+                    <span>시도 <strong className="text-gray-800">{bulkResult.summary.reindex.attempted}</strong></span>
+                    <span>성공 <strong className="text-green-700">{bulkResult.summary.reindex.succeeded}</strong></span>
+                    {bulkResult.summary.reindex.failed > 0 && (
+                      <span>실패 <strong className="text-red-600">{bulkResult.summary.reindex.failed}</strong></span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-gray-400">
-                    GSC URL Inspection API 결과 — 글마다 정확한 색인 상태가 아래 테이블 &lsquo;색인&rsquo; 컬럼에 반영됩니다.
+                    재요청은 콘텐츠 품질이 문제인 글에는 효과가 없습니다. 거부 사유가 &lsquo;크롤링됨 — 색인 거부&rsquo;인 경우 콘텐츠 보강이 필요합니다.
                   </p>
                 </div>
               )}
 
-              <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
-                {bulkResult.results.map((r, i) => (
-                  <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
-                    <span className="font-medium">{r.blogName}</span>
-                    <span>•</span>
-                    <span>자동색인 {r.autoIndexSet ? '✓' : '✗'}</span>
-                    <span>•</span>
-                    <span>사이트맵 {r.sitemapOk ? '✓' : '✗'}</span>
-                    {r.error && <span className="text-gray-500 ml-1">({r.error})</span>}
-                  </li>
-                ))}
-              </ul>
+              {/* 블로그별 1·2단계 상세 */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-gray-600 hover:text-gray-800">블로그별 상세 보기</summary>
+                <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  {bulkResult.results.map((r, i) => (
+                    <li key={i} className={`flex items-center gap-2 ${r.sitemapOk && r.autoIndexSet ? 'text-green-700' : 'text-red-600'}`}>
+                      <span className="font-medium">{r.blogName}</span>
+                      <span>•</span>
+                      <span>자동색인 {r.autoIndexSet ? '✓' : '✗'}</span>
+                      <span>•</span>
+                      <span>사이트맵 {r.sitemapOk ? '✓' : '✗'}</span>
+                      {r.error && <span className="text-gray-500 ml-1">({r.error})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+
+              <div className="text-[11px] text-blue-700 bg-blue-100/60 rounded px-2 py-1.5">
+                💡 미색인 글의 거부 사유와 수정 가이드는 자동으로 오픈된 패널에서 확인하세요.
+              </div>
             </div>
           )}
 
@@ -730,6 +796,14 @@ export default function BlogsPage() {
                               </Link>
                               <button
                                 type="button"
+                                onClick={() => setThreadsComposerPostId(post.id)}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                title="쓰레드 글 작성 (AI 생성 + 복사)"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => productionUrl && handleCopyUrl(post.id, productionUrl)}
                                 disabled={!productionUrl}
                                 className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
@@ -770,6 +844,13 @@ export default function BlogsPage() {
           // Sheet 내에서 글 변경 시 부모 글 목록도 새로고침
           window.location.reload()
         }}
+      />
+
+      {/* 쓰레드 글 작성 Sheet */}
+      <ThreadsComposerSheet
+        postId={threadsComposerPostId}
+        open={threadsComposerPostId !== null}
+        onOpenChange={(open) => { if (!open) setThreadsComposerPostId(null) }}
       />
     </div>
   )

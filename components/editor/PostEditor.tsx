@@ -7,6 +7,8 @@ import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
+import TextStyle from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
 import {
   StyledHeading, StyledParagraph, StyledBulletList, StyledOrderedList,
   StyledListItem, StyledBlockquote, StyledHorizontalRule, StyledBold,
@@ -19,7 +21,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallba
 import {
   Bold, Italic, List, Code,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Type, Table as TableIcon
+  Type, Table as TableIcon, Palette
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ButtonInsertPanel, type ButtonEditData } from './ButtonInsertPanel'
@@ -54,6 +56,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
   const [showHrPanel, setShowHrPanel] = useState(false)
   const [showEmojiPanel, setShowEmojiPanel] = useState(false)
   const [showRelatedPostPanel, setShowRelatedPostPanel] = useState(false)
+  const [showColorPicker, setShowColorPicker] = useState(false)
   const [imageEntryTrigger, setImageEntryTrigger] = useState(0)
   const [buttonEditData, setButtonEditData] = useState<ButtonEditData | null>(null)
   const [editingButtonPos, setEditingButtonPos] = useState<number | null>(null)
@@ -67,6 +70,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
     setShowHrPanel(false)
     setShowEmojiPanel(false)
     setShowRelatedPostPanel(false)
+    setShowColorPicker(false)
     setButtonEditData(null)
     setEditingButtonPos(null)
   }, [])
@@ -104,6 +108,8 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
       }),
       Placeholder.configure({ placeholder }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TextStyle,
+      Color.configure({ types: ['textStyle'] }),
       StyledTable.configure({ resizable: true }),
       StyledTableRow,
       StyledTableHeader,
@@ -383,6 +389,68 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
           onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임">
           <Italic className="w-3.5 h-3.5" />
         </Button>
+
+        {/* 글자 색상 */}
+        <div className="relative">
+          <Button
+            type="button" size="sm" variant="ghost"
+            className={`h-7 px-1.5 text-xs gap-1 ${showColorPicker ? 'bg-gray-200' : ''}`}
+            onClick={() => { const next = !showColorPicker; closeAllPanels(); setShowColorPicker(next) }}
+            title="글자 색상"
+          >
+            <Palette className="w-3.5 h-3.5" />
+            {/* 현재 색상 표시바 */}
+            <span
+              className="block w-3 h-1 rounded-sm border border-gray-300"
+              style={{ backgroundColor: (editor.getAttributes('textStyle').color as string) || '#000000' }}
+            />
+          </Button>
+          {showColorPicker && (
+            <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-48">
+              <div className="grid grid-cols-8 gap-1 mb-2">
+                {[
+                  '#000000', '#374151', '#6b7280', '#9ca3af',
+                  '#ef4444', '#f97316', '#f59e0b', '#eab308',
+                  '#84cc16', '#22c55e', '#10b981', '#14b8a6',
+                  '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6',
+                  '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
+                  '#7c2d12', '#78350f', '#1e3a8a', '#581c87',
+                ].map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().setColor(color).run()
+                      setShowColorPicker(false)
+                    }}
+                    className="w-5 h-5 rounded border border-gray-300 hover:scale-110 hover:border-blue-500 transition-transform"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] text-gray-500 cursor-pointer flex-1 flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    onChange={e => editor.chain().focus().setColor(e.target.value).run()}
+                    className="w-5 h-5 rounded border border-gray-200 cursor-pointer"
+                  />
+                  사용자 정의
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { editor.chain().focus().unsetColor().run(); setShowColorPicker(false) }}
+                  className="text-[11px] text-gray-500 hover:text-red-600 border border-gray-200 rounded px-1.5 py-0.5"
+                  title="색상 제거 (기본값)"
+                >
+                  초기화
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <Button type="button" size="sm" variant="ghost" className={`h-7 px-1.5 text-xs ${isActive('heading', { level: 2 })}`}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="소제목 H2">
           H2
@@ -545,18 +613,18 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(
         <VideoInsertPanel onInsert={insertVideoHtml} onClose={() => setShowVideoPanel(false)} />
       )}
 
-      {/* 에디터 영역 */}
+      {/* 에디터 영역 — 기본 400px, 최대 800px(2배). 초과 시 내부 스크롤 */}
       {isHtmlMode ? (
         <textarea
           value={htmlValue}
           onChange={e => handleHtmlChange(e.target.value)}
-          className="w-full min-h-[400px] p-4 text-sm font-mono text-gray-700 resize-none focus:outline-none"
+          className="w-full min-h-[400px] max-h-[800px] p-4 text-sm font-mono text-gray-700 resize-none focus:outline-none overflow-y-auto"
           placeholder="HTML 코드를 입력하세요..."
         />
       ) : (
         <EditorContent
           editor={editor}
-          className="max-w-none p-4 min-h-[400px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[380px] [&_.selectedCell]:!bg-blue-100/40"
+          className="max-w-none p-4 min-h-[400px] max-h-[800px] overflow-y-auto focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[380px] [&_.selectedCell]:!bg-blue-100/40"
         />
       )}
     </div>

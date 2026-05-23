@@ -157,16 +157,6 @@ const MONETIZE_PROVIDERS: ProviderDef[] = [
   },
 ]
 
-const SNS_PROVIDERS: ProviderDef[] = [
-  {
-    value: 'threads',
-    label: 'Threads',
-    placeholder: 'Threads Long-Lived Access Token',
-    note: 'Meta Threads API로 발행글을 자동 배포합니다 (텍스트 + 이미지 1장).\n\n[발급 조건] Meta for Developers 계정 + Threads 앱 등록 + Threads 비즈니스 계정 연결\n[발급 순서]\n① developers.facebook.com 가입\n② "내 앱" → "앱 만들기" → 사용 사례: Threads 선택\n③ 좌측 메뉴 "Threads API" → 권한 추가: threads_basic, threads_content_publish\n④ "사용자 토큰 생성기"에서 본인 Threads 계정 인증\n⑤ Short-Lived Token 획득 → "Long-Lived Token으로 교환"\n⑥ AIza... 형태가 아닌 EAAJ... / IGAAxxx... 로 시작하는 긴 토큰 복사\n[유효기간] Long-Lived Token은 60일 유효. 만료 전 자동 갱신 로직이 동작합니다.\n[참고] Threads는 별도 Client ID/Secret 없이 Access Token 1개만으로 게시 가능합니다.',
-    guide: 'https://developers.facebook.com/docs/threads/get-started',
-  },
-]
-
 const EVENT_PROVIDERS: ProviderDef[] = [
   {
     value: 'google_trends',
@@ -184,14 +174,13 @@ const EVENT_PROVIDERS: ProviderDef[] = [
   },
 ]
 
-const ALL_PROVIDERS: ProviderDef[] = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS, ...KEYWORD_PROVIDERS, ...MONETIZE_PROVIDERS, ...SNS_PROVIDERS, ...EVENT_PROVIDERS]
+const ALL_PROVIDERS: ProviderDef[] = [...TEXT_PROVIDERS, ...IMAGE_PROVIDERS, ...KEYWORD_PROVIDERS, ...MONETIZE_PROVIDERS, ...EVENT_PROVIDERS]
 
 const PROVIDER_CATEGORY_LABEL: Record<string, { label: string; badge: string }> = {
   text: { label: '텍스트 생성', badge: 'default' },
   image: { label: '이미지 생성', badge: 'outline' },
   keyword: { label: '키워드 분석', badge: 'secondary' },
   monetize: { label: '수익화', badge: 'destructive' },
-  sns: { label: 'SNS 자동배포', badge: 'default' },
   event: { label: '이벤트 소스', badge: 'secondary' },
 }
 
@@ -200,7 +189,6 @@ function getProviderCategory(provider: string): string {
   if (IMAGE_PROVIDERS.some(p => p.value === provider)) return 'image'
   if (KEYWORD_PROVIDERS.some(p => p.value === provider)) return 'keyword'
   if (MONETIZE_PROVIDERS.some(p => p.value === provider)) return 'monetize'
-  if (SNS_PROVIDERS.some(p => p.value === provider)) return 'sns'
   if (EVENT_PROVIDERS.some(p => p.value === provider)) return 'event'
   return 'text'
 }
@@ -795,33 +783,6 @@ function SettingsPageInner() {
                           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
                             selectedProvider === p.value
                               ? 'bg-orange-600 text-white border-orange-600'
-                              : 'border-border hover:bg-muted'
-                          }`}
-                        >
-                          {p.label}
-                          {registered && (
-                            <Check className={`h-3.5 w-3.5 ${selectedProvider === p.value ? 'text-white' : 'text-green-500'}`} />
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* SNS 자동배포 */}
-                <div className="space-y-2">
-                  <Label>SNS 자동배포</Label>
-                  <p className="text-xs text-muted-foreground">발행한 글을 SNS에 자동으로 배포합니다. 외부 백링크 확보로 도메인 신뢰도가 빠르게 오릅니다.</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {SNS_PROVIDERS.map(p => {
-                      const registered = aiKeys.some(k => k.provider === p.value)
-                      return (
-                        <button
-                          key={p.value}
-                          onClick={() => { setSelectedProvider(p.value); setNewKey(''); setNewSecret(''); setNewExtra('') }}
-                          className={`px-3 py-1.5 rounded-lg text-sm border transition-colors flex items-center gap-1.5 ${
-                            selectedProvider === p.value
-                              ? 'bg-pink-600 text-white border-pink-600'
                               : 'border-border hover:bg-muted'
                           }`}
                         >

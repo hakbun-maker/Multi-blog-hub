@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles, PenLine, BookOpen, Send, Wand2, Loader2, FileText, Eye, Save } from 'lucide-react'
+import { Sparkles, PenLine, BookOpen, Send, Wand2, Loader2, FileText, Eye, Save, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,20 +12,9 @@ import { PostEditor, type PostEditorRef } from '@/components/editor/PostEditor'
 import { SEOMetaForm } from '@/components/editor/SEOMetaForm'
 import { SnippetDrawer } from '@/components/editor/SnippetDrawer'
 import { DraftDrawer } from '@/components/editor/DraftDrawer'
-import { ThreadsSection, type ThreadsState } from '@/components/editor/ThreadsSection'
 import { useEditorStore, type BlogPipelineState } from '@/store/editorStore'
 
 type EditorMode = 'ai' | 'manual'
-
-// 글 제목 → slug 변환 (서버 /api/posts와 동일 로직, 단 timestamp 제외)
-// 미리보기용 — 실제 발행 시 서버가 timestamp 붙여 생성
-function slugify(title: string): string {
-  return (title || '제목없음')
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9가-힣]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 export default function EditorNewPage() {
   const router = useRouter()
@@ -57,8 +46,6 @@ export default function EditorNewPage() {
   const [selectedForPublish, setSelectedForPublish] = useState<Record<string, boolean>>({})
   // AI 결과 패널의 태그·SEO 재생성 진행 상태 (블로그별)
   const [regeneratingMeta, setRegeneratingMeta] = useState<Record<string, boolean>>({})
-  // Threads 발행 상태 (블로그별)
-  const [threadsState, setThreadsState] = useState<Record<string, ThreadsState>>({})
 
   const {
     title, setTitle,
@@ -72,7 +59,33 @@ export default function EditorNewPage() {
     pipelineGlobalStep,
     resetEditor,
     resetPipeline,
+    resetAll,
   } = useEditorStore()
+
+  // AIGeneratePanel 내부 local state(infoGain·kwInput·error)를 깔끔하게 비우기 위해 key bump
+  const [aiPanelKey, setAiPanelKey] = useState(0)
+
+  // 새 글 시작 — 키워드·결과·본문·태그 등 모두 초기화 (선택 블로그·사용자 설정은 유지)
+  const handleReset = () => {
+    if (!confirm('현재 작성 중인 모든 내용(키워드·생성 결과·본문·태그 등)을 초기화하고 새 글 작성을 시작하시겠습니까?')) return
+    // 스토어 초기화
+    resetAll()
+    // 페이지 local state 초기화
+    setAiResults({})
+    setActiveBlogTab(null)
+    setSelectedForPublish({})
+    setRegeneratingMeta({})
+    setSaveStatus('idle')
+    setGeneratingMeta(false)
+    setMode('manual')
+    // AIGeneratePanel 내부 local state(infoGain·kwInput·error)는 key bump로 재마운트해 정리
+    setAiPanelKey(k => k + 1)
+    // 자동저장 타이머 취소
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current)
+      autoSaveTimer.current = null
+    }
+  }
 
   // 수익화 글 발행 시 monetize_meta 빌드 — useJsonLd는 호출 시점의 최신 store 값 사용 (closure stale 방지)
   const buildMonetizeMetaForPublish = (s: BlogPipelineState) => {
@@ -299,8 +312,6 @@ export default function EditorNewPage() {
     const defaultCategories = await fetchDefaultCategories(blogIds)
     const errors: string[] = []
     let needsGscConnection = false
-    // Threads 발행 큐 (각 블로그 발행 후 시차 두고 처리)
-    const threadsQueue: { blogId: string; blogName: string; postId: string; content: string }[] = []
 
     for (const blogId of blogIds) {
       const s = aiResults[blogId]
@@ -326,53 +337,9 @@ export default function EditorNewPage() {
           if (result.indexing?.requested && !result.indexing?.ok) {
             errors.push(`${s.blogName}: 발행 성공, 색인 실패 (${result.indexing.error || '알 수 없는 오류'})`)
           }
-          // Threads 발행 대상 큐에 추가 (체크된 블로그만)
-          const tState = threadsState[blogId]
-          if (tState?.enabled && tState.threadsText.trim()) {
-            const postData = result.data as { id?: string; slug?: string } | undefined
-            const blog = blogs.find(b => b.id === blogId)
-            const realUrl = blog?.custom_domain && postData?.slug
-              ? `https://${blog.custom_domain}/${encodeURIComponent(postData.slug)}`
-              : tState.postUrl
-            // 본문 + CTA + 실제 URL 조합
-            const fullContent = realUrl
-              ? `${tState.threadsText}\n\n${tState.ctaText.replace(/https?:\/\/\S+/g, realUrl)}`
-              : `${tState.threadsText}\n\n${tState.ctaText}`
-            threadsQueue.push({
-              blogId,
-              blogName: s.blogName,
-              postId: postData?.id ?? '',
-              content: fullContent.trim().slice(0, 500),
-            })
-          }
         }
       } catch (err) {
         errors.push(`${s.blogName}: 네트워크 오류`)
-      }
-    }
-
-    // Threads 시차 발행 (블로그별 30초 간격 — 자연스러움 + Meta rate limit 방지)
-    if (threadsQueue.length > 0) {
-      for (let i = 0; i < threadsQueue.length; i++) {
-        const item = threadsQueue[i]
-        if (i > 0) await new Promise(r => setTimeout(r, 30000))  // 30초 간격
-        try {
-          const tres = await fetch('/api/sns/threads/publish', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              content: item.content,
-              blogId: item.blogId,
-              postId: item.postId,
-            }),
-          })
-          if (!tres.ok) {
-            const tdata = await tres.json().catch(() => ({}))
-            errors.push(`${item.blogName} (Threads): ${tdata.error || '발행 실패'}`)
-          }
-        } catch (e) {
-          errors.push(`${item.blogName} (Threads): 네트워크 오류`)
-        }
       }
     }
 
@@ -454,6 +421,15 @@ export default function EditorNewPage() {
         <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:pb-0 flex-shrink-0">
           {saveStatus === 'saving' && <span className="text-xs text-gray-400 whitespace-nowrap">저장 중...</span>}
           {saveStatus === 'saved' && <span className="text-xs text-green-500 whitespace-nowrap">저장됨</span>}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleReset}
+            className="whitespace-nowrap text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            title="키워드·생성 결과·본문 등을 모두 비우고 새 글 작성 시작"
+          >
+            <RotateCcw className="w-4 h-4 mr-1.5" />초기화
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setSnippetOpen(true)} className="whitespace-nowrap">
             <BookOpen className="w-4 h-4 mr-1.5" />스니펫
           </Button>
@@ -490,8 +466,8 @@ export default function EditorNewPage() {
       {/* ══ AI 생성 모드 ══ */}
       {mode === 'ai' && (
         <div className="space-y-6">
-          {/* AI 설정 패널 */}
-          <AIGeneratePanel ref={aiPanelRef} blogs={blogs} onPipelineComplete={handlePipelineComplete} />
+          {/* AI 설정 패널 — key bump로 초기화 가능 */}
+          <AIGeneratePanel key={aiPanelKey} ref={aiPanelRef} blogs={blogs} onPipelineComplete={handlePipelineComplete} />
 
           {/* ── 파이프라인 완료 후: 생성 결과 영역 ── */}
           {hasAiResults && !autoPublish && (
@@ -620,29 +596,6 @@ export default function EditorNewPage() {
                     onDescChange={v => updateAiResult(activeBlogTab!, { seoMeta: { ...activeResult.seoMeta, description: v } })}
                   />
 
-                  {/* Threads 동시 발행 섹션 */}
-                  {activeBlogTab && (() => {
-                    const blog = blogs.find(b => b.id === activeBlogTab)
-                    const tState = threadsState[activeBlogTab] ?? {
-                      enabled: false, threadsText: '', ctaText: '',
-                      postUrl: null, generating: false, generated: false,
-                    }
-                    return (
-                      <ThreadsSection
-                        blogId={activeBlogTab}
-                        blogName={blog?.name ?? activeResult.blogName}
-                        blogCustomDomain={(blog as { custom_domain?: string | null } | undefined)?.custom_domain ?? null}
-                        postTitle={activeResult.title}
-                        postContent={activeResult.htmlContent}
-                        postSlug={slugify(activeResult.title)}
-                        state={tState}
-                        onChange={(patch) => setThreadsState(prev => ({
-                          ...prev,
-                          [activeBlogTab]: { ...tState, ...patch },
-                        }))}
-                      />
-                    )
-                  })()}
                 </div>
               )}
 
