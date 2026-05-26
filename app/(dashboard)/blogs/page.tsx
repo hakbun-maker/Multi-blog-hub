@@ -86,6 +86,9 @@ export default function BlogsPage() {
 
   // 글별 색인 상태 — postId → state ('indexed' | 'pending' | 'not_indexed')
   const [indexingByPost, setIndexingByPost] = useState<Record<string, IndexingState>>({})
+  // 글별 조회수 — postId → views (GA4 우선, fallback DB view_count)
+  const [viewsByPostId, setViewsByPostId] = useState<Record<string, number>>({})
+  const [viewsSource, setViewsSource] = useState<'ga4' | 'fallback' | 'mixed'>('fallback')
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // 블로그 글 관리 필터 상태
@@ -212,6 +215,47 @@ export default function BlogsPage() {
     return () => { cancelled = true }
   }, [activeTab, blogs, posts])
 
+  // 모든 활성 블로그의 글별 GA4 조회수 fetch (블로그별 병렬, 최근 30일)
+  useEffect(() => {
+    if (activeTab !== 'posts' || blogs.length === 0 || posts.length === 0) return
+    let cancelled = false
+    async function fetchViews() {
+      // 슬러그 → postId 역인덱스
+      const slugToPostId: Record<string, Record<string, string>> = {}
+      for (const p of posts) {
+        if (!p.slug) continue
+        if (!slugToPostId[p.blog_id]) slugToPostId[p.blog_id] = {}
+        slugToPostId[p.blog_id][p.slug] = p.id
+      }
+      let ga4Count = 0
+      let fallbackCount = 0
+      const merged: Record<string, number> = {}
+      await Promise.all(
+        blogs.map(async b => {
+          try {
+            const res = await fetch(`/api/posts/page-views?blogId=${b.id}&days=30`)
+            const j = await res.json()
+            if (j.source === 'ga4') ga4Count++
+            else fallbackCount++
+            if (j.bySlug && slugToPostId[b.id]) {
+              for (const [slug, views] of Object.entries(j.bySlug as Record<string, number>)) {
+                const postId = slugToPostId[b.id][slug]
+                if (postId) merged[postId] = views
+              }
+            }
+          } catch {
+            fallbackCount++
+          }
+        }),
+      )
+      if (cancelled) return
+      setViewsByPostId(merged)
+      setViewsSource(ga4Count === blogs.length ? 'ga4' : ga4Count === 0 ? 'fallback' : 'mixed')
+    }
+    fetchViews()
+    return () => { cancelled = true }
+  }, [activeTab, blogs, posts])
+
   // 링크 복사
   const handleCopyUrl = async (postId: string, url: string) => {
     try {
@@ -293,8 +337,11 @@ export default function BlogsPage() {
           const tb = b.published_at ? new Date(b.published_at).getTime() : 0
           return tb - ta
         }
-        case 'view_count_desc':
-          return (b.view_count ?? 0) - (a.view_count ?? 0)
+        case 'view_count_desc': {
+          const va = viewsByPostId[a.id] ?? a.view_count ?? 0
+          const vb = viewsByPostId[b.id] ?? b.view_count ?? 0
+          return vb - va
+        }
         case 'title_asc':
           return a.title.localeCompare(b.title, 'ko')
         default:
@@ -303,7 +350,7 @@ export default function BlogsPage() {
     })
 
     return result
-  }, [posts, searchQuery, filterBlog, filterStatus, filterType, filterIndexing, sortKey, blogMap, indexingByPost])
+  }, [posts, searchQuery, filterBlog, filterStatus, filterType, filterIndexing, sortKey, blogMap, indexingByPost, viewsByPostId])
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return '-'
@@ -686,7 +733,12 @@ export default function BlogsPage() {
                     <th className="text-left px-2 py-2 font-medium text-gray-600 min-w-[180px]">제목</th>
                     <th className="text-center px-2 py-2 font-medium text-gray-600 whitespace-nowrap">상태</th>
                     <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap max-w-[72px]">키워드</th>
-                    <th className="text-right px-2 py-2 font-medium text-gray-600 whitespace-nowrap">조회수</th>
+                    <th
+                      className="text-right px-2 py-2 font-medium text-gray-600 whitespace-nowrap"
+                      title={viewsSource === 'ga4' ? 'GA4 실데이터 (최근 30일)' : viewsSource === 'mixed' ? '일부 GA4·일부 자체 카운터' : '자체 카운터 (누적)'}
+                    >
+                      조회수{viewsSource === 'ga4' ? '·GA4' : viewsSource === 'mixed' ? '·GA4*' : ''}
+                    </th>
                     <th className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap">발행일</th>
                     <th className="text-center px-2 py-2 font-medium text-gray-600 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1 group relative cursor-help">
@@ -767,7 +819,9 @@ export default function BlogsPage() {
                             <span className="text-gray-500 text-[11px] truncate block">{post.keyword ?? '-'}</span>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap text-right">
-                            <span className="text-gray-600 text-xs">{post.view_count ?? 0}</span>
+                            <span className="text-gray-600 text-xs">
+                              {(viewsByPostId[post.id] ?? post.view_count ?? 0).toLocaleString()}
+                            </span>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap">
                             <span className="text-gray-500 text-[11px]">{formatDate(post.published_at)}</span>
